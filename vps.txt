@@ -1,0 +1,6 @@
+vps untuk build
+
+
+ssh : ssh root@144.202.18.239
+password : 
+w{U6YsKM+Q9AaX2F
