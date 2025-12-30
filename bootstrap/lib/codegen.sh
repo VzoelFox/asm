@@ -71,25 +71,101 @@ emit_string() {
     ((STR_COUNT++))
 }
 
-# Fungsi untuk generate sys_write (String)
+# Fungsi untuk declare variabel di .bss (integer 64-bit)
+emit_variable_decl() {
+    local name="$1"
+    BSS_SECTION="$BSS_SECTION
+    var_$name resq 1"
+}
+
+# Fungsi untuk assign value ke variabel
+# Value bisa berupa angka literal atau hasil dari rax (jika kosong)
+emit_variable_assign() {
+    local name="$1"
+    local value="$2"
+
+    if [ -n "$value" ]; then
+        TEXT_SECTION="$TEXT_SECTION
+    ; Assign $value to $name
+    mov qword [var_$name], $value"
+    else
+        # Jika value kosong, asumsikan nilai ada di rax (hasil komputasi sebelumnya)
+        TEXT_SECTION="$TEXT_SECTION
+    ; Assign rax to $name
+    mov qword [var_$name], rax"
+    fi
+}
+
+# Fungsi helper: load operand ke register rax
+# Operand bisa angka literal atau nama variabel
+load_operand_to_rax() {
+    local op="$1"
+    # Cek apakah angka (regex)
+    if [[ "$op" =~ ^[0-9]+$ ]]; then
+        TEXT_SECTION="$TEXT_SECTION
+    mov rax, $op"
+    else
+        # Asumsikan variabel
+        TEXT_SECTION="$TEXT_SECTION
+    mov rax, [var_$op]"
+    fi
+}
+
+# Helper: load operand kedua ke register (misal rbx) untuk operasi
+load_operand_to_rbx() {
+    local op="$1"
+    if [[ "$op" =~ ^[0-9]+$ ]]; then
+        TEXT_SECTION="$TEXT_SECTION
+    mov rbx, $op"
+    else
+        TEXT_SECTION="$TEXT_SECTION
+    mov rbx, [var_$op]"
+    fi
+}
+
+# Fungsi untuk generate sys_write (String atau Var/Int)
 emit_print() {
     local content="$1"
-    emit_string "$content"
 
-    TEXT_SECTION="$TEXT_SECTION
+    # Cek apakah ini string literal (diawali ")
+    if [[ "$content" =~ ^\" ]]; then
+        # Hapus quote pembungkus
+        content="${content%\"}"
+        content="${content#\"}"
+        emit_string "$content"
+        TEXT_SECTION="$TEXT_SECTION
     ; cetak string $LAST_LABEL
     mov rax, 1          ; sys_write
     mov rdi, 1          ; stdout
     mov rsi, $LAST_LABEL     ; buffer
     mov rdx, $LAST_LEN_LABEL ; length
     syscall"
+
+    # Jika angka literal
+    elif [[ "$content" =~ ^[0-9]+$ ]]; then
+         TEXT_SECTION="$TEXT_SECTION
+    mov rax, $content
+    call _print_int"
+
+    # Jika nama variabel
+    else
+         TEXT_SECTION="$TEXT_SECTION
+    mov rax, [var_$content]
+    call _print_int"
+    fi
 }
 
+
 # Fungsi untuk generate operasi aritmatika dan print hasilnya
+# Supports variable operands
 emit_arithmetic_op() {
     local num1="$1"
     local op="$2"
     local num2="$3"
+    local store_to="$4" # Optional: variabel untuk menyimpan hasil
+
+    load_operand_to_rax "$num1"
+    load_operand_to_rbx "$num2"
 
     local asm_op="add"
     if [ "$op" == "-" ]; then
@@ -100,9 +176,14 @@ emit_arithmetic_op() {
 
     TEXT_SECTION="$TEXT_SECTION
     ; Hitung $num1 $op $num2
-    mov rax, $num1
-    $asm_op rax, $num2
+    $asm_op rax, rbx"
+
+    if [ -n "$store_to" ]; then
+        emit_variable_assign "$store_to" "" # Empty value means use rax
+    else
+        TEXT_SECTION="$TEXT_SECTION
     call _print_int"
+    fi
 }
 
 # Fungsi untuk emit raw assembly instructions (inline asm)
