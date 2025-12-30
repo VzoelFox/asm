@@ -1,0 +1,5 @@
+config.mk
+*.asm
+*.o
+hello
+morph_build/
