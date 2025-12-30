@@ -53,6 +53,10 @@ _print_int:
     ret"
 
     STR_COUNT=0
+
+    # Initialize IF Label Counter and Stack
+    IF_COUNT=0
+    IF_STACK=""
 }
 
 # Fungsi untuk menambahkan string ke .data section
@@ -79,7 +83,6 @@ emit_variable_decl() {
 }
 
 # Fungsi untuk assign value ke variabel
-# Value bisa berupa angka literal atau hasil dari rax (jika kosong)
 emit_variable_assign() {
     local name="$1"
     local value="$2"
@@ -89,23 +92,19 @@ emit_variable_assign() {
     ; Assign $value to $name
     mov qword [var_$name], $value"
     else
-        # Jika value kosong, asumsikan nilai ada di rax (hasil komputasi sebelumnya)
         TEXT_SECTION="$TEXT_SECTION
     ; Assign rax to $name
     mov qword [var_$name], rax"
     fi
 }
 
-# Fungsi helper: load operand ke register rax
-# Operand bisa angka literal atau nama variabel
+# Helper: load operand ke register rax
 load_operand_to_rax() {
     local op="$1"
-    # Cek apakah angka (regex)
     if [[ "$op" =~ ^[0-9]+$ ]]; then
         TEXT_SECTION="$TEXT_SECTION
     mov rax, $op"
     else
-        # Asumsikan variabel
         TEXT_SECTION="$TEXT_SECTION
     mov rax, [var_$op]"
     fi
@@ -123,13 +122,11 @@ load_operand_to_rbx() {
     fi
 }
 
-# Fungsi untuk generate sys_write (String atau Var/Int)
+# Fungsi untuk generate sys_write
 emit_print() {
     local content="$1"
 
-    # Cek apakah ini string literal (diawali ")
     if [[ "$content" =~ ^\" ]]; then
-        # Hapus quote pembungkus
         content="${content%\"}"
         content="${content#\"}"
         emit_string "$content"
@@ -140,14 +137,10 @@ emit_print() {
     mov rsi, $LAST_LABEL     ; buffer
     mov rdx, $LAST_LEN_LABEL ; length
     syscall"
-
-    # Jika angka literal
     elif [[ "$content" =~ ^[0-9]+$ ]]; then
          TEXT_SECTION="$TEXT_SECTION
     mov rax, $content
     call _print_int"
-
-    # Jika nama variabel
     else
          TEXT_SECTION="$TEXT_SECTION
     mov rax, [var_$content]
@@ -155,14 +148,12 @@ emit_print() {
     fi
 }
 
-
-# Fungsi untuk generate operasi aritmatika dan print hasilnya
-# Supports variable operands
+# Fungsi aritmatika
 emit_arithmetic_op() {
     local num1="$1"
     local op="$2"
     local num2="$3"
-    local store_to="$4" # Optional: variabel untuk menyimpan hasil
+    local store_to="$4"
 
     load_operand_to_rax "$num1"
     load_operand_to_rbx "$num2"
@@ -179,12 +170,66 @@ emit_arithmetic_op() {
     $asm_op rax, rbx"
 
     if [ -n "$store_to" ]; then
-        emit_variable_assign "$store_to" "" # Empty value means use rax
+        emit_variable_assign "$store_to" ""
     else
         TEXT_SECTION="$TEXT_SECTION
     call _print_int"
     fi
 }
+
+# --- PERCABANGAN (IF) ---
+
+# Manipulate stack purely with global var to avoid subshell issues
+push_if_stack() {
+    local id="$1"
+    IF_STACK="$id $IF_STACK"
+}
+
+pop_if_stack() {
+    # Ambil elemen pertama (dipisahkan spasi)
+    POPPED_VAL=${IF_STACK%% *}
+    # Hapus elemen pertama dari stack
+    IF_STACK=${IF_STACK#* }
+}
+
+emit_if_start() {
+    local op1="$1"
+    local cond="$2"
+    local op2="$3"
+    local label_id=$IF_COUNT
+
+    load_operand_to_rax "$op1"
+    load_operand_to_rbx "$op2"
+
+    TEXT_SECTION="$TEXT_SECTION
+    ; Compare $op1 $cond $op2
+    cmp rax, rbx"
+
+    local jump_instr="jmp"
+    # Logic: Jump if FALSE (kebalikan dari kondisi)
+    case "$cond" in
+        "==") jump_instr="jne" ;;
+        "!=") jump_instr="je"  ;;
+        ">")  jump_instr="jle" ;;
+        "<")  jump_instr="jge" ;;
+        ">=") jump_instr="jl"  ;;
+        "<=") jump_instr="jg"  ;;
+    esac
+
+    TEXT_SECTION="$TEXT_SECTION
+    $jump_instr .Lend_if_$label_id"
+
+    push_if_stack "$label_id"
+    ((IF_COUNT++))
+}
+
+emit_if_end() {
+    pop_if_stack
+    local label_id=$POPPED_VAL
+    TEXT_SECTION="$TEXT_SECTION
+.Lend_if_$label_id:"
+}
+
 
 # Fungsi untuk emit raw assembly instructions (inline asm)
 emit_raw_asm() {
