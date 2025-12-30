@@ -17,19 +17,27 @@ parse_file() {
         # Parsing Logic
         case "$line" in
             "fungsi mulai()")
-                # Entry point handle implicitly by _start in codegen init
                 ;;
             "akhir")
                 emit_exit
                 ;;
             cetak*)
+                # Cek apakah string: cetak("...")
                 if [[ "$line" =~ ^cetak\(\"(.*)\"\)$ ]]; then
                     local content="${BASH_REMATCH[1]}"
                     emit_print "$content"
+
+                # Cek apakah ekspresi aritmatika: cetak(1 + 2)
+                # Regex menangkap: angka spasi operator spasi angka
+                elif [[ "$line" =~ ^cetak\(([0-9]+)[[:space:]]*([-+*])[[:space:]]*([0-9]+)\)$ ]]; then
+                    local num1="${BASH_REMATCH[1]}"
+                    local op="${BASH_REMATCH[2]}"
+                    local num2="${BASH_REMATCH[3]}"
+                    emit_arithmetic_op "$num1" "$op" "$num2"
                 fi
                 ;;
             *)
-                # Ignore unknown or comments for now
+                # Ignore unknown
                 ;;
         esac
     done < "$input_file"

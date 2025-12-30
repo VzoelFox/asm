@@ -1,0 +1,8 @@
+fungsi mulai()
+  cetak("String Pertama: Halo")
+  cetak("String Kedua: Dunia")
+  cetak("Tes Penjumlahan 10 + 20:")
+  cetak(10 + 20)
+  cetak("Tes Pengurangan 100 - 25:")
+  cetak(100 - 25)
+akhir
