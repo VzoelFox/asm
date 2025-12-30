@@ -6,12 +6,15 @@ init_codegen() {
     BSS_SECTION="section .bss
     int_buffer resb 20"
 
-    TEXT_SECTION="section .text
-    global _start
+    # Separate buffers for functions and main entry logic
+    TEXT_FUNCTIONS=""
+    TEXT_MAIN=""
 
-_start:"
+    # Global flag to determine where to write code
+    # 0 = Main (_start), 1 = Functions
+    WRITE_TO_FUNCTIONS=0
 
-    # Fungsi helper untuk convert int (rax) to string dan print
+    # Helper Functions Assembly
     HELPER_FUNCTIONS="
 _print_int:
     ; Input: rax = integer to print
@@ -53,17 +56,24 @@ _print_int:
     ret"
 
     STR_COUNT=0
-
-    # Initialize IF Label Counter and Stack
     IF_COUNT=0
     IF_STACK=""
-
-    # Initialize LOOP Counter and Stack
     LOOP_COUNT=0
     LOOP_STACK=""
 }
 
-# Fungsi untuk menambahkan string ke .data section
+# Helper to append code to correct buffer
+emit_code() {
+    local code="$1"
+    if [ "$WRITE_TO_FUNCTIONS" -eq 1 ]; then
+        TEXT_FUNCTIONS="$TEXT_FUNCTIONS
+$code"
+    else
+        TEXT_MAIN="$TEXT_MAIN
+$code"
+    fi
+}
+
 emit_string() {
     local content="$1"
     local label="msg_$STR_COUNT"
@@ -75,84 +85,66 @@ emit_string() {
 
     LAST_LABEL="$label"
     LAST_LEN_LABEL="$len_label"
-
     ((STR_COUNT++))
 }
 
-# Fungsi untuk declare variabel di .bss (integer 64-bit)
 emit_variable_decl() {
     local name="$1"
     BSS_SECTION="$BSS_SECTION
     var_$name resq 1"
 }
 
-# Fungsi untuk assign value ke variabel
 emit_variable_assign() {
     local name="$1"
     local value="$2"
-
     if [ -n "$value" ]; then
-        TEXT_SECTION="$TEXT_SECTION
-    ; Assign $value to $name
+        emit_code "    ; Assign $value to $name
     mov qword [var_$name], $value"
     else
-        TEXT_SECTION="$TEXT_SECTION
-    ; Assign rax to $name
+        emit_code "    ; Assign rax to $name
     mov qword [var_$name], rax"
     fi
 }
 
-# Helper: load operand ke register rax
 load_operand_to_rax() {
     local op="$1"
     if [[ "$op" =~ ^[0-9]+$ ]]; then
-        TEXT_SECTION="$TEXT_SECTION
-    mov rax, $op"
+        emit_code "    mov rax, $op"
     else
-        TEXT_SECTION="$TEXT_SECTION
-    mov rax, [var_$op]"
+        emit_code "    mov rax, [var_$op]"
     fi
 }
 
-# Helper: load operand kedua ke register (misal rbx) untuk operasi
 load_operand_to_rbx() {
     local op="$1"
     if [[ "$op" =~ ^[0-9]+$ ]]; then
-        TEXT_SECTION="$TEXT_SECTION
-    mov rbx, $op"
+        emit_code "    mov rbx, $op"
     else
-        TEXT_SECTION="$TEXT_SECTION
-    mov rbx, [var_$op]"
+        emit_code "    mov rbx, [var_$op]"
     fi
 }
 
-# Fungsi untuk generate sys_write
 emit_print() {
     local content="$1"
-
     if [[ "$content" =~ ^\" ]]; then
         content="${content%\"}"
         content="${content#\"}"
         emit_string "$content"
-        TEXT_SECTION="$TEXT_SECTION
-    ; cetak string $LAST_LABEL
+        emit_code "    ; cetak string $LAST_LABEL
     mov rax, 1          ; sys_write
     mov rdi, 1          ; stdout
     mov rsi, $LAST_LABEL     ; buffer
     mov rdx, $LAST_LEN_LABEL ; length
     syscall"
     elif [[ "$content" =~ ^[0-9]+$ ]]; then
-         TEXT_SECTION="$TEXT_SECTION
-    mov rax, $content
+         emit_code "    mov rax, $content
     call _print_int"
     else
-         TEXT_SECTION="$TEXT_SECTION
-    mov rax, [var_$content]
+         emit_code "    mov rax, [var_$content]
     call _print_int"
     fi
 }
 
-# Fungsi aritmatika
 emit_arithmetic_op() {
     local num1="$1"
     local op="$2"
@@ -163,158 +155,186 @@ emit_arithmetic_op() {
     load_operand_to_rbx "$num2"
 
     local asm_op="add"
-    if [ "$op" == "-" ]; then
-        asm_op="sub"
-    elif [ "$op" == "*" ]; then
-        asm_op="imul"
-    fi
+    if [ "$op" == "-" ]; then asm_op="sub"; elif [ "$op" == "*" ]; then asm_op="imul"; fi
 
-    TEXT_SECTION="$TEXT_SECTION
-    ; Hitung $num1 $op $num2
+    emit_code "    ; Hitung $num1 $op $num2
     $asm_op rax, rbx"
 
     if [ -n "$store_to" ]; then
         emit_variable_assign "$store_to" ""
     else
-        TEXT_SECTION="$TEXT_SECTION
-    call _print_int"
+        emit_code "    call _print_int"
     fi
 }
 
-# --- PERCABANGAN (IF) ---
-
-push_if_stack() {
-    local id="$1"
-    IF_STACK="$id $IF_STACK"
-}
-
-pop_if_stack() {
-    POPPED_VAL=${IF_STACK%% *}
-    IF_STACK=${IF_STACK#* }
-}
+# --- PERCABANGAN ---
+push_if_stack() { IF_STACK="$1 $IF_STACK"; }
+pop_if_stack() { POPPED_VAL=${IF_STACK%% *}; IF_STACK=${IF_STACK#* }; }
 
 emit_if_start() {
-    local op1="$1"
-    local cond="$2"
-    local op2="$3"
-    local label_id=$IF_COUNT
-
+    local op1="$1"; local cond="$2"; local op2="$3"; local label_id=$IF_COUNT
     load_operand_to_rax "$op1"
     load_operand_to_rbx "$op2"
-
-    TEXT_SECTION="$TEXT_SECTION
-    ; Compare IF $op1 $cond $op2
-    cmp rax, rbx"
-
+    emit_code "    cmp rax, rbx"
     local jump_instr="jmp"
     case "$cond" in
-        "==") jump_instr="jne" ;;
-        "!=") jump_instr="je"  ;;
-        ">")  jump_instr="jle" ;;
-        "<")  jump_instr="jge" ;;
-        ">=") jump_instr="jl"  ;;
-        "<=") jump_instr="jg"  ;;
+        "==") jump_instr="jne" ;; "!=") jump_instr="je"  ;;
+        ">")  jump_instr="jle" ;; "<")  jump_instr="jge" ;;
+        ">=") jump_instr="jl"  ;; "<=") jump_instr="jg"  ;;
     esac
-
-    TEXT_SECTION="$TEXT_SECTION
-    $jump_instr .Lend_if_$label_id"
-
+    emit_code "    $jump_instr .Lend_if_$label_id"
     push_if_stack "$label_id"
     ((IF_COUNT++))
 }
 
 emit_if_end() {
     pop_if_stack
-    local label_id=$POPPED_VAL
-    TEXT_SECTION="$TEXT_SECTION
-.Lend_if_$label_id:"
+    emit_code ".Lend_if_$POPPED_VAL:"
 }
 
-# --- LOOP (SELAMA) ---
-
-push_loop_stack() {
-    local id="$1"
-    LOOP_STACK="$id $LOOP_STACK"
-}
-
-pop_loop_stack() {
-    POPPED_LOOP_VAL=${LOOP_STACK%% *}
-    LOOP_STACK=${LOOP_STACK#* }
-}
+# --- LOOP ---
+push_loop_stack() { LOOP_STACK="$1 $LOOP_STACK"; }
+pop_loop_stack() { POPPED_LOOP_VAL=${LOOP_STACK%% *}; LOOP_STACK=${LOOP_STACK#* }; }
 
 emit_loop_start() {
-    local op1="$1"
-    local cond="$2"
-    local op2="$3"
-    local label_id=$LOOP_COUNT
-
-    TEXT_SECTION="$TEXT_SECTION
-.Lloop_start_$label_id:"
-
+    local op1="$1"; local cond="$2"; local op2="$3"; local label_id=$LOOP_COUNT
+    emit_code ".Lloop_start_$label_id:"
     load_operand_to_rax "$op1"
     load_operand_to_rbx "$op2"
-
-    TEXT_SECTION="$TEXT_SECTION
-    ; Compare LOOP $op1 $cond $op2
-    cmp rax, rbx"
-
+    emit_code "    cmp rax, rbx"
     local jump_instr="jmp"
-    # Logic: Jump to END if FALSE (kebalikan)
     case "$cond" in
-        "==") jump_instr="jne" ;;
-        "!=") jump_instr="je"  ;;
-        ">")  jump_instr="jle" ;;
-        "<")  jump_instr="jge" ;;
-        ">=") jump_instr="jl"  ;;
-        "<=") jump_instr="jg"  ;;
+        "==") jump_instr="jne" ;; "!=") jump_instr="je"  ;;
+        ">")  jump_instr="jle" ;; "<")  jump_instr="jge" ;;
+        ">=") jump_instr="jl"  ;; "<=") jump_instr="jg"  ;;
     esac
-
-    TEXT_SECTION="$TEXT_SECTION
-    $jump_instr .Lloop_end_$label_id"
-
+    emit_code "    $jump_instr .Lloop_end_$label_id"
     push_loop_stack "$label_id"
     ((LOOP_COUNT++))
 }
 
 emit_loop_end() {
     pop_loop_stack
-    local label_id=$POPPED_LOOP_VAL
-    TEXT_SECTION="$TEXT_SECTION
-    jmp .Lloop_start_$label_id
-.Lloop_end_$label_id:"
+    emit_code "    jmp .Lloop_start_$POPPED_LOOP_VAL
+.Lloop_end_$POPPED_LOOP_VAL:"
 }
 
+# --- FUNCTIONS ---
+ARG_REGS=("rdi" "rsi" "rdx" "rcx" "r8" "r9")
 
-# Fungsi untuk emit raw assembly instructions (inline asm)
-emit_raw_asm() {
-    local line="$1"
-    TEXT_SECTION="$TEXT_SECTION
-    $line"
+emit_function_start() {
+    local name="$1"
+    local args_list="$2"
+
+    if [ "$name" == "mulai" ]; then
+        WRITE_TO_FUNCTIONS=0
+        # Main entry doesn't need label in logic buffer, handled in emit_output
+        return
+    else
+        WRITE_TO_FUNCTIONS=1
+        emit_code "$name:
+    push rbp
+    mov rbp, rsp"
+
+        IFS=',' read -ra ADDR <<< "$args_list"
+        local i=0
+        for arg in "${ADDR[@]}"; do
+            arg=$(echo "$arg" | xargs)
+            if [ -n "$arg" ]; then
+                emit_variable_decl "$arg"
+                local reg="${ARG_REGS[$i]}"
+                emit_code "    mov qword [var_$arg], $reg"
+                ((i++))
+            fi
+        done
+    fi
 }
 
-# Fungsi untuk emit raw data definitions
-emit_raw_data() {
-    local line="$1"
+emit_function_end() {
+    local name="$1"
+    if [ "$name" == "mulai" ]; then
+        emit_exit
+    else
+        emit_code "    mov rsp, rbp
+    pop rbp
+    ret"
+    fi
+}
+
+emit_call() {
+    local name="$1"
+    local args_list="$2"
+    IFS=',' read -ra ADDR <<< "$args_list"
+    local i=0
+    for arg in "${ADDR[@]}"; do
+        arg=$(echo "$arg" | xargs)
+        local reg="${ARG_REGS[$i]}"
+        if [[ "$arg" =~ ^[0-9]+$ ]]; then
+            emit_code "    mov $reg, $arg"
+        else
+            emit_code "    mov $reg, [var_$arg]"
+        fi
+        ((i++))
+    done
+    emit_code "    call $name"
+}
+
+emit_snapshot() {
+    emit_code "    ; Snapshot
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push r8
+    push r9
+    push r10
+    push r11"
+}
+
+emit_restore() {
+    emit_code "    ; Restore
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax"
+}
+
+emit_raw_asm() { emit_code "$1"; }
+emit_raw_data() { emit_code "$1"; } # Wait, raw data should go to DATA_SECTION always?
+# Fix: raw data usually goes to .data, but parser calls emit_raw_data for 'asm_data' block
+# So let's redirect to DATA_SECTION
+emit_raw_data_fixed() {
     DATA_SECTION="$DATA_SECTION
-    $line"
+    $1"
 }
 
-# Fungsi untuk generate sys_exit
 emit_exit() {
-    TEXT_SECTION="$TEXT_SECTION
-    ; Exit program
+    emit_code "    ; Exit
     mov rax, 60
     xor rdi, rdi
     syscall"
 }
 
-# Fungsi untuk mencetak output akhir
 emit_output() {
     echo "$DATA_SECTION"
     echo ""
     echo "$BSS_SECTION"
     echo ""
-    echo "$TEXT_SECTION"
-    echo ""
+    echo "section .text
+    global _start"
+
+    echo "$TEXT_FUNCTIONS"
+
+    echo "_start:
+$TEXT_MAIN"
+
     echo "$HELPER_FUNCTIONS"
 }
