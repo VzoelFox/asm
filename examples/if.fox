@@ -1,0 +1,28 @@
+fungsi mulai()
+  var a = 10
+  var b = 20
+
+  cetak("Nilai a:")
+  cetak(a)
+  cetak("Nilai b:")
+  cetak(b)
+
+  cetak("--- Tes Kondisi 1: a < b (10 < 20) ---")
+  jika (a < b)
+    cetak("BENAR: a lebih kecil dari b")
+  tutup_jika
+
+  cetak("--- Tes Kondisi 2: a > b (10 > 20) ---")
+  jika (a > b)
+    cetak("SALAH: Ini tidak boleh muncul")
+  tutup_jika
+
+  cetak("--- Tes Nested: a == 10 ---")
+  jika (a == 10)
+    cetak("Level 1: a adalah 10")
+    jika (b == 20)
+       cetak("Level 2: b adalah 20 (Nested Berhasil)")
+    tutup_jika
+  tutup_jika
+
+tutup_fungsi

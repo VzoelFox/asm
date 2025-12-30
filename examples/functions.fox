@@ -1,0 +1,43 @@
+fungsi tambah(a, b)
+  cetak("Memanggil fungsi tambah...")
+  var hasil = a + b
+  cetak("Hasil di dalam fungsi:")
+  cetak(hasil)
+tutup_fungsi
+
+fungsi sapa(nama, umur)
+  cetak("Halo!")
+  cetak("Umur kamu:")
+  cetak(umur)
+tutup_fungsi
+
+fungsi mulai()
+  var x = 10
+  var y = 20
+
+  cetak("--- Test Fungsi Tambah ---")
+  panggil tambah(x, y)
+
+  cetak("--- Test Snapshot/Restore ---")
+  ; Modifikasi register RAX manual
+  asm_mulai
+    mov rax, 999
+  tutup_asm
+
+  simpan
+
+  asm_mulai
+    mov rax, 0
+  tutup_asm
+
+  kembalikan
+
+  ; Simpan RAX segera ke variabel hasil agar aman dari syscall berikutnya
+  asm_mulai
+    mov [var_hasil], rax
+  tutup_asm
+
+  cetak("Register RAX setelah restore (Harusnya 999):")
+  cetak(hasil)
+
+tutup_fungsi

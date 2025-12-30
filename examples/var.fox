@@ -1,0 +1,14 @@
+fungsi mulai()
+  var angka = 10
+  var pengali = 5
+  var hasil = angka * pengali
+
+  cetak("Nilai awal:")
+  cetak(angka)
+
+  cetak("Hasil Perkalian (10 * 5):")
+  cetak(hasil)
+
+  cetak("Hasil Penjumlahan (hasil + 50):")
+  cetak(hasil + 50)
+tutup_fungsi
