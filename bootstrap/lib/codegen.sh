@@ -1,147 +1,115 @@
-# Fungsi untuk emit assembly code
+# Codegen: Generates Morph Bytecode (Binary)
 
-# Inisialisasi variabel global untuk codegen
 init_codegen() {
-    DATA_SECTION="section .data"
-    BSS_SECTION="section .bss
-    int_buffer resb 20"
+    # File Header: V Z O E L F O XS (16 bytes)
+    # Hex: 56 20 5A 20 4F 20 45 20 4C 20 46 20 4F 20 58 53
+    # Use printf to create binary content
 
-    # Separate buffers for functions and main entry logic
-    TEXT_FUNCTIONS=""
-    TEXT_MAIN=""
+    # Define Opcode Constants
+    OP_HALT=01
+    OP_LOADI=02
+    OP_ADD=03
+    OP_SUB=04
+    OP_SYS=05
+    OP_MUL=09
+    OP_DIV=0A
+    OP_MOV=0B
+    OP_DEBUG_PRINT_CHAR=AA
+    OP_PRINT_INT=AB
 
-    # Global flag to determine where to write code
-    # 0 = Main (_start), 1 = Functions
-    WRITE_TO_FUNCTIONS=0
-
-    # Helper Functions Assembly
-    HELPER_FUNCTIONS="
-_print_int:
-    ; Input: rax = integer to print
-    ; Output: print to stdout with newline
-
-    mov rcx, int_buffer + 19 ; Point to end of buffer
-    mov byte [rcx], 10       ; Newline
-    dec rcx
-
-    mov rbx, 10              ; Divisor
-
-    cmp rax, 0
-    jne .convert_loop
-    mov byte [rcx], '0'
-    dec rcx
-    jmp .print_done
-
-.convert_loop:
-    xor rdx, rdx
-    div rbx                  ; rax / 10, rdx = remainder
-    add dl, '0'              ; Convert to ASCII
-    mov [rcx], dl
-    dec rcx
-    test rax, rax
-    jnz .convert_loop
-
-.print_done:
-    inc rcx                  ; Point to start of string
-
-    ; Calculate length
-    mov rdx, int_buffer + 20
-    sub rdx, rcx             ; Length = End - Start
-
-    ; sys_write
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, rcx
-    syscall
-    ret"
-
-    STR_COUNT=0
-    IF_COUNT=0
-    IF_STACK=""
-    LOOP_COUNT=0
-    LOOP_STACK=""
+    # Header
+    printf "\x56\x20\x5A\x20\x4F\x20\x45\x20\x4C\x20\x46\x20\x4F\x20\x58\x53"
 }
 
-# Helper to append code to correct buffer
-emit_code() {
-    local code="$1"
-    if [ "$WRITE_TO_FUNCTIONS" -eq 1 ]; then
-        TEXT_FUNCTIONS="$TEXT_FUNCTIONS
-$code"
-    else
-        TEXT_MAIN="$TEXT_MAIN
-$code"
+# Register Allocator State (Global Scope)
+# R0-R9: Variables
+# R10-R15: Scratch
+VAR_COUNT=0
+declare -A VAR_MAP
+
+# Helper to output 4-byte instruction
+emit_inst() {
+    local op=$1
+    local dest=$2
+    local src1=$3
+    local src2=$4
+
+    # Default to 0 if missing
+    [ -z "$dest" ] && dest=0
+    [ -z "$src1" ] && src1=0
+    [ -z "$src2" ] && src2=0
+
+    # Use printf with correct escape sequence for binary output
+    printf "\x$op\x$dest\x$src1\x$src2"
+}
+
+# --- Register Allocation Helpers ---
+get_var_reg() {
+    local name="$1"
+    if [[ -z "${VAR_MAP[$name]}" ]]; then
+        # Allocate new register
+        local reg_idx=$VAR_COUNT
+        VAR_MAP[$name]=$reg_idx
+        ((VAR_COUNT++))
     fi
+    echo "${VAR_MAP[$name]}" # Return decimal index (0-9)
 }
 
-emit_string() {
-    local content="$1"
-    local label="msg_$STR_COUNT"
-    local len_label="len_$STR_COUNT"
-
-    DATA_SECTION="$DATA_SECTION
-    $label db \"$content\", 10
-    $len_label equ $ - $label"
-
-    LAST_LABEL="$label"
-    LAST_LEN_LABEL="$len_label"
-    ((STR_COUNT++))
+to_hex() {
+    printf "%02X" "$1"
 }
+
+# --- Features ---
 
 emit_variable_decl() {
     local name="$1"
-    BSS_SECTION="$BSS_SECTION
-    var_$name resq 1"
+    # Just ensure it has a register mapped
+    get_var_reg "$name" > /dev/null
 }
 
 emit_variable_assign() {
     local name="$1"
     local value="$2"
-    if [ -n "$value" ]; then
-        emit_code "    ; Assign $value to $name
-    mov qword [var_$name], $value"
+
+    local reg_idx=$(get_var_reg "$name")
+    local reg_hex=$(to_hex "$reg_idx")
+
+    if [[ "$value" =~ ^[0-9]+$ ]]; then
+        # Assign Immediate: LOADI REG, VAL
+        # Note: LOADI only supports 8-bit immediate in Phase 1 VM! (0-255)
+        # TODO: Support larger integers via multiple loads/shifts later.
+        local val_hex=$(to_hex "$value")
+        emit_inst "$OP_LOADI" "$reg_hex" "$val_hex" "00"
+    elif [[ -n "$value" ]]; then
+        # Assign from another variable?
+        # Logic is simpler: if value is empty, it means "Assign RAX to Var" (result of expr)
+        # If value is present, it's a number or var name.
+
+        # Check if value is a variable name
+        if [[ -n "${VAR_MAP[$value]}" ]]; then
+            local src_reg=$(get_var_reg "$value")
+            local src_hex=$(to_hex "$src_reg")
+            # MOV DEST, SRC
+            emit_inst "$OP_MOV" "$reg_hex" "$src_hex" "00"
+        fi
     else
-        emit_code "    ; Assign rax to $name
-    mov qword [var_$name], rax"
+        # Assign result from calculation (Assume stored in R10 - Scratch Result)
+        # We need a convention. Let's say expr result is always in R10 (0A).
+        emit_inst "$OP_MOV" "$reg_hex" "0A" "00"
     fi
 }
 
-load_operand_to_rax() {
+load_operand_to_reg() {
     local op="$1"
-    if [[ "$op" =~ ^[0-9]+$ ]]; then
-        emit_code "    mov rax, $op"
-    else
-        emit_code "    mov rax, [var_$op]"
-    fi
-}
+    local dest_reg_hex="$2"
 
-load_operand_to_rbx() {
-    local op="$1"
     if [[ "$op" =~ ^[0-9]+$ ]]; then
-        emit_code "    mov rbx, $op"
+        local val_hex=$(to_hex "$op")
+        emit_inst "$OP_LOADI" "$dest_reg_hex" "$val_hex" "00"
     else
-        emit_code "    mov rbx, [var_$op]"
-    fi
-}
-
-emit_print() {
-    local content="$1"
-    if [[ "$content" =~ ^\" ]]; then
-        content="${content%\"}"
-        content="${content#\"}"
-        emit_string "$content"
-        emit_code "    ; cetak string $LAST_LABEL
-    mov rax, 1          ; sys_write
-    mov rdi, 1          ; stdout
-    mov rsi, $LAST_LABEL     ; buffer
-    mov rdx, $LAST_LEN_LABEL ; length
-    syscall"
-    elif [[ "$content" =~ ^[0-9]+$ ]]; then
-         emit_code "    mov rax, $content
-    call _print_int"
-    else
-         emit_code "    mov rax, [var_$content]
-    call _print_int"
+        local src_reg=$(get_var_reg "$op")
+        local src_hex=$(to_hex "$src_reg")
+        emit_inst "$OP_MOV" "$dest_reg_hex" "$src_hex" "00"
     fi
 }
 
@@ -151,190 +119,79 @@ emit_arithmetic_op() {
     local num2="$3"
     local store_to="$4"
 
-    load_operand_to_rax "$num1"
-    load_operand_to_rbx "$num2"
+    # Use R11 and R12 as temp source operands
+    # Store result in R10
 
-    local asm_op="add"
-    if [ "$op" == "-" ]; then asm_op="sub"; elif [ "$op" == "*" ]; then asm_op="imul"; fi
+    load_operand_to_reg "$num1" "0B" # R11
+    load_operand_to_reg "$num2" "0C" # R12
 
-    emit_code "    ; Hitung $num1 $op $num2
-    $asm_op rax, rbx"
+    local opcode=""
+    if [ "$op" == "+" ]; then opcode="$OP_ADD";
+    elif [ "$op" == "-" ]; then opcode="$OP_SUB";
+    elif [ "$op" == "*" ]; then opcode="$OP_MUL";
+    elif [ "$op" == "/" ]; then opcode="$OP_DIV"; fi
+
+    # OP DEST(R10), SRC1(R11), SRC2(R12)
+    emit_inst "$opcode" "0A" "0B" "0C"
 
     if [ -n "$store_to" ]; then
         emit_variable_assign "$store_to" ""
     else
-        emit_code "    call _print_int"
+        # Print result immediately (Implicitly R10)
+        emit_print ""
     fi
 }
 
-# --- PERCABANGAN ---
-push_if_stack() { IF_STACK="$1 $IF_STACK"; }
-pop_if_stack() { POPPED_VAL=${IF_STACK%% *}; IF_STACK=${IF_STACK#* }; }
+emit_print() {
+    local content="$1"
 
-emit_if_start() {
-    local op1="$1"; local cond="$2"; local op2="$3"; local label_id=$IF_COUNT
-    load_operand_to_rax "$op1"
-    load_operand_to_rbx "$op2"
-    emit_code "    cmp rax, rbx"
-    local jump_instr="jmp"
-    case "$cond" in
-        "==") jump_instr="jne" ;; "!=") jump_instr="je"  ;;
-        ">")  jump_instr="jle" ;; "<")  jump_instr="jge" ;;
-        ">=") jump_instr="jl"  ;; "<=") jump_instr="jg"  ;;
-    esac
-    emit_code "    $jump_instr .Lend_if_$label_id"
-    push_if_stack "$label_id"
-    ((IF_COUNT++))
-}
+    if [[ "$content" =~ ^\" ]]; then
+        # String Literal (Char by Char)
+        content="${content%\"}"
+        content="${content#\"}"
 
-emit_if_end() {
-    pop_if_stack
-    emit_code ".Lend_if_$POPPED_VAL:"
-}
-
-# --- LOOP ---
-push_loop_stack() { LOOP_STACK="$1 $LOOP_STACK"; }
-pop_loop_stack() { POPPED_LOOP_VAL=${LOOP_STACK%% *}; LOOP_STACK=${LOOP_STACK#* }; }
-
-emit_loop_start() {
-    local op1="$1"; local cond="$2"; local op2="$3"; local label_id=$LOOP_COUNT
-    emit_code ".Lloop_start_$label_id:"
-    load_operand_to_rax "$op1"
-    load_operand_to_rbx "$op2"
-    emit_code "    cmp rax, rbx"
-    local jump_instr="jmp"
-    case "$cond" in
-        "==") jump_instr="jne" ;; "!=") jump_instr="je"  ;;
-        ">")  jump_instr="jle" ;; "<")  jump_instr="jge" ;;
-        ">=") jump_instr="jl"  ;; "<=") jump_instr="jg"  ;;
-    esac
-    emit_code "    $jump_instr .Lloop_end_$label_id"
-    push_loop_stack "$label_id"
-    ((LOOP_COUNT++))
-}
-
-emit_loop_end() {
-    pop_loop_stack
-    emit_code "    jmp .Lloop_start_$POPPED_LOOP_VAL
-.Lloop_end_$POPPED_LOOP_VAL:"
-}
-
-# --- FUNCTIONS ---
-ARG_REGS=("rdi" "rsi" "rdx" "rcx" "r8" "r9")
-
-emit_function_start() {
-    local name="$1"
-    local args_list="$2"
-
-    if [ "$name" == "mulai" ]; then
-        WRITE_TO_FUNCTIONS=0
-        # Main entry doesn't need label in logic buffer, handled in emit_output
-        return
-    else
-        WRITE_TO_FUNCTIONS=1
-        emit_code "$name:
-    push rbp
-    mov rbp, rsp"
-
-        IFS=',' read -ra ADDR <<< "$args_list"
-        local i=0
-        for arg in "${ADDR[@]}"; do
-            arg=$(echo "$arg" | xargs)
-            if [ -n "$arg" ]; then
-                emit_variable_decl "$arg"
-                local reg="${ARG_REGS[$i]}"
-                emit_code "    mov qword [var_$arg], $reg"
-                ((i++))
-            fi
+        for (( i=0; i<${#content}; i++ )); do
+            char="${content:$i:1}"
+            hex_val=$(printf "%x" "'$char")
+            emit_inst "$OP_DEBUG_PRINT_CHAR" "00" "$hex_val" "00"
         done
-    fi
-}
+        emit_inst "$OP_DEBUG_PRINT_CHAR" "00" "0A" "00" # Newline
 
-emit_function_end() {
-    local name="$1"
-    if [ "$name" == "mulai" ]; then
-        emit_exit
+    elif [[ "$content" =~ ^[0-9]+$ ]]; then
+        # Print Immediate Integer
+        # Load to R10, then print R10
+        local val_hex=$(to_hex "$content")
+        emit_inst "$OP_LOADI" "0A" "$val_hex" "00"
+        emit_inst "$OP_PRINT_INT" "0A" "00" "00"
+
+    elif [[ -n "$content" ]]; then
+        # Print Variable
+        local reg_idx=$(get_var_reg "$content")
+        local reg_hex=$(to_hex "$reg_idx")
+        emit_inst "$OP_PRINT_INT" "$reg_hex" "00" "00"
     else
-        emit_code "    mov rsp, rbp
-    pop rbp
-    ret"
+        # Implicit Print (Result in R10)
+        emit_inst "$OP_PRINT_INT" "0A" "00" "00"
     fi
-}
-
-emit_call() {
-    local name="$1"
-    local args_list="$2"
-    IFS=',' read -ra ADDR <<< "$args_list"
-    local i=0
-    for arg in "${ADDR[@]}"; do
-        arg=$(echo "$arg" | xargs)
-        local reg="${ARG_REGS[$i]}"
-        if [[ "$arg" =~ ^[0-9]+$ ]]; then
-            emit_code "    mov $reg, $arg"
-        else
-            emit_code "    mov $reg, [var_$arg]"
-        fi
-        ((i++))
-    done
-    emit_code "    call $name"
-}
-
-emit_snapshot() {
-    emit_code "    ; Snapshot
-    push rax
-    push rbx
-    push rcx
-    push rdx
-    push rsi
-    push rdi
-    push r8
-    push r9
-    push r10
-    push r11"
-}
-
-emit_restore() {
-    emit_code "    ; Restore
-    pop r11
-    pop r10
-    pop r9
-    pop r8
-    pop rdi
-    pop rsi
-    pop rdx
-    pop rcx
-    pop rbx
-    pop rax"
-}
-
-emit_raw_asm() { emit_code "$1"; }
-emit_raw_data() { emit_code "$1"; } # Wait, raw data should go to DATA_SECTION always?
-# Fix: raw data usually goes to .data, but parser calls emit_raw_data for 'asm_data' block
-# So let's redirect to DATA_SECTION
-emit_raw_data_fixed() {
-    DATA_SECTION="$DATA_SECTION
-    $1"
 }
 
 emit_exit() {
-    emit_code "    ; Exit
-    mov rax, 60
-    xor rdi, rdi
-    syscall"
+    emit_inst "$OP_HALT" "00" "00" "00"
 }
 
+# --- STUBBED (Flow Control) ---
+emit_if_start() { :; }
+emit_if_end() { :; }
+emit_loop_start() { :; }
+emit_loop_end() { :; }
+emit_function_start() { :; }
+emit_function_end() { :; }
+emit_call() { :; }
+emit_snapshot() { :; }
+emit_restore() { :; }
+emit_raw_asm() { :; }
+emit_raw_data_fixed() { :; }
+
 emit_output() {
-    echo "$DATA_SECTION"
-    echo ""
-    echo "$BSS_SECTION"
-    echo ""
-    echo "section .text
-    global _start"
-
-    echo "$TEXT_FUNCTIONS"
-
-    echo "_start:
-$TEXT_MAIN"
-
-    echo "$HELPER_FUNCTIONS"
+    :
 }
