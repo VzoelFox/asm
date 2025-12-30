@@ -1,27 +1,20 @@
-# Morph Bytecode Specification
+# Register & Opcode Plan (Phase 2 Update)
 
-## Header
-Signature: V Z O E L F O XS (16 bytes)
-Hex: 56 20 5A 20 4F 20 45 20 4C 20 46 20 4F 20 58 53
-
-## Registers
-R0 - R15 (64-bit unsigned integers)
-
-## Instructions (Fixed 4 Bytes)
-Format: [OP:8] [DEST:8] [SRC1:8] [SRC2/IMM:8]
+## Register Map (Phase 2)
+- R0 - R9 : User Variables (mapped sequentially by compiler)
+- R10     : Arithmetic Result Register (Implicit)
+- R11-R12 : Scratch Registers
 
 ## Opcode List
-
-| Opcode | Mnemonic | Args | Description |
-|--------|----------|------|-------------|
-| 0x01   | HALT     | -    | Stop execution (Exit 0) |
-| 0x02   | LOADI    | R, V | Load Immediate: R_DEST = V (V is 8-bit, need shifting for larger) |
-| 0x03   | ADD      | A, B | Add: R_DEST = R_SRC1 + R_SRC2 |
-| 0x04   | SUB      | A, B | Sub: R_DEST = R_SRC1 - R_SRC2 |
-| 0x05   | SYS      | -    | Syscall. Uses R0=RAX, R1=RDI, R2=RSI, R3=RDX, R4=R10, R5=R8, R6=R9 |
-| 0x06   | LOADM    | R, M | Load Memory: R_DEST = [R_SRC1] (Not implemented yet) |
-| 0x07   | STOREM   | R, M | Store Memory: [R_DEST] = R_SRC1 (Not implemented yet) |
-
-## Implementation Details
-- VM loads the entire file into memory.
-- IP (Instruction Pointer) starts after the header.
+| Opcode | Mnemonic | Args | Action |
+|--------|----------|------|--------|
+| 0x01   | HALT     | -    | Stop execution |
+| 0x02   | LOADI    | D, V | R[D] = Immediate(V) |
+| 0x03   | ADD      | D, S1, S2 | R[D] = R[S1] + R[S2] |
+| 0x04   | SUB      | D, S1, S2 | R[D] = R[S1] - R[S2] |
+| 0x05   | SYSCALL  | -    | Syscall (R0=RAX, R1=RDI...) |
+| 0x09   | MUL      | D, S1, S2 | R[D] = R[S1] * R[S2] |
+| 0x0A   | DIV      | D, S1, S2 | R[D] = R[S1] / R[S2] |
+| 0x0B   | MOV      | D, S1 | R[D] = R[S1] |
+| 0xAA   | PRT_CHR  | _, C | Debug: Print Char C |
+| 0xAB   | PRT_INT  | S1   | Debug: Print Int R[S1] |

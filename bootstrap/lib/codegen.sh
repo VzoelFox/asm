@@ -11,57 +11,21 @@ init_codegen() {
     OP_ADD=03
     OP_SUB=04
     OP_SYS=05
+    OP_MUL=09
+    OP_DIV=0A
+    OP_MOV=0B
+    OP_DEBUG_PRINT_CHAR=AA
+    OP_PRINT_INT=AB
 
-    # We will output binary data to stdout progressively
     # Header
     printf "\x56\x20\x5A\x20\x4F\x20\x45\x20\x4C\x20\x46\x20\x4F\x20\x58\x53"
-
-    # To handle string data, since we don't have a data section in the VM yet (in Phase 1),
-    # we will implement a hack for "cetak" string:
-    # 1. Print char by char using SYSCALL(write) or similar.
-    # But wait, SYSCALL needs a pointer to memory.
-    # Our VM loads the *entire file* into memory.
-    # So we can put strings *after* the code and point to them!
-    # BUT, we need to know the address.
-    # Simpler approach for Hello World Phase 1:
-    # Use "Stack Strings" or just Immediate Char printing if we had it.
-    # Since we have SYSCALL, we need a pointer.
-    # Let's try to put the string bytes *in the bytecode stream* and jump over them?
-    # Or just append them at the end and calculate offset?
-    # Offset calculation is hard in 1-pass compiler.
-
-    # ALTERNATIVE: Use "LOADI" to load char to stack/memory? No, slow.
-
-    # Let's stick to the SIMPLEST valid Opcode sequence for now.
-    # Focus: "cetak" support is tricky without memory map.
-    # Let's change "cetak" implementation to:
-    # "For each char in string, Load Char to Buffer, Print Buffer"
-    # Or assume VM has a scratch pad at a known address?
-    # VM `prog_buffer` is at start.
-    # VM `vm_regs` is in .bss.
-    # Let's define a known "Scratch Area" in VM?
-    # Let's use the Stack Pointer (RSP) concept?
-
-    # TEMPORARY HACK:
-    # Support "cetak(int)" using a hardcoded buffer in VM?
-    # We can add a "PRINT_VAL" opcode for debugging/bootstrapping?
-    # Spec said: SYSCALL.
-
-    # OK, let's implement `cetak` as:
-    # MOV R0, 1 (sys_write)
-    # MOV R1, 1 (stdout)
-    # MOV R2, ADDRESS_OF_STRING (???)
-    # MOV R3, LEN
-    # SYSCALL
-
-    # Where is ADDRESS_OF_STRING?
-    # It's inside the loaded program buffer.
-    # VM doesn't expose "Current IP" easily to regs yet.
-    # Let's add an opcode: `LEA R_DEST, OFFSET` (Load Effective Address relative to Start).
-    # Opcode 0x08 LEA [Dest] [OffsetHigh] [OffsetLow]
-
-    OP_LEA=08
 }
+
+# Register Allocator State (Global Scope)
+# R0-R9: Variables
+# R10-R15: Scratch
+VAR_COUNT=0
+declare -A VAR_MAP
 
 # Helper to output 4-byte instruction
 emit_inst() {
@@ -75,24 +39,147 @@ emit_inst() {
     [ -z "$src1" ] && src1=0
     [ -z "$src2" ] && src2=0
 
-    printf "\\x$op\\x$dest\\x$src1\\x$src2"
+    # Use printf with correct escape sequence for binary output
+    printf "\x$op\x$dest\x$src1\x$src2"
 }
 
-emit_string() {
-    # No-op for now in binary mode (strings handled inline or at end)
-    :
+# --- Register Allocation Helpers ---
+get_var_reg() {
+    local name="$1"
+    if [[ -z "${VAR_MAP[$name]}" ]]; then
+        # Allocate new register
+        local reg_idx=$VAR_COUNT
+        VAR_MAP[$name]=$reg_idx
+        ((VAR_COUNT++))
+    fi
+    echo "${VAR_MAP[$name]}" # Return decimal index (0-9)
 }
 
-# --- STUBBED FUNCTIONS FOR PHASE 1 TRANSITION ---
-# Note: These features are temporarily disabled while transitioning
-# from ASM Transpiler to Bytecode VM Architecture.
-# They will be re-implemented to emit Bytecode in Phase 2.
+to_hex() {
+    printf "%02X" "$1"
+}
 
-emit_variable_decl() { :; }
-emit_variable_assign() { :; }
-load_operand_to_rax() { :; }
-load_operand_to_rbx() { :; }
-emit_arithmetic_op() { :; }
+# --- Features ---
+
+emit_variable_decl() {
+    local name="$1"
+    # Just ensure it has a register mapped
+    get_var_reg "$name" > /dev/null
+}
+
+emit_variable_assign() {
+    local name="$1"
+    local value="$2"
+
+    local reg_idx=$(get_var_reg "$name")
+    local reg_hex=$(to_hex "$reg_idx")
+
+    if [[ "$value" =~ ^[0-9]+$ ]]; then
+        # Assign Immediate: LOADI REG, VAL
+        # Note: LOADI only supports 8-bit immediate in Phase 1 VM! (0-255)
+        # TODO: Support larger integers via multiple loads/shifts later.
+        local val_hex=$(to_hex "$value")
+        emit_inst "$OP_LOADI" "$reg_hex" "$val_hex" "00"
+    elif [[ -n "$value" ]]; then
+        # Assign from another variable?
+        # Logic is simpler: if value is empty, it means "Assign RAX to Var" (result of expr)
+        # If value is present, it's a number or var name.
+
+        # Check if value is a variable name
+        if [[ -n "${VAR_MAP[$value]}" ]]; then
+            local src_reg=$(get_var_reg "$value")
+            local src_hex=$(to_hex "$src_reg")
+            # MOV DEST, SRC
+            emit_inst "$OP_MOV" "$reg_hex" "$src_hex" "00"
+        fi
+    else
+        # Assign result from calculation (Assume stored in R10 - Scratch Result)
+        # We need a convention. Let's say expr result is always in R10 (0A).
+        emit_inst "$OP_MOV" "$reg_hex" "0A" "00"
+    fi
+}
+
+load_operand_to_reg() {
+    local op="$1"
+    local dest_reg_hex="$2"
+
+    if [[ "$op" =~ ^[0-9]+$ ]]; then
+        local val_hex=$(to_hex "$op")
+        emit_inst "$OP_LOADI" "$dest_reg_hex" "$val_hex" "00"
+    else
+        local src_reg=$(get_var_reg "$op")
+        local src_hex=$(to_hex "$src_reg")
+        emit_inst "$OP_MOV" "$dest_reg_hex" "$src_hex" "00"
+    fi
+}
+
+emit_arithmetic_op() {
+    local num1="$1"
+    local op="$2"
+    local num2="$3"
+    local store_to="$4"
+
+    # Use R11 and R12 as temp source operands
+    # Store result in R10
+
+    load_operand_to_reg "$num1" "0B" # R11
+    load_operand_to_reg "$num2" "0C" # R12
+
+    local opcode=""
+    if [ "$op" == "+" ]; then opcode="$OP_ADD";
+    elif [ "$op" == "-" ]; then opcode="$OP_SUB";
+    elif [ "$op" == "*" ]; then opcode="$OP_MUL";
+    elif [ "$op" == "/" ]; then opcode="$OP_DIV"; fi
+
+    # OP DEST(R10), SRC1(R11), SRC2(R12)
+    emit_inst "$opcode" "0A" "0B" "0C"
+
+    if [ -n "$store_to" ]; then
+        emit_variable_assign "$store_to" ""
+    else
+        # Print result immediately (Implicitly R10)
+        emit_print ""
+    fi
+}
+
+emit_print() {
+    local content="$1"
+
+    if [[ "$content" =~ ^\" ]]; then
+        # String Literal (Char by Char)
+        content="${content%\"}"
+        content="${content#\"}"
+
+        for (( i=0; i<${#content}; i++ )); do
+            char="${content:$i:1}"
+            hex_val=$(printf "%x" "'$char")
+            emit_inst "$OP_DEBUG_PRINT_CHAR" "00" "$hex_val" "00"
+        done
+        emit_inst "$OP_DEBUG_PRINT_CHAR" "00" "0A" "00" # Newline
+
+    elif [[ "$content" =~ ^[0-9]+$ ]]; then
+        # Print Immediate Integer
+        # Load to R10, then print R10
+        local val_hex=$(to_hex "$content")
+        emit_inst "$OP_LOADI" "0A" "$val_hex" "00"
+        emit_inst "$OP_PRINT_INT" "0A" "00" "00"
+
+    elif [[ -n "$content" ]]; then
+        # Print Variable
+        local reg_idx=$(get_var_reg "$content")
+        local reg_hex=$(to_hex "$reg_idx")
+        emit_inst "$OP_PRINT_INT" "$reg_hex" "00" "00"
+    else
+        # Implicit Print (Result in R10)
+        emit_inst "$OP_PRINT_INT" "0A" "00" "00"
+    fi
+}
+
+emit_exit() {
+    emit_inst "$OP_HALT" "00" "00" "00"
+}
+
+# --- STUBBED (Flow Control) ---
 emit_if_start() { :; }
 emit_if_end() { :; }
 emit_loop_start() { :; }
@@ -105,57 +192,6 @@ emit_restore() { :; }
 emit_raw_asm() { :; }
 emit_raw_data_fixed() { :; }
 
-# For "cetak", strictly for Hello World demo
-emit_print() {
-    local content="$1"
-
-    if [[ "$content" =~ ^\" ]]; then
-        # String Literal
-        content="${content%\"}"
-        content="${content#\"}"
-
-        # We need to output the string bytes somewhere and point to it.
-        # But we are streaming output.
-        # Strategy:
-        # JMP over string data
-        # [DATA]
-        # Label:
-        # Code...
-
-        # Since we don't have JMP opcode yet in my list, let's just do Char-by-Char print
-        # using a "PRINT_CHAR" opcode if we had one.
-        # But we agreed on SYSCALL.
-
-        # Let's add a custom opcode for Phase 1 Debug: 0xEE "DEBUG_PRINT_STR"
-        # Arguments: Inline String?
-        # This is cheating but effective for bootstrap.
-        # Let's stick to the plan: SYSCALL.
-
-        # OK, I will emit a sequence to print "Halo" char by char using immediate loads and stack?
-        # Too long.
-
-        # Let's pretend we have a `DEBUG_PRINT_CHAR` opcode (0xAA).
-        # Opcode: AA [Char] 00 00
-
-        for (( i=0; i<${#content}; i++ )); do
-            char="${content:$i:1}"
-            # Convert char to ascii hex
-            hex_val=$(printf "%x" "'$char")
-            emit_inst "AA" "00" "$hex_val" "00"
-        done
-
-        # Newline
-        emit_inst "AA" "00" "0A" "00"
-
-    fi
-}
-
-emit_exit() {
-    # HALT
-    emit_inst "01" "00" "00" "00"
-}
-
 emit_output() {
-    # Output is streamed via printf, so nothing to do here
     :
 }
