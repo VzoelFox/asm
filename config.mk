@@ -1,0 +1,10 @@
+# Konfigurasi VPS
+VPS_HOST=144.202.18.239
+VPS_USER=root
+VPS_PASS=w{U6YsKM+Q9AaX2F
+VPS_DIR=morph_build
+
+# Konfigurasi Compiler
+MORPH_COMPILER=./bootstrap/morph.sh
+SOURCE=examples/hello.fox
+OUTPUT_NAME=hello
