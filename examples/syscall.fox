@@ -1,0 +1,14 @@
+asm_data
+  msg_manual db "Halo dari Inline Assembly!", 10
+  len_manual equ $ - msg_manual
+tutup_data
+
+fungsi mulai()
+  asm_mulai
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, msg_manual
+    mov rdx, len_manual
+    syscall
+  tutup_asm
+tutup_fungsi

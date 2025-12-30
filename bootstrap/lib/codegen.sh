@@ -12,8 +12,6 @@ init_codegen() {
 _start:"
 
     # Fungsi helper untuk convert int (rax) to string dan print
-    # Kita tambahkan di bagian akhir text section nanti atau define sekarang
-    # Untuk simplisitas, kita append logic ini di akhir file output atau simpan di variable
     HELPER_FUNCTIONS="
 _print_int:
     ; Input: rax = integer to print
@@ -88,7 +86,6 @@ emit_print() {
 }
 
 # Fungsi untuk generate operasi aritmatika dan print hasilnya
-# Usage: emit_arithmetic_op "num1" "op" "num2"
 emit_arithmetic_op() {
     local num1="$1"
     local op="$2"
@@ -106,6 +103,20 @@ emit_arithmetic_op() {
     mov rax, $num1
     $asm_op rax, $num2
     call _print_int"
+}
+
+# Fungsi untuk emit raw assembly instructions (inline asm)
+emit_raw_asm() {
+    local line="$1"
+    TEXT_SECTION="$TEXT_SECTION
+    $line"
+}
+
+# Fungsi untuk emit raw data definitions
+emit_raw_data() {
+    local line="$1"
+    DATA_SECTION="$DATA_SECTION
+    $line"
 }
 
 # Fungsi untuk generate sys_exit

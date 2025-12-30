@@ -5,4 +5,4 @@ fungsi mulai()
   cetak(10 + 20)
   cetak("Tes Pengurangan 100 - 25:")
   cetak(100 - 25)
-akhir
+tutup_fungsi
