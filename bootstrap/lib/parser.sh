@@ -50,7 +50,7 @@ parse_file() {
                 in_data_block=1
                 ;;
 
-            # --- Variabel ---
+            # --- Variabel (Deklarasi) ---
             var*)
                 if [[ "$line" =~ ^var[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
                     local name="${BASH_REMATCH[1]}"
@@ -75,13 +75,11 @@ parse_file() {
                 ;;
 
             # --- Percabangan ---
-            # jika (a < b)
             jika*)
                 if [[ "$line" =~ ^jika[[:space:]]*\((.*)[[:space:]]*(==|!=|>=|<=|>|<)[[:space:]]*(.*)\)$ ]]; then
                     local op1="${BASH_REMATCH[1]}"
                     local cond="${BASH_REMATCH[2]}"
                     local op2="${BASH_REMATCH[3]}"
-                    # Trim operands just in case
                     op1=$(echo "$op1" | xargs)
                     op2=$(echo "$op2" | xargs)
                     emit_if_start "$op1" "$cond" "$op2"
@@ -90,6 +88,22 @@ parse_file() {
 
             "tutup_jika")
                 emit_if_end
+                ;;
+
+            # --- Loop (Selama) ---
+            selama*)
+                if [[ "$line" =~ ^selama[[:space:]]*\((.*)[[:space:]]*(==|!=|>=|<=|>|<)[[:space:]]*(.*)\)$ ]]; then
+                    local op1="${BASH_REMATCH[1]}"
+                    local cond="${BASH_REMATCH[2]}"
+                    local op2="${BASH_REMATCH[3]}"
+                    op1=$(echo "$op1" | xargs)
+                    op2=$(echo "$op2" | xargs)
+                    emit_loop_start "$op1" "$cond" "$op2"
+                fi
+                ;;
+
+            "tutup_selama")
+                emit_loop_end
                 ;;
 
             cetak*)
@@ -108,9 +122,33 @@ parse_file() {
                     emit_print "$content"
                 fi
                 ;;
+
+            # --- Assignment ke Variabel Ada (tanpa var) ---
+            # i = i + 1
+            # i = 10
+            # Regex: start with identifier, then =, then expr
             *)
-                # Ignore unknown
-                ;;
+                 if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+                    local name="${BASH_REMATCH[1]}"
+                    local expr="${BASH_REMATCH[2]}"
+
+                    # Logic assignment sama dengan deklarasi, tapi TANPA emit_variable_decl
+
+                    if [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
+                         local op1="${BASH_REMATCH[1]}"
+                         local op="${BASH_REMATCH[2]}"
+                         local op2="${BASH_REMATCH[3]}"
+                         emit_arithmetic_op "$op1" "$op" "$op2" "$name"
+                    else
+                        if [[ ! "$expr" =~ ^[0-9]+$ ]]; then
+                           load_operand_to_rax "$expr"
+                           emit_variable_assign "$name" ""
+                        else
+                           emit_variable_assign "$name" "$expr"
+                        fi
+                    fi
+                 fi
+                 ;;
         esac
     done < "$input_file"
 

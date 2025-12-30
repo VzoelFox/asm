@@ -57,6 +57,10 @@ _print_int:
     # Initialize IF Label Counter and Stack
     IF_COUNT=0
     IF_STACK=""
+
+    # Initialize LOOP Counter and Stack
+    LOOP_COUNT=0
+    LOOP_STACK=""
 }
 
 # Fungsi untuk menambahkan string ke .data section
@@ -179,16 +183,13 @@ emit_arithmetic_op() {
 
 # --- PERCABANGAN (IF) ---
 
-# Manipulate stack purely with global var to avoid subshell issues
 push_if_stack() {
     local id="$1"
     IF_STACK="$id $IF_STACK"
 }
 
 pop_if_stack() {
-    # Ambil elemen pertama (dipisahkan spasi)
     POPPED_VAL=${IF_STACK%% *}
-    # Hapus elemen pertama dari stack
     IF_STACK=${IF_STACK#* }
 }
 
@@ -202,11 +203,10 @@ emit_if_start() {
     load_operand_to_rbx "$op2"
 
     TEXT_SECTION="$TEXT_SECTION
-    ; Compare $op1 $cond $op2
+    ; Compare IF $op1 $cond $op2
     cmp rax, rbx"
 
     local jump_instr="jmp"
-    # Logic: Jump if FALSE (kebalikan dari kondisi)
     case "$cond" in
         "==") jump_instr="jne" ;;
         "!=") jump_instr="je"  ;;
@@ -228,6 +228,60 @@ emit_if_end() {
     local label_id=$POPPED_VAL
     TEXT_SECTION="$TEXT_SECTION
 .Lend_if_$label_id:"
+}
+
+# --- LOOP (SELAMA) ---
+
+push_loop_stack() {
+    local id="$1"
+    LOOP_STACK="$id $LOOP_STACK"
+}
+
+pop_loop_stack() {
+    POPPED_LOOP_VAL=${LOOP_STACK%% *}
+    LOOP_STACK=${LOOP_STACK#* }
+}
+
+emit_loop_start() {
+    local op1="$1"
+    local cond="$2"
+    local op2="$3"
+    local label_id=$LOOP_COUNT
+
+    TEXT_SECTION="$TEXT_SECTION
+.Lloop_start_$label_id:"
+
+    load_operand_to_rax "$op1"
+    load_operand_to_rbx "$op2"
+
+    TEXT_SECTION="$TEXT_SECTION
+    ; Compare LOOP $op1 $cond $op2
+    cmp rax, rbx"
+
+    local jump_instr="jmp"
+    # Logic: Jump to END if FALSE (kebalikan)
+    case "$cond" in
+        "==") jump_instr="jne" ;;
+        "!=") jump_instr="je"  ;;
+        ">")  jump_instr="jle" ;;
+        "<")  jump_instr="jge" ;;
+        ">=") jump_instr="jl"  ;;
+        "<=") jump_instr="jg"  ;;
+    esac
+
+    TEXT_SECTION="$TEXT_SECTION
+    $jump_instr .Lloop_end_$label_id"
+
+    push_loop_stack "$label_id"
+    ((LOOP_COUNT++))
+}
+
+emit_loop_end() {
+    pop_loop_stack
+    local label_id=$POPPED_LOOP_VAL
+    TEXT_SECTION="$TEXT_SECTION
+    jmp .Lloop_start_$label_id
+.Lloop_end_$label_id:"
 }
 
 

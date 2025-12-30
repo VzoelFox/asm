@@ -1,0 +1,19 @@
+fungsi mulai()
+  var i = 0
+
+  cetak("Mulai Loop Counter (0 sampai 4):")
+  selama (i < 5)
+    cetak("Loop ke:")
+    cetak(i)
+    i = i + 1
+  tutup_selama
+
+  cetak("Loop Selesai!")
+
+  cetak("Mulai Loop Mundur (5 sampai 1):")
+  selama (i > 0)
+    cetak(i)
+    i = i - 1
+  tutup_selama
+
+tutup_fungsi
