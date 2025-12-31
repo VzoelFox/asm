@@ -10,7 +10,7 @@ Sistem ini memungkinkan import tanpa path (`Ambil <ID>`) dengan bantuan file ind
 | **0 - 99** | **Reserved / Kernel Core** | (Internal Compiler) |
 | **100 - 199** | **Matematika Dasar** | `lib/math.fox` |
 | **200 - 299** | **String & Text** | `lib/string.fox` |
-| **300 - 399** | **Input / Output (IO)** | `lib/io.fox` |
+| **300 - 399** | **Input / Output (IO)** | `lib/io.fox`, `lib/buffer.fox` |
 | **400 - 499** | **System & Process** | `lib/sys.fox` |
 | **500+** | **User / Plugins** | (Bebas) |
 
@@ -28,6 +28,17 @@ Lokasi: `lib/string.fox` (Rencana)
 *   `### 200` -> `fungsi str_len(s)`: Panjang string.
 *   `### 201` -> `fungsi str_eq(a, b)`: Bandingkan string.
 
+### Buffer I/O (310 - 319)
+Lokasi: `lib/buffer.fox`
+
+*   `### 310` -> `fungsi buffer_buat(capacity)`: Membuat buffer baru.
+*   `### 311` -> `fungsi buffer_tulis(buf, data)`: Menulis data ke buffer.
+*   `### 312` -> `fungsi buffer_baca(buf, size)`: Membaca data dari buffer.
+*   `### 313` -> `fungsi buffer_seek(buf, pos)`: Mengubah posisi pointer.
+*   `### 314` -> `fungsi buffer_size(buf)`: Mendapatkan ukuran buffer.
+*   `### 315` -> `fungsi buffer_reset(buf)`: Mengosongkan buffer.
+*   `### 316` -> `fungsi buffer_readonly(buf)`: Mengunci buffer (read-only).
+
 ---
 
 ## Format Tagger (`tagger.fox`)
@@ -38,6 +49,7 @@ File tagger bertugas mendaftarkan lokasi ID ke Compiler.
 ; Mendaftarkan Range ID ke File
 Daftar "lib/math.fox" = 100-105
 Daftar "lib/string.fox" = 200, 201
+Daftar "lib/buffer.fox" = 310-319
 ```
 
 ## Penggunaan (`main.fox`)
