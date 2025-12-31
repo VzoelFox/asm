@@ -1,0 +1,4 @@
+; Tagger Index untuk Plugin VC (Dummy)
+; Mendaftarkan fungsi matematika dasar
+
+Daftar "lib/math.fox" = 100-101

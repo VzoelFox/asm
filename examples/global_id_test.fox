@@ -1,0 +1,13 @@
+; Load Index
+indeks "plugins/vc/tagger.fox"
+
+Ambil 100, 101
+
+fungsi mulai()
+  var x = 50
+  var y = 20
+
+  cetak("--- Test Global ID Import ---")
+  panggil math_tambah(x, y)
+  panggil math_kurang(x, y)
+tutup_fungsi
