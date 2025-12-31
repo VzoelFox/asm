@@ -94,7 +94,8 @@ parse_file() {
                          local op2="${BASH_REMATCH[3]}"
                          emit_arithmetic_op "$op1" "$op" "$op2" "$name"
                     else
-                        if [[ ! "$expr" =~ ^[0-9]+$ ]]; then
+                        # Check for number (positive or negative)
+                        if [[ ! "$expr" =~ ^-?[0-9]+$ ]]; then
                            load_operand_to_rax "$expr"
                            emit_variable_assign "$name" ""
                         else
