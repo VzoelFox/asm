@@ -1,0 +1,27 @@
+fungsi mulai()
+  var a = 10
+  var b = 20
+
+  cetak("Testing If/Else:")
+
+  jika (a < b)
+    cetak("a lebih kecil dari b (Benar)")
+  tutup_jika
+
+  jika (a > b)
+    cetak("a lebih besar dari b (Salah)")
+  lain
+    cetak("Masuk blok lain (Benar)")
+  tutup_jika
+
+  var c = 30
+  jika (c == 10)
+    cetak("c adalah 10 (Salah)")
+  lain_jika (c == 20)
+    cetak("c adalah 20 (Salah)")
+  lain_jika (c == 30)
+    cetak("c adalah 30 (Benar)")
+  lain
+    cetak("c bukan siapa-siapa (Salah)")
+  tutup_jika
+tutup_fungsi

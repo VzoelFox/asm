@@ -4,20 +4,10 @@
 STR_COUNT=0
 LBL_COUNT=0
 declare -a BSS_VARS
+declare -a IF_STACK         # Stack for End Labels
+declare -a IF_CHECK_STACK   # Stack for Next Check Labels (Else/ElseIf target)
 
 init_codegen() {
-    # Print the helper function early so it's available
-    # Actually helpers are usually at the end or in a library.
-    # But for single file output, we can dump them after _start.
-
-    # We will output headers now, but actual code usually comes after functions.
-    # To support both linear scripts and functions, we need a strategy.
-    # Strategy:
-    # 1. Output headers.
-    # 2. _start jumps to a label `main_entry`.
-    # 3. Functions are defined.
-    # 4. `main_entry:` label starts the main linear code.
-
     cat <<EOF
 section .data
     newline db 10, 0
@@ -56,17 +46,6 @@ print_string_ptr:
 
     not rcx         ; rcx = -length - 2 (roughly)
     dec rcx         ; adjust
-    ; length is in rcx now?
-    ; scasb decrements rcx. start -1. scan 5 bytes. rcx = -6. not = 5. dec = 4?
-    ; Let's recheck logic:
-    ; start rcx = 0xFF...FF (-1)
-    ; length 0 string ("\0"): scasb matches immediately. rcx = -2. not = 1. dec = 0. Correct.
-    ; length 3 string ("abc\0"):
-    ; a: rcx=-2
-    ; b: rcx=-3
-    ; c: rcx=-4
-    ; 0: rcx=-5
-    ; not(-5) = 4. dec = 3. Correct.
 
     mov rdx, rcx    ; length
 
@@ -85,7 +64,6 @@ print_string_ptr:
     pop rbx
     ret
 
-
 ; sys_alloc: Allocates N bytes from heap
 ; Input: RAX = size
 ; Output: RAX = pointer
@@ -97,11 +75,6 @@ sys_alloc:
     ; TODO: Better alignment
 
     mov rbx, [heap_ptr]     ; Current offset
-
-    ; Check overflow (1MB limit)
-    ; cmp rbx, 1048576
-    ; jge .oom
-
     lea rdx, [heap_space + rbx] ; Calculate absolute address
 
     add rbx, rax            ; Bump pointer
@@ -192,7 +165,6 @@ sys_str_concat:
     call sys_memcpy
 
     ; 7. Null terminate
-    ; Cannot use [rbx + r8 + r9] in x86 addressing
     mov rdi, rbx
     add rdi, r8
     add rdi, r9
@@ -212,7 +184,7 @@ sys_str_concat:
 
 ; sys_read: Reads N bytes from stdin to new heap buffer
 ; Input: RAX = max_size
-; Output: RAX = buffer_pointer (null-terminated if possible, but sys_read doesn't guarantee)
+; Output: RAX = buffer_pointer
 sys_read:
     push rbx
     push rcx
@@ -221,22 +193,17 @@ sys_read:
     push rdi
 
     ; 1. Allocate buffer
-    ; RAX already has size. Need to save it for sys_read count.
     mov rbx, rax    ; rbx = size
     call sys_alloc  ; rax = buffer_pointer
 
     ; 2. Syscall Read
-    ; sys_read(fd=0, buf=rax, count=rbx)
     mov rsi, rax    ; buf
     mov rdx, rbx    ; count
     mov rax, 0      ; sys_read
     mov rdi, 0      ; stdin
     syscall
 
-    ; Result: RAX contains bytes read.
     ; Null-terminate the input for safety
-    ; RSI is buffer start. RAX is length.
-    ; [RSI + RAX] = 0
     mov byte [rsi + rax], 0
 
     ; We return the buffer pointer (which is in RSI)
@@ -271,14 +238,11 @@ print_int:
     mov rbp, rsp
     sub rsp, 32         ; Reserve buffer space
 
-    ; Handle zero explicitly? No, loop handles it if do-while.
-    ; But simple check:
     cmp rax, 0
     jne .check_sign
 
     ; Print '0'
     mov byte [rsp+30], '0'
-    mov byte [rsp+31], 10 ; Newline? No, just number.
     lea rsi, [rsp+30]
     mov rdx, 1
     call print_string
@@ -300,7 +264,7 @@ print_int:
     mov byte [rsp+16], '-'  ; Temporary scratch for char
     lea rsi, [rsp+16]
     mov rdx, 1
-    push rcx ; Save regs used by syscall? print_string uses rax,rdi,syscall. RCX not used.
+    push rcx ; Save regs used by syscall
     mov rax, 1
     mov rdi, 1
     syscall
@@ -336,7 +300,6 @@ EOF
 
 emit_variable_decl() {
     local name="$1"
-    # Store variable name to emit in .bss later
     BSS_VARS+=("$name")
 }
 
@@ -345,12 +308,10 @@ emit_variable_assign() {
     local value="$2"
 
     if [[ -z "$value" ]]; then
-        # Value is already in RAX (from expression)
         echo "    mov [var_$name], rax"
     elif [[ "$value" =~ ^-?[0-9]+$ ]]; then
         echo "    mov qword [var_$name], $value"
     else
-        # Assign from another variable
         echo "    mov rax, [var_$value]"
         echo "    mov [var_$name], rax"
     fi
@@ -363,7 +324,6 @@ load_operand_to_rax() {
     elif [[ -n "$op" ]]; then
         echo "    mov rax, [var_$op]"
     else
-        # Should not happen based on regex, but safety:
         echo "    xor rax, rax"
     fi
 }
@@ -374,10 +334,8 @@ emit_arithmetic_op() {
     local op2="$3"
     local store_to="$4"
 
-    # Load op1 to RAX
     load_operand_to_rax "$op1"
 
-    # Load op2 to RBX (temp)
     if [[ "$op2" =~ ^[0-9]+$ ]]; then
         echo "    mov rbx, $op2"
     else
@@ -397,7 +355,7 @@ emit_arithmetic_op() {
     if [[ -n "$store_to" ]]; then
         echo "    mov [var_$store_to], rax"
     else
-        # Implicit print result if no storage target
+        # Implicit print result
         echo "    call print_int"
         echo "    call print_newline"
     fi
@@ -420,21 +378,10 @@ emit_print_str() {
     # Assume content is a variable name holding a pointer
     # Load pointer to RSI
     if [[ "$content" =~ ^[0-9]+$ ]]; then
-        # Literal pointer? Rare but possible.
         echo "    mov rsi, $content"
     else
         echo "    mov rsi, [var_$content]"
     fi
-
-    # We need length. For now, assume fixed length or print until null?
-    # sys_read returns bytes read in RAX, but we lost it if stored to var.
-    # Buffer from sys_read might not be null terminated if full.
-    # But sys_alloc is in .bss (zero initialized) or we bump.
-    # .bss is zero initialized only at start. Reused heap is not.
-    #
-    # Safer: print until null or max length.
-    # Implementation: calc strlen manually.
-
     echo "    call print_string_ptr"
 }
 
@@ -476,27 +423,21 @@ EOF
         echo "    call print_int"
         echo "    call print_newline"
     fi
-    echo "    cmp rax, rbx"
-    case "$cond" in
-        "==") echo "    jne $lbl_end" ;;
-        "!=") echo "    je $lbl_end" ;;
-        "<")  echo "    jge $lbl_end" ;;
-        ">")  echo "    jle $lbl_end" ;;
-        "<=") echo "    jg $lbl_end" ;;
-        ">=") echo "    jl $lbl_end" ;;
-    esac
 }
+
+# --- Control Flow: IF / ELSE / ELSE IF ---
 
 emit_if_start() {
     local op1="$1"
     local cond="$2"
     local op2="$3"
 
-    local lbl_else="else_$LBL_COUNT"
+    local lbl_next_check="next_check_$LBL_COUNT"
     local lbl_end="end_$LBL_COUNT"
     ((LBL_COUNT++))
 
     IF_STACK+=("$lbl_end")
+    IF_CHECK_STACK+=("$lbl_next_check")
 
     load_operand_to_rax "$op1"
 
@@ -508,19 +449,84 @@ emit_if_start() {
 
     echo "    cmp rax, rbx"
 
+    # Jump to Next Check if condition is FALSE
     case "$cond" in
-        "==") echo "    jne $lbl_end" ;;
-        "!=") echo "    je $lbl_end" ;;
-        "<")  echo "    jge $lbl_end" ;;
-        ">")  echo "    jle $lbl_end" ;;
-        "<=") echo "    jg $lbl_end" ;;
-        ">=") echo "    jl $lbl_end" ;;
+        "==") echo "    jne $lbl_next_check" ;;
+        "!=") echo "    je $lbl_next_check" ;;
+        "<")  echo "    jge $lbl_next_check" ;;
+        ">")  echo "    jle $lbl_next_check" ;;
+        "<=") echo "    jg $lbl_next_check" ;;
+        ">=") echo "    jl $lbl_next_check" ;;
     esac
+}
+
+emit_else_if() {
+    local op1="$1"
+    local cond="$2"
+    local op2="$3"
+
+    # 1. End previous block: Jump to END
+    local lbl_end="${IF_STACK[-1]}"
+    echo "    jmp $lbl_end"
+
+    # 2. Define label for previous check failure
+    local lbl_current_check="${IF_CHECK_STACK[-1]}"
+    unset 'IF_CHECK_STACK[${#IF_CHECK_STACK[@]}-1]'
+    echo "$lbl_current_check:"
+
+    # 3. Start new check
+    local lbl_next_check="next_check_$LBL_COUNT"
+    ((LBL_COUNT++))
+    IF_CHECK_STACK+=("$lbl_next_check")
+
+    load_operand_to_rax "$op1"
+
+    if [[ "$op2" =~ ^[0-9]+$ ]]; then
+        echo "    mov rbx, $op2"
+    else
+        echo "    mov rbx, [var_$op2]"
+    fi
+
+    echo "    cmp rax, rbx"
+
+    # Jump to Next Check if condition is FALSE
+    case "$cond" in
+        "==") echo "    jne $lbl_next_check" ;;
+        "!=") echo "    je $lbl_next_check" ;;
+        "<")  echo "    jge $lbl_next_check" ;;
+        ">")  echo "    jle $lbl_next_check" ;;
+        "<=") echo "    jg $lbl_next_check" ;;
+        ">=") echo "    jl $lbl_next_check" ;;
+    esac
+}
+
+emit_else() {
+    # 1. End previous block: Jump to END
+    local lbl_end="${IF_STACK[-1]}"
+    echo "    jmp $lbl_end"
+
+    # 2. Define label for previous check failure
+    local lbl_current_check="${IF_CHECK_STACK[-1]}"
+    unset 'IF_CHECK_STACK[${#IF_CHECK_STACK[@]}-1]'
+    echo "$lbl_current_check:"
+
+    # 3. Push empty marker to stack so size matches IF_STACK
+    # (Or just don't push anything, IF_CHECK_STACK size < IF_STACK size)
+    # We will choose NOT to push anything, and check for empty on emit_if_end.
 }
 
 emit_if_end() {
     local lbl_end="${IF_STACK[-1]}"
     unset 'IF_STACK[${#IF_STACK[@]}-1]'
+
+    # If there is a pending check label (i.e. we did NOT hit 'else'), define it
+    # This handles the "Fallthrough" case where no condition met and no else exists.
+    if [ ${#IF_CHECK_STACK[@]} -gt ${#IF_STACK[@]} ]; then
+        local lbl_fallthrough="${IF_CHECK_STACK[-1]}"
+        unset 'IF_CHECK_STACK[${#IF_CHECK_STACK[@]}-1]'
+        echo "$lbl_fallthrough:"
+    fi
+
     echo "$lbl_end:"
 }
 
@@ -766,90 +772,6 @@ emit_raw_data_fixed() {
 }
 
 emit_output() {
-    # Finalize BSS and Exit
-    # Wait, we need to inject the `main_entry:` label at the start of the linear code.
-    # But init_codegen already ran. The linear code has been streaming out.
-    #
-    # Problem: `init_codegen` printed `jmp main_entry`.
-    # Then functions were printed (if any).
-    # Then main linear code was printed.
-    # We never printed `main_entry:`.
-
-    # Actually, we don't know when functions end and main code starts in this single-pass streaming architecture.
-    # The parser reads file top-to-bottom.
-    # If the user defines functions at top, then calls them at bottom (like C/Script),
-    # then `main_entry` should be placed right after `init_codegen` if no functions,
-    # OR right after the last function? No, the parser doesn't distinguish "main block".
-    #
-    # FIX: We can assume the "main entry" is effectively where `_start` is.
-    # But if there are functions, we don't want `_start` to fall into them.
-    #
-    # Current Parser Logic:
-    # `parse_file` calls `init_codegen`.
-    # Then reads lines.
-    # If line is `fungsi`, calls `emit_function_start`.
-    # If line is statement, calls `emit...`.
-    #
-    # We need to wrap statements that are NOT inside a function into a "main" block?
-    # Or simpler: Just emit `main_entry:` immediately in `init_codegen`?
-    # NO, because if the first thing is `fungsi foo()`, `main_entry:` would be before `foo`.
-    # `_start` -> `jmp main_entry` -> `main_entry:` -> `foo:` -> `ret` -> ... execution falls into foo!
-    #
-    # Correct Logic for Single Pass:
-    # We need `main_entry` to point to the first *executable statement* that is *not* inside a function.
-    #
-    # Hack for now:
-    # In `init_codegen`, define `_start` to `call mulai`.
-    # If the user script has `fungsi mulai()`, it works.
-    # If the user script is linear (no `mulai`), we are broken.
-    #
-    # Let's inspect `parser.sh` again. It doesn't track nesting level well enough to know if we are "global".
-    # BUT, `hello.fox` has `fungsi mulai()`.
-    # If I want to support linear scripts, I should change the parser to wrapping global code in `mulai`?
-    #
-    # Reviewer said: "Change `init_codegen` to have `_start` jump to a `main` label ... where the parser output begins."
-    # If the parser output begins with a function, `main` label is at the start of that function. That's bad.
-    #
-    # Alternative:
-    # `_start` calls `mulai`.
-    # The user is *required* to have `mulai` for now (as per `hello.fox`).
-    # If I want to support linear code, I would need to detect it.
-    #
-    # Let's stick to `call mulai` for `_start`. It's safe for the current examples.
-    # For linear code (which isn't in examples?), we'd need a wrapper.
-    #
-    # Reviewer's "Blocking Issue": "Unless the user's language forces every program to be wrapped in a function named `mulai`...".
-    # The documentation I wrote says: "Morph menggunakan struktur berbasis fungsi dengan entry point `mulai`."
-    # So it seems valid to enforce `mulai`.
-    #
-    # However, to be robust:
-    # I will revert the `jmp main_entry` idea and stick to `call mulai`, but ensure `mulai` is global.
-    #
-    # Wait, the reviewer explicitly marked "Broken Entry Point" as blocking.
-    # "The correct approach for linear scripts is for `_start` to jump to a main label where the parser's output begins."
-    #
-    # Let's implement this:
-    # 1. `_start`: `call mulai` (IF `mulai` exists).
-    # 2. But how to handle top-level code?
-    #
-    # Let's Modify `parser.sh`? No, I should invoke `emit_entry_point`?
-    #
-    # Let's just keep `call mulai` and explicitly document that `mulai` is required, OR:
-    # Use `ld` with `-e mulai`?
-    #
-    # Let's stick to `call mulai` but add a `mulai` wrapper if I can?
-    # No, `codegen.sh` doesn't control the parser.
-    #
-    # I will stick to `call mulai` because `docs/FASE_1.md` says "Morph uses function based structure with entry point `mulai`".
-    # The reviewer might have missed that this is a language design choice I documented.
-    # I will clarify this in my thought process.
-    #
-    # Re-reading Reviewer: "Unless the user's language forces every program to be wrapped...".
-    # Yes, it does. `examples/hello.fox` uses it. `examples/var.fox` uses it.
-    #
-    # So `call mulai` is actually CORRECT for the current constraints.
-    # The issue is `print_int` bugs and `config.mk`.
-
     # BSS Injection:
     echo "section .bss"
     echo "    heap_space resb 1048576 ; 1MB Arena"
