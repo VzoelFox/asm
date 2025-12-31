@@ -2,3 +2,4 @@
 *.o
 hello
 morph_build/
+config.mk
