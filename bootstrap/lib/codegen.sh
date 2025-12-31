@@ -339,6 +339,17 @@ emit_print_str() {
     echo "    call print_string_ptr"
 }
 
+# --- Function & Flow Control ---
+
+emit_function_start() {
+    local name="$1"
+    echo "$name:"
+}
+
+emit_function_end() {
+    echo "    ret"
+}
+
 emit_print() {
     local content="$1"
 
@@ -377,6 +388,15 @@ EOF
         echo "    call print_int"
         echo "    call print_newline"
     fi
+    echo "    cmp rax, rbx"
+    case "$cond" in
+        "==") echo "    jne $lbl_end" ;;
+        "!=") echo "    je $lbl_end" ;;
+        "<")  echo "    jge $lbl_end" ;;
+        ">")  echo "    jle $lbl_end" ;;
+        "<=") echo "    jg $lbl_end" ;;
+        ">=") echo "    jl $lbl_end" ;;
+    esac
 }
 
 emit_if_start() {
