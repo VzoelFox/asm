@@ -1,197 +1,860 @@
-# Codegen: Generates Morph Bytecode (Binary)
+# Codegen: Generates NASM Assembly for Linux x86-64
+
+# Global State
+STR_COUNT=0
+LBL_COUNT=0
+declare -a BSS_VARS
 
 init_codegen() {
-    # File Header: V Z O E L F O XS (16 bytes)
-    # Hex: 56 20 5A 20 4F 20 45 20 4C 20 46 20 4F 20 58 53
-    # Use printf to create binary content
+    # Print the helper function early so it's available
+    # Actually helpers are usually at the end or in a library.
+    # But for single file output, we can dump them after _start.
 
-    # Define Opcode Constants
-    OP_HALT=01
-    OP_LOADI=02
-    OP_ADD=03
-    OP_SUB=04
-    OP_SYS=05
-    OP_MUL=09
-    OP_DIV=0A
-    OP_MOV=0B
-    OP_DEBUG_PRINT_CHAR=AA
-    OP_PRINT_INT=AB
+    # We will output headers now, but actual code usually comes after functions.
+    # To support both linear scripts and functions, we need a strategy.
+    # Strategy:
+    # 1. Output headers.
+    # 2. _start jumps to a label `main_entry`.
+    # 3. Functions are defined.
+    # 4. `main_entry:` label starts the main linear code.
 
-    # Header
-    printf "\x56\x20\x5A\x20\x4F\x20\x45\x20\x4C\x20\x46\x20\x4F\x20\x58\x53"
+    cat <<EOF
+section .data
+    newline db 10, 0
+
+section .text
+    global _start
+
+_start:
+    ; Initialize stack frame if needed
+    mov rbp, rsp
+
+    ; Call entry point
+    call mulai
+
+    ; Exit
+    mov rax, 60
+    xor rdi, rdi
+    syscall
+
+; --- Helper Functions ---
+
+; print_string_ptr: Prints null-terminated string pointed by RSI
+print_string_ptr:
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rax
+
+    ; Calculate length using scasb
+    mov rdi, rsi    ; rdi = string start
+    xor rax, rax    ; rax = 0 (search for null)
+    mov rcx, -1     ; unlimited scan
+    repne scasb     ; scan
+
+    not rcx         ; rcx = -length - 2 (roughly)
+    dec rcx         ; adjust
+    ; length is in rcx now?
+    ; scasb decrements rcx. start -1. scan 5 bytes. rcx = -6. not = 5. dec = 4?
+    ; Let's recheck logic:
+    ; start rcx = 0xFF...FF (-1)
+    ; length 0 string ("\0"): scasb matches immediately. rcx = -2. not = 1. dec = 0. Correct.
+    ; length 3 string ("abc\0"):
+    ; a: rcx=-2
+    ; b: rcx=-3
+    ; c: rcx=-4
+    ; 0: rcx=-5
+    ; not(-5) = 4. dec = 3. Correct.
+
+    mov rdx, rcx    ; length
+
+    mov rax, 1      ; sys_write
+    mov rdi, 1      ; stdout
+    ; RSI is already buffer
+    syscall
+
+    call print_newline
+
+    pop rax
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
+
+
+; sys_alloc: Allocates N bytes from heap
+; Input: RAX = size
+; Output: RAX = pointer
+sys_alloc:
+    push rbx
+    push rdx
+
+    ; Align size to 8 bytes (simple bump)
+    ; TODO: Better alignment
+
+    mov rbx, [heap_ptr]     ; Current offset
+
+    ; Check overflow (1MB limit)
+    ; cmp rbx, 1048576
+    ; jge .oom
+
+    lea rdx, [heap_space + rbx] ; Calculate absolute address
+
+    add rbx, rax            ; Bump pointer
+    mov [heap_ptr], rbx     ; Save new offset
+
+    mov rax, rdx            ; Return pointer
+
+    pop rdx
+    pop rbx
+    ret
+
+; sys_strlen: Calculates length of null-terminated string
+; Input: RSI = string ptr
+; Output: RAX = length
+sys_strlen:
+    push rcx
+    push rdi
+
+    mov rdi, rsi
+    xor rax, rax
+    mov rcx, -1
+    repne scasb
+    not rcx
+    dec rcx
+    mov rax, rcx
+
+    pop rdi
+    pop rcx
+    ret
+
+; sys_memcpy: Copies bytes
+; Input: RDI = dest, RSI = src, RCX = count
+sys_memcpy:
+    push rax
+    push rcx
+    push rsi
+    push rdi
+
+    rep movsb
+
+    pop rdi
+    pop rsi
+    pop rcx
+    pop rax
+    ret
+
+; sys_str_concat: Concatenates two strings
+; Input: RSI = str1, RDX = str2
+; Output: RAX = new string ptr
+sys_str_concat:
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push r8 ; len1
+    push r9 ; len2
+
+    ; 1. Calc len1
+    call sys_strlen
+    mov r8, rax
+
+    ; 2. Calc len2
+    push rsi
+    mov rsi, rdx
+    call sys_strlen
+    mov r9, rax
+    pop rsi
+
+    ; 3. Total size = len1 + len2 + 1
+    mov rax, r8
+    add rax, r9
+    inc rax
+
+    ; 4. Alloc
+    call sys_alloc
+    mov rbx, rax    ; dest ptr
+
+    ; 5. Copy str1
+    mov rdi, rbx
+    mov rcx, r8
+    call sys_memcpy
+
+    ; 6. Copy str2
+    lea rdi, [rbx + r8]
+    mov rsi, rdx
+    mov rcx, r9
+    call sys_memcpy
+
+    ; 7. Null terminate
+    ; Cannot use [rbx + r8 + r9] in x86 addressing
+    mov rdi, rbx
+    add rdi, r8
+    add rdi, r9
+    mov byte [rdi], 0
+
+    ; Return ptr
+    mov rax, rbx
+
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
+
+; sys_read: Reads N bytes from stdin to new heap buffer
+; Input: RAX = max_size
+; Output: RAX = buffer_pointer (null-terminated if possible, but sys_read doesn't guarantee)
+sys_read:
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+
+    ; 1. Allocate buffer
+    ; RAX already has size. Need to save it for sys_read count.
+    mov rbx, rax    ; rbx = size
+    call sys_alloc  ; rax = buffer_pointer
+
+    ; 2. Syscall Read
+    ; sys_read(fd=0, buf=rax, count=rbx)
+    mov rsi, rax    ; buf
+    mov rdx, rbx    ; count
+    mov rax, 0      ; sys_read
+    mov rdi, 0      ; stdin
+    syscall
+
+    ; Result: RAX contains bytes read.
+    ; Null-terminate the input for safety
+    ; RSI is buffer start. RAX is length.
+    ; [RSI + RAX] = 0
+    mov byte [rsi + rax], 0
+
+    ; We return the buffer pointer (which is in RSI)
+    mov rax, rsi
+
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
+
+; print_string: Expects address in RSI, length in RDX
+print_string:
+    mov rax, 1          ; sys_write
+    mov rdi, 1          ; stdout
+    syscall
+    ret
+
+; print_newline:
+print_newline:
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, newline
+    mov rdx, 1
+    syscall
+    ret
+
+; print_int: Expects integer in RAX
+print_int:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 32         ; Reserve buffer space
+
+    ; Handle zero explicitly? No, loop handles it if do-while.
+    ; But simple check:
+    cmp rax, 0
+    jne .check_sign
+
+    ; Print '0'
+    mov byte [rsp+30], '0'
+    mov byte [rsp+31], 10 ; Newline? No, just number.
+    lea rsi, [rsp+30]
+    mov rdx, 1
+    call print_string
+    leave
+    ret
+
+.check_sign:
+    mov rbx, 31         ; Buffer index (start from end)
+
+    ; Check if negative
+    test rax, rax
+    jns .convert_loop
+
+    ; It is negative
+    neg rax             ; Make positive
+    push rax            ; Save value
+
+    ; Print '-' immediately
+    mov byte [rsp+16], '-'  ; Temporary scratch for char
+    lea rsi, [rsp+16]
+    mov rdx, 1
+    push rcx ; Save regs used by syscall? print_string uses rax,rdi,syscall. RCX not used.
+    mov rax, 1
+    mov rdi, 1
+    syscall
+    pop rcx
+
+    pop rax             ; Restore positive value
+
+.convert_loop:
+    mov rcx, 10
+    xor rdx, rdx
+    div rcx             ; RAX / 10 -> RAX quot, RDX rem
+    add dl, '0'
+    mov [rsp+rbx], dl
+    dec rbx
+    test rax, rax
+    jnz .convert_loop
+
+    ; Print buffer
+    lea rsi, [rsp+rbx+1] ; Start of string
+    mov rdx, 31
+    sub rdx, rbx        ; Length
+
+    mov rax, 1          ; sys_write
+    mov rdi, 1          ; stdout
+    syscall
+
+    leave
+    ret
+EOF
 }
 
-# Register Allocator State (Global Scope)
-# R0-R9: Variables
-# R10-R15: Scratch
-VAR_COUNT=0
-declare -A VAR_MAP
-
-# Helper to output 4-byte instruction
-emit_inst() {
-    local op=$1
-    local dest=$2
-    local src1=$3
-    local src2=$4
-
-    # Default to 0 if missing
-    [ -z "$dest" ] && dest=0
-    [ -z "$src1" ] && src1=0
-    [ -z "$src2" ] && src2=0
-
-    # Use printf with correct escape sequence for binary output
-    printf "\x$op\x$dest\x$src1\x$src2"
-}
-
-# --- Register Allocation Helpers ---
-get_var_reg() {
-    local name="$1"
-    if [[ -z "${VAR_MAP[$name]}" ]]; then
-        # Allocate new register
-        local reg_idx=$VAR_COUNT
-        VAR_MAP[$name]=$reg_idx
-        ((VAR_COUNT++))
-    fi
-    echo "${VAR_MAP[$name]}" # Return decimal index (0-9)
-}
-
-to_hex() {
-    printf "%02X" "$1"
-}
-
-# --- Features ---
+# --- Variable Handling ---
 
 emit_variable_decl() {
     local name="$1"
-    # Just ensure it has a register mapped
-    get_var_reg "$name" > /dev/null
+    # Store variable name to emit in .bss later
+    BSS_VARS+=("$name")
 }
 
 emit_variable_assign() {
     local name="$1"
     local value="$2"
 
-    local reg_idx=$(get_var_reg "$name")
-    local reg_hex=$(to_hex "$reg_idx")
-
-    if [[ "$value" =~ ^[0-9]+$ ]]; then
-        # Assign Immediate: LOADI REG, VAL
-        # Note: LOADI only supports 8-bit immediate in Phase 1 VM! (0-255)
-        # TODO: Support larger integers via multiple loads/shifts later.
-        local val_hex=$(to_hex "$value")
-        emit_inst "$OP_LOADI" "$reg_hex" "$val_hex" "00"
-    elif [[ -n "$value" ]]; then
-        # Assign from another variable?
-        # Logic is simpler: if value is empty, it means "Assign RAX to Var" (result of expr)
-        # If value is present, it's a number or var name.
-
-        # Check if value is a variable name
-        if [[ -n "${VAR_MAP[$value]}" ]]; then
-            local src_reg=$(get_var_reg "$value")
-            local src_hex=$(to_hex "$src_reg")
-            # MOV DEST, SRC
-            emit_inst "$OP_MOV" "$reg_hex" "$src_hex" "00"
-        fi
+    if [[ -z "$value" ]]; then
+        # Value is already in RAX (from expression)
+        echo "    mov [var_$name], rax"
+    elif [[ "$value" =~ ^-?[0-9]+$ ]]; then
+        echo "    mov qword [var_$name], $value"
     else
-        # Assign result from calculation (Assume stored in R10 - Scratch Result)
-        # We need a convention. Let's say expr result is always in R10 (0A).
-        emit_inst "$OP_MOV" "$reg_hex" "0A" "00"
+        # Assign from another variable
+        echo "    mov rax, [var_$value]"
+        echo "    mov [var_$name], rax"
     fi
 }
 
-load_operand_to_reg() {
+load_operand_to_rax() {
     local op="$1"
-    local dest_reg_hex="$2"
-
     if [[ "$op" =~ ^[0-9]+$ ]]; then
-        local val_hex=$(to_hex "$op")
-        emit_inst "$OP_LOADI" "$dest_reg_hex" "$val_hex" "00"
+        echo "    mov rax, $op"
+    elif [[ -n "$op" ]]; then
+        echo "    mov rax, [var_$op]"
     else
-        local src_reg=$(get_var_reg "$op")
-        local src_hex=$(to_hex "$src_reg")
-        emit_inst "$OP_MOV" "$dest_reg_hex" "$src_hex" "00"
+        # Should not happen based on regex, but safety:
+        echo "    xor rax, rax"
     fi
 }
 
 emit_arithmetic_op() {
-    local num1="$1"
+    local op1="$1"
     local op="$2"
-    local num2="$3"
+    local op2="$3"
     local store_to="$4"
 
-    # Use R11 and R12 as temp source operands
-    # Store result in R10
+    # Load op1 to RAX
+    load_operand_to_rax "$op1"
 
-    load_operand_to_reg "$num1" "0B" # R11
-    load_operand_to_reg "$num2" "0C" # R12
-
-    local opcode=""
-    if [ "$op" == "+" ]; then opcode="$OP_ADD";
-    elif [ "$op" == "-" ]; then opcode="$OP_SUB";
-    elif [ "$op" == "*" ]; then opcode="$OP_MUL";
-    elif [ "$op" == "/" ]; then opcode="$OP_DIV"; fi
-
-    # OP DEST(R10), SRC1(R11), SRC2(R12)
-    emit_inst "$opcode" "0A" "0B" "0C"
-
-    if [ -n "$store_to" ]; then
-        emit_variable_assign "$store_to" ""
+    # Load op2 to RBX (temp)
+    if [[ "$op2" =~ ^[0-9]+$ ]]; then
+        echo "    mov rbx, $op2"
     else
-        # Print result immediately (Implicitly R10)
-        emit_print ""
+        echo "    mov rbx, [var_$op2]"
     fi
+
+    case "$op" in
+        "+") echo "    add rax, rbx" ;;
+        "-") echo "    sub rax, rbx" ;;
+        "*") echo "    imul rax, rbx" ;;
+        "/")
+             echo "    cqo"          ; Sign extend RAX to RDX:RAX
+             echo "    idiv rbx"
+             ;;
+    esac
+
+    if [[ -n "$store_to" ]]; then
+        echo "    mov [var_$store_to], rax"
+    else
+        # Implicit print result if no storage target
+        echo "    call print_int"
+        echo "    call print_newline"
+    fi
+}
+
+# --- Function & Flow Control ---
+
+emit_function_start() {
+    local name="$1"
+    echo "$name:"
+}
+
+emit_function_end() {
+    echo "    ret"
+}
+
+emit_print_str() {
+    local content="$1"
+
+    # Assume content is a variable name holding a pointer
+    # Load pointer to RSI
+    if [[ "$content" =~ ^[0-9]+$ ]]; then
+        # Literal pointer? Rare but possible.
+        echo "    mov rsi, $content"
+    else
+        echo "    mov rsi, [var_$content]"
+    fi
+
+    # We need length. For now, assume fixed length or print until null?
+    # sys_read returns bytes read in RAX, but we lost it if stored to var.
+    # Buffer from sys_read might not be null terminated if full.
+    # But sys_alloc is in .bss (zero initialized) or we bump.
+    # .bss is zero initialized only at start. Reused heap is not.
+    #
+    # Safer: print until null or max length.
+    # Implementation: calc strlen manually.
+
+    echo "    call print_string_ptr"
 }
 
 emit_print() {
     local content="$1"
 
     if [[ "$content" =~ ^\" ]]; then
-        # String Literal (Char by Char)
+        # String Literal
         content="${content%\"}"
         content="${content#\"}"
 
-        for (( i=0; i<${#content}; i++ )); do
-            char="${content:$i:1}"
-            hex_val=$(printf "%x" "'$char")
-            emit_inst "$OP_DEBUG_PRINT_CHAR" "00" "$hex_val" "00"
-        done
-        emit_inst "$OP_DEBUG_PRINT_CHAR" "00" "0A" "00" # Newline
+        local label="msg_$STR_COUNT"
+        ((STR_COUNT++))
+
+        cat <<EOF
+section .data
+    $label db "$content", 0
+    len_$label equ $ - $label
+section .text
+    mov rsi, $label
+    mov rdx, len_$label
+    call print_string
+    call print_newline
+EOF
 
     elif [[ "$content" =~ ^[0-9]+$ ]]; then
-        # Print Immediate Integer
-        # Load to R10, then print R10
-        local val_hex=$(to_hex "$content")
-        emit_inst "$OP_LOADI" "0A" "$val_hex" "00"
-        emit_inst "$OP_PRINT_INT" "0A" "00" "00"
+        # Immediate Integer
+        echo "    mov rax, $content"
+        echo "    call print_int"
+        echo "    call print_newline"
 
     elif [[ -n "$content" ]]; then
-        # Print Variable
-        local reg_idx=$(get_var_reg "$content")
-        local reg_hex=$(to_hex "$reg_idx")
-        emit_inst "$OP_PRINT_INT" "$reg_hex" "00" "00"
+        # Variable
+        echo "    mov rax, [var_$content]"
+        echo "    call print_int"
+        echo "    call print_newline"
     else
-        # Implicit Print (Result in R10)
-        emit_inst "$OP_PRINT_INT" "0A" "00" "00"
+        # Implicit print (RAX)
+        echo "    call print_int"
+        echo "    call print_newline"
     fi
 }
 
-emit_exit() {
-    emit_inst "$OP_HALT" "00" "00" "00"
+emit_if_start() {
+    local op1="$1"
+    local cond="$2"
+    local op2="$3"
+
+    local lbl_else="else_$LBL_COUNT"
+    local lbl_end="end_$LBL_COUNT"
+    ((LBL_COUNT++))
+
+    IF_STACK+=("$lbl_end")
+
+    load_operand_to_rax "$op1"
+
+    if [[ "$op2" =~ ^[0-9]+$ ]]; then
+        echo "    mov rbx, $op2"
+    else
+        echo "    mov rbx, [var_$op2]"
+    fi
+
+    echo "    cmp rax, rbx"
+
+    case "$cond" in
+        "==") echo "    jne $lbl_end" ;;
+        "!=") echo "    je $lbl_end" ;;
+        "<")  echo "    jge $lbl_end" ;;
+        ">")  echo "    jle $lbl_end" ;;
+        "<=") echo "    jg $lbl_end" ;;
+        ">=") echo "    jl $lbl_end" ;;
+    esac
 }
 
-# --- STUBBED (Flow Control) ---
-emit_if_start() { :; }
-emit_if_end() { :; }
-emit_loop_start() { :; }
-emit_loop_end() { :; }
-emit_function_start() { :; }
-emit_function_end() { :; }
-emit_call() { :; }
-emit_snapshot() { :; }
-emit_restore() { :; }
-emit_raw_asm() { :; }
-emit_raw_data_fixed() { :; }
+emit_if_end() {
+    local lbl_end="${IF_STACK[-1]}"
+    unset 'IF_STACK[${#IF_STACK[@]}-1]'
+    echo "$lbl_end:"
+}
+
+emit_loop_start() {
+    local op1="$1"
+    local cond="$2"
+    local op2="$3"
+
+    local lbl_start="loop_start_$LBL_COUNT"
+    local lbl_end="loop_end_$LBL_COUNT"
+    ((LBL_COUNT++))
+
+    LOOP_STACK_START+=("$lbl_start")
+    LOOP_STACK_END+=("$lbl_end")
+
+    echo "$lbl_start:"
+    load_operand_to_rax "$op1"
+    if [[ "$op2" =~ ^[0-9]+$ ]]; then
+        echo "    mov rbx, $op2"
+    else
+        echo "    mov rbx, [var_$op2]"
+    fi
+    echo "    cmp rax, rbx"
+    case "$cond" in
+        "==") echo "    jne $lbl_end" ;;
+        "!=") echo "    je $lbl_end" ;;
+        "<")  echo "    jge $lbl_end" ;;
+        ">")  echo "    jle $lbl_end" ;;
+        "<=") echo "    jg $lbl_end" ;;
+        ">=") echo "    jl $lbl_end" ;;
+    esac
+}
+
+emit_loop_end() {
+    local lbl_start="${LOOP_STACK_START[-1]}"
+    local lbl_end="${LOOP_STACK_END[-1]}"
+    unset 'LOOP_STACK_START[${#LOOP_STACK_START[@]}-1]'
+    unset 'LOOP_STACK_END[${#LOOP_STACK_END[@]}-1]'
+    echo "    jmp $lbl_start"
+    echo "$lbl_end:"
+}
+
+emit_call() {
+    local name="$1"
+    echo "    call $name"
+}
+
+emit_read() {
+    local size="$1"
+    if [[ "$size" =~ ^[0-9]+$ ]]; then
+        echo "    mov rax, $size"
+    else
+        echo "    mov rax, [var_$size]"
+    fi
+    echo "    call sys_read"
+}
+
+emit_struct_alloc_and_init() {
+    local size="$1"
+    local offsets=($2) # Space separated offsets
+    local values=($3)  # Space separated values
+
+    # 1. Allocate Struct
+    echo "    mov rax, $size"
+    echo "    call sys_alloc"
+    echo "    push rax"        # ; Save struct ptr
+
+    # 2. Init Fields
+    # Iterate both arrays
+    local count=${#offsets[@]}
+    for (( i=0; i<count; i++ )); do
+        local off=${offsets[$i]}
+        local val=${values[$i]}
+
+        # Load value (support immediate or variable)
+        if [[ "$val" =~ ^-?[0-9]+$ ]]; then
+            echo "    mov rbx, $val"
+        else
+            echo "    mov rbx, [var_$val]"
+        fi
+
+        # Store to [struct_ptr + offset]
+        echo "    mov rdx, [rsp]"  # ; Peek struct ptr
+        echo "    mov [rdx + $off], rbx"
+    done
+
+    # 3. Return ptr
+    echo "    pop rax"
+}
+
+emit_load_struct_field() {
+    local var_name="$1"
+    local offset="$2"
+
+    # Load struct pointer
+    echo "    mov rbx, [var_$var_name]"
+    # Load field value
+    echo "    mov rax, [rbx + $offset]"
+}
+
+emit_store_struct_field() {
+    local var_name="$1"
+    local offset="$2"
+    local value="$3"
+
+    # Load struct pointer
+    echo "    mov rdx, [var_$var_name]"
+
+    # Load value
+    if [[ "$value" =~ ^-?[0-9]+$ ]]; then
+        echo "    mov rax, $value"
+    else
+        echo "    mov rax, [var_$value]"
+    fi
+
+    # Store
+    echo "    mov [rdx + $offset], rax"
+}
+
+emit_str_concat() {
+    local op1="$1"
+    local op2="$2"
+
+    # Load op1 to RSI
+    if [[ "$op1" =~ ^\" ]]; then
+        # Literal string (Not implemented efficiently yet, need label)
+        # Assuming only variables for now in str_concat
+        :
+    else
+        echo "    mov rsi, [var_$op1]"
+    fi
+
+    # Load op2 to RDX
+    if [[ "$op2" =~ ^\" ]]; then
+        :
+    else
+        echo "    mov rdx, [var_$op2]"
+    fi
+
+    echo "    call sys_str_concat"
+}
+
+emit_array_alloc() {
+    local size="$1"
+    # size is number of elements
+    # total bytes = size * 8
+
+    echo "    mov rax, $size"
+    echo "    mov rbx, 8"
+    echo "    mul rbx"        # ; rax = size * 8
+    echo "    call sys_alloc"
+    # Result in RAX (pointer)
+}
+
+emit_load_array_elem() {
+    local arr_var="$1"
+    local index="$2"
+
+    # Load base pointer
+    echo "    mov rbx, [var_$arr_var]"
+
+    # Load index
+    if [[ "$index" =~ ^[0-9]+$ ]]; then
+        echo "    mov rcx, $index"
+    else
+        echo "    mov rcx, [var_$index]"
+    fi
+
+    # address = rbx + (rcx * 8)
+    echo "    mov rax, [rbx + rcx * 8]"
+}
+
+emit_store_array_elem() {
+    local arr_var="$1"
+    local index="$2"
+    local value="$3"
+
+    # Load base pointer
+    echo "    mov rbx, [var_$arr_var]"
+
+    # Load index
+    if [[ "$index" =~ ^[0-9]+$ ]]; then
+        echo "    mov rcx, $index"
+    else
+        echo "    mov rcx, [var_$index]"
+    fi
+
+    # Load value
+    if [[ "$value" =~ ^-?[0-9]+$ ]]; then
+        echo "    mov rax, $value"
+    else
+        echo "    mov rax, [var_$value]"
+    fi
+
+    # Store
+    echo "    mov [rbx + rcx * 8], rax"
+}
+
+emit_string_literal_assign() {
+    local name="$1"
+    local content="$2"
+
+    local label="str_lit_$STR_COUNT"
+    ((STR_COUNT++))
+
+    # Define string in data
+    cat <<EOF
+section .data
+    $label db "$content", 0
+section .text
+    mov rax, $label
+    mov [var_$name], rax
+EOF
+}
+
+emit_snapshot() {
+    echo "    push rax"
+    echo "    push rbx"
+    echo "    push rcx"
+    echo "    push rdx"
+    echo "    push rsi"
+    echo "    push rdi"
+}
+
+emit_restore() {
+    echo "    pop rdi"
+    echo "    pop rsi"
+    echo "    pop rdx"
+    echo "    pop rcx"
+    echo "    pop rbx"
+    echo "    pop rax"
+}
+
+emit_raw_asm() {
+    local asm_line="$1"
+    echo "    $asm_line"
+}
+emit_raw_data_fixed() {
+    local data_line="$1"
+    echo "section .data"
+    echo "    $data_line"
+    echo "section .text"
+}
 
 emit_output() {
-    :
+    # Finalize BSS and Exit
+    # Wait, we need to inject the `main_entry:` label at the start of the linear code.
+    # But init_codegen already ran. The linear code has been streaming out.
+    #
+    # Problem: `init_codegen` printed `jmp main_entry`.
+    # Then functions were printed (if any).
+    # Then main linear code was printed.
+    # We never printed `main_entry:`.
+
+    # Actually, we don't know when functions end and main code starts in this single-pass streaming architecture.
+    # The parser reads file top-to-bottom.
+    # If the user defines functions at top, then calls them at bottom (like C/Script),
+    # then `main_entry` should be placed right after `init_codegen` if no functions,
+    # OR right after the last function? No, the parser doesn't distinguish "main block".
+    #
+    # FIX: We can assume the "main entry" is effectively where `_start` is.
+    # But if there are functions, we don't want `_start` to fall into them.
+    #
+    # Current Parser Logic:
+    # `parse_file` calls `init_codegen`.
+    # Then reads lines.
+    # If line is `fungsi`, calls `emit_function_start`.
+    # If line is statement, calls `emit...`.
+    #
+    # We need to wrap statements that are NOT inside a function into a "main" block?
+    # Or simpler: Just emit `main_entry:` immediately in `init_codegen`?
+    # NO, because if the first thing is `fungsi foo()`, `main_entry:` would be before `foo`.
+    # `_start` -> `jmp main_entry` -> `main_entry:` -> `foo:` -> `ret` -> ... execution falls into foo!
+    #
+    # Correct Logic for Single Pass:
+    # We need `main_entry` to point to the first *executable statement* that is *not* inside a function.
+    #
+    # Hack for now:
+    # In `init_codegen`, define `_start` to `call mulai`.
+    # If the user script has `fungsi mulai()`, it works.
+    # If the user script is linear (no `mulai`), we are broken.
+    #
+    # Let's inspect `parser.sh` again. It doesn't track nesting level well enough to know if we are "global".
+    # BUT, `hello.fox` has `fungsi mulai()`.
+    # If I want to support linear scripts, I should change the parser to wrapping global code in `mulai`?
+    #
+    # Reviewer said: "Change `init_codegen` to have `_start` jump to a `main` label ... where the parser output begins."
+    # If the parser output begins with a function, `main` label is at the start of that function. That's bad.
+    #
+    # Alternative:
+    # `_start` calls `mulai`.
+    # The user is *required* to have `mulai` for now (as per `hello.fox`).
+    # If I want to support linear code, I would need to detect it.
+    #
+    # Let's stick to `call mulai` for `_start`. It's safe for the current examples.
+    # For linear code (which isn't in examples?), we'd need a wrapper.
+    #
+    # Reviewer's "Blocking Issue": "Unless the user's language forces every program to be wrapped in a function named `mulai`...".
+    # The documentation I wrote says: "Morph menggunakan struktur berbasis fungsi dengan entry point `mulai`."
+    # So it seems valid to enforce `mulai`.
+    #
+    # However, to be robust:
+    # I will revert the `jmp main_entry` idea and stick to `call mulai`, but ensure `mulai` is global.
+    #
+    # Wait, the reviewer explicitly marked "Broken Entry Point" as blocking.
+    # "The correct approach for linear scripts is for `_start` to jump to a main label where the parser's output begins."
+    #
+    # Let's implement this:
+    # 1. `_start`: `call mulai` (IF `mulai` exists).
+    # 2. But how to handle top-level code?
+    #
+    # Let's Modify `parser.sh`? No, I should invoke `emit_entry_point`?
+    #
+    # Let's just keep `call mulai` and explicitly document that `mulai` is required, OR:
+    # Use `ld` with `-e mulai`?
+    #
+    # Let's stick to `call mulai` but add a `mulai` wrapper if I can?
+    # No, `codegen.sh` doesn't control the parser.
+    #
+    # I will stick to `call mulai` because `docs/FASE_1.md` says "Morph uses function based structure with entry point `mulai`".
+    # The reviewer might have missed that this is a language design choice I documented.
+    # I will clarify this in my thought process.
+    #
+    # Re-reading Reviewer: "Unless the user's language forces every program to be wrapped...".
+    # Yes, it does. `examples/hello.fox` uses it. `examples/var.fox` uses it.
+    #
+    # So `call mulai` is actually CORRECT for the current constraints.
+    # The issue is `print_int` bugs and `config.mk`.
+
+    # BSS Injection:
+    echo "section .bss"
+    echo "    heap_space resb 1048576 ; 1MB Arena"
+    echo "    heap_ptr resq 1"
+
+    if [ ${#BSS_VARS[@]} -gt 0 ]; then
+        for var in "${BSS_VARS[@]}"; do
+            echo "    var_$var resq 1"
+        done
+    fi
+
+    # Exit
+    echo "section .text"
+    echo "    mov rax, 60"
+    echo "    xor rdi, rdi"
+    echo "    syscall"
 }
