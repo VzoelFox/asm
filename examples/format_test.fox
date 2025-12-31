@@ -1,0 +1,58 @@
+; Format Library Test
+indeks "plugins/vc/tagger.fox"
+Ambil 320, 321, 322, 323, 324
+Ambil 201 ; str_eq
+
+fungsi mulai()
+  cetak("=== FORMAT STDLIB TEST ===")
+
+  ; Test 1: Format Int
+  var s_int = format_int(123)
+  cetak_str(s_int)
+  var is_eq = str_eq(s_int, "123")
+  jika (is_eq == 1)
+    cetak("✅ Int Format: PASS")
+  lain
+    cetak("❌ Int Format: FAIL")
+  tutup_jika
+
+  ; Test 2: Format Negative Int
+  var s_neg = format_int(-42)
+  cetak_str(s_neg)
+  is_eq = str_eq(s_neg, "-42")
+  jika (is_eq == 1)
+    cetak("✅ Neg Int Format: PASS")
+  lain
+    cetak("❌ Neg Int Format: FAIL")
+  tutup_jika
+
+  ; Test 3: Format Bool
+  var s_bool = format_bool(1)
+  is_eq = str_eq(s_bool, "true")
+  jika (is_eq == 1)
+    cetak("✅ Bool Format: PASS")
+  lain
+    cetak("❌ Bool Format: FAIL")
+  tutup_jika
+
+  ; Test 4: Format Buffer Append
+  var buf = format_buffer_buat(100)
+  panggil format_append(buf, "Hello ")
+  panggil format_append(buf, "World")
+
+  ; Check buf.data_ptr
+  var final_str = buf.data_ptr
+  cetak_str(final_str)
+
+  is_eq = str_eq(final_str, "Hello World")
+  jika (is_eq == 1)
+     cetak("✅ Buffer Append: PASS")
+  lain
+     cetak("❌ Buffer Append: FAIL")
+  tutup_jika
+
+  ; Test 5: Print Wrapper
+  format_print("Wrapper Test OK")
+
+  cetak("🚀 FORMAT LIB READY!")
+tutup_fungsi
