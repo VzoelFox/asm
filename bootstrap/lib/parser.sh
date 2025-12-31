@@ -7,10 +7,19 @@ declare -A STRUCT_SIZES
 declare -A STRUCT_OFFSETS
 declare -A VAR_TYPE_MAP
 
+# Global flag to track if we are parsing the main file
+IS_MAIN_FILE=1
+
 parse_file() {
     local input_file="$1"
+    local is_entry_point=0
 
-    init_codegen
+    # Only init codegen if this is the main file entry point
+    if [ "$IS_MAIN_FILE" -eq 1 ]; then
+        is_entry_point=1
+        IS_MAIN_FILE=0
+        init_codegen
+    fi
 
     local in_asm_block=0
     local in_data_block=0
@@ -84,6 +93,26 @@ parse_file() {
 
         # --- Handle Normal Statements ---
         case "$line" in
+            # Import (ambil)
+            ambil*)
+                if [[ "$line" =~ ^ambil[[:space:]]+\"(.*)\" ]]; then
+                    local import_path="${BASH_REMATCH[1]}"
+                    # Check extension
+                    if [[ "$import_path" != *.fox ]]; then
+                        import_path="$import_path.fox"
+                    fi
+
+                    # Recursive parse
+                    # We are already inside parse_file, so IS_MAIN_FILE is 0 globally now.
+                    # Just call it.
+                    if [ -f "$import_path" ]; then
+                        parse_file "$import_path"
+                    else
+                        echo "; Error: Import file not found: $import_path"
+                    fi
+                fi
+                ;;
+
             # Struktur Definisi
             struktur*)
                 if [[ "$line" =~ ^struktur[[:space:]]+([a-zA-Z0-9_]+) ]]; then
@@ -141,7 +170,16 @@ parse_file() {
 
             # --- Variabel (Deklarasi) ---
             var*)
-                if [[ "$line" =~ ^var[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+                # Array Declaration: var arr [10]int
+                if [[ "$line" =~ ^var[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]+\[([0-9]+)\]int$ ]]; then
+                    local name="${BASH_REMATCH[1]}"
+                    local size="${BASH_REMATCH[2]}"
+                    emit_variable_decl "$name"
+                    emit_array_alloc "$size"
+                    emit_variable_assign "$name" ""
+
+                # Normal Variable
+                elif [[ "$line" =~ ^var[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
                     local name="${BASH_REMATCH[1]}"
                     local expr="${BASH_REMATCH[2]}"
 
@@ -263,6 +301,13 @@ parse_file() {
                     local content="${BASH_REMATCH[1]}"
                     emit_print "\"$content\""
 
+                elif [[ "$line" =~ ^cetak\(([a-zA-Z0-9_]+)\[([a-zA-Z0-9_]+)\]\)$ ]]; then
+                    # Array Access Print: cetak(arr[i])
+                    local var_name="${BASH_REMATCH[1]}"
+                    local index="${BASH_REMATCH[2]}"
+                    emit_load_array_elem "$var_name" "$index"
+                    emit_print ""
+
                 elif [[ "$line" =~ ^cetak\(([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)\)$ ]]; then
                     # Struct field access print: cetak(p.x)
                     local var_name="${BASH_REMATCH[1]}"
@@ -292,8 +337,15 @@ parse_file() {
 
             # --- Assignment ke Variabel Ada (tanpa var) ---
             *)
+                 # Array Assignment: arr[i] = 100
+                 if [[ "$line" =~ ^([a-zA-Z0-9_]+)\[([a-zA-Z0-9_]+)\][[:space:]]*=[[:space:]]*(.*)$ ]]; then
+                     local var_name="${BASH_REMATCH[1]}"
+                     local index="${BASH_REMATCH[2]}"
+                     local val="${BASH_REMATCH[3]}"
+                     emit_store_array_elem "$var_name" "$index" "$val"
+
                  # Struct Field Assignment: p.x = 100
-                 if [[ "$line" =~ ^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+                 elif [[ "$line" =~ ^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
                      local var_name="${BASH_REMATCH[1]}"
                      local field_name="${BASH_REMATCH[2]}"
                      local val="${BASH_REMATCH[3]}"
@@ -328,5 +380,7 @@ parse_file() {
         esac
     done < "$input_file"
 
-    emit_output
+    if [ "$is_entry_point" -eq 1 ]; then
+        emit_output
+    fi
 }

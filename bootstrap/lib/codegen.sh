@@ -476,6 +476,15 @@ EOF
         echo "    call print_int"
         echo "    call print_newline"
     fi
+    echo "    cmp rax, rbx"
+    case "$cond" in
+        "==") echo "    jne $lbl_end" ;;
+        "!=") echo "    je $lbl_end" ;;
+        "<")  echo "    jge $lbl_end" ;;
+        ">")  echo "    jle $lbl_end" ;;
+        "<=") echo "    jg $lbl_end" ;;
+        ">=") echo "    jl $lbl_end" ;;
+    esac
 }
 
 emit_if_start() {
@@ -652,6 +661,62 @@ emit_str_concat() {
     fi
 
     echo "    call sys_str_concat"
+}
+
+emit_array_alloc() {
+    local size="$1"
+    # size is number of elements
+    # total bytes = size * 8
+
+    echo "    mov rax, $size"
+    echo "    mov rbx, 8"
+    echo "    mul rbx"        # ; rax = size * 8
+    echo "    call sys_alloc"
+    # Result in RAX (pointer)
+}
+
+emit_load_array_elem() {
+    local arr_var="$1"
+    local index="$2"
+
+    # Load base pointer
+    echo "    mov rbx, [var_$arr_var]"
+
+    # Load index
+    if [[ "$index" =~ ^[0-9]+$ ]]; then
+        echo "    mov rcx, $index"
+    else
+        echo "    mov rcx, [var_$index]"
+    fi
+
+    # address = rbx + (rcx * 8)
+    echo "    mov rax, [rbx + rcx * 8]"
+}
+
+emit_store_array_elem() {
+    local arr_var="$1"
+    local index="$2"
+    local value="$3"
+
+    # Load base pointer
+    echo "    mov rbx, [var_$arr_var]"
+
+    # Load index
+    if [[ "$index" =~ ^[0-9]+$ ]]; then
+        echo "    mov rcx, $index"
+    else
+        echo "    mov rcx, [var_$index]"
+    fi
+
+    # Load value
+    if [[ "$value" =~ ^-?[0-9]+$ ]]; then
+        echo "    mov rax, $value"
+    else
+        echo "    mov rax, [var_$value]"
+    fi
+
+    # Store
+    echo "    mov [rbx + rcx * 8], rax"
 }
 
 emit_string_literal_assign() {
