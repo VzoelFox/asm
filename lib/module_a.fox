@@ -1,0 +1,6 @@
+ambil "lib/common"
+
+fungsi module_a_func()
+  cetak("Module A Called")
+  panggil common_func()
+tutup_fungsi

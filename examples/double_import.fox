@@ -1,0 +1,7 @@
+ambil "lib/common"
+ambil "lib/module_a"
+
+fungsi mulai()
+  panggil common_func()
+  panggil module_a_func()
+tutup_fungsi
