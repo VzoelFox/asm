@@ -772,13 +772,15 @@ emit_raw_data_fixed() {
 }
 
 emit_output() {
-    # BSS Injection:
+    # BSS Injection with Deduplication:
     echo "section .bss"
     echo "    heap_space resb 1048576 ; 1MB Arena"
     echo "    heap_ptr resq 1"
 
     if [ ${#BSS_VARS[@]} -gt 0 ]; then
-        for var in "${BSS_VARS[@]}"; do
+        # Deduplicate using sort -u
+        local unique_vars=($(printf "%s\n" "${BSS_VARS[@]}" | sort -u))
+        for var in "${unique_vars[@]}"; do
             echo "    var_$var resq 1"
         done
     fi

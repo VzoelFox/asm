@@ -1,0 +1,13 @@
+### 1
+fungsi math_tambah(a, b)
+  var hasil = a + b
+  cetak("Hasil Tambah:")
+  cetak(hasil)
+tutup_fungsi
+
+### 2
+fungsi math_kurang(a, b)
+  var hasil = a - b
+  cetak("Hasil Kurang:")
+  cetak(hasil)
+tutup_fungsi

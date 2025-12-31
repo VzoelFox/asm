@@ -87,10 +87,13 @@ run_test "Functions & Snapshot" "examples/functions.fox" "Memanggil fungsi tamba
 # 3. Loops
 run_test "Loops" "examples/loop.fox" "Mulai Loop Counter (0 sampai 4): Loop ke: 0"
 
-# 4. Control Flow (If/Else/ElseIf)
-# Output control_flow.fox:
-# Testing If/Else:
-# a lebih kecil dari b (Benar)
-# Masuk blok lain (Benar)
-# c adalah 30 (Benar)
+# 4. Control Flow
 run_test "Control Flow" "examples/control_flow.fox" "Testing If/Else: a lebih kecil dari b (Benar) Masuk blok lain (Benar) c adalah 30 (Benar)"
+
+# 5. Import (ID-based)
+# Output import_test.fox:
+# Hasil Tambah:
+# 15
+# Hasil Kurang:
+# 5
+run_test "Import ID-Based" "examples/import_test.fox" "Hasil Tambah: 15 Hasil Kurang: 5"

@@ -33,6 +33,37 @@ pop_block() {
     unset 'BLOCK_STACK[$len-1]'
 }
 
+extract_block_by_id() {
+    local file="$1"
+    local id="$2"
+
+    # Logic: Scan file for "### <id>"
+    # Print lines until next "###" or EOF
+
+    local in_target_block=0
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Check for marker
+        if [[ "$line" =~ ^###[[:space:]]*([0-9]+) ]]; then
+            local current_id="${BASH_REMATCH[1]}"
+            if [ "$current_id" == "$id" ]; then
+                in_target_block=1
+                continue # Skip the marker line itself
+            else
+                if [ "$in_target_block" -eq 1 ]; then
+                    # Hit next marker, stop
+                    break
+                fi
+                in_target_block=0
+            fi
+        fi
+
+        if [ "$in_target_block" -eq 1 ]; then
+            echo "$line"
+        fi
+    done < "$file"
+}
+
 parse_file() {
     local input_file="$1"
     local is_entry_point=0
@@ -51,6 +82,9 @@ parse_file() {
 
     local CURRENT_FILE_LINE=0
 
+    # Read loop must be robust against modifying input_file?
+    # We are reading line by line.
+
     while IFS= read -r line || [ -n "$line" ]; do
         ((CURRENT_FILE_LINE++))
         LINE_NO=$CURRENT_FILE_LINE
@@ -64,8 +98,9 @@ parse_file() {
             line="${line//salah/0}"
         fi
 
-        # Skip empty and comments
+        # Skip empty and comments (and Markers ###)
         if [ -z "$line" ] || [[ "$line" =~ ^\; ]]; then continue; fi
+        if [[ "$line" =~ ^### ]]; then continue; fi
 
         # Track function name BEFORE processing line if it's a function declaration
         if [[ "$line" =~ ^fungsi[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)\( ]]; then
@@ -91,7 +126,6 @@ parse_file() {
                 echo "Error on line $CURRENT_FILE_LINE: Deprecated keyword 'akhir'. Use 'tutup_struktur'." >&2
                 exit 1
             else
-                # Parse field: name type
                 if [[ "$line" =~ ^([a-zA-Z0-9_]+)[[:space:]]+([a-zA-Z0-9_]+)$ ]]; then
                     local field_name="${BASH_REMATCH[1]}"
                     local current_size=${STRUCT_SIZES[$current_struct_name]}
@@ -114,7 +148,39 @@ parse_file() {
 
         # --- Handle Normal Statements ---
         case "$line" in
-            # Import (ambil)
+            # Import (Ambil - Capitalized) ID-based
+            Ambil*)
+                # Format: Ambil "filepath" 1, 2
+                if [[ "$line" =~ ^Ambil[[:space:]]+\"(.*)\"[[:space:]]+(.*)$ ]]; then
+                    local import_path="${BASH_REMATCH[1]}"
+                    local ids="${BASH_REMATCH[2]}"
+
+                    if [[ "$import_path" != *.fox ]]; then
+                        import_path="$import_path.fox"
+                    fi
+
+                    if [ -f "$import_path" ]; then
+                        IFS=',' read -ra ID_LIST <<< "$ids"
+                        for id in "${ID_LIST[@]}"; do
+                            id=$(echo "$id" | xargs)
+
+                            # Use Temporary File to avoid Subshell (State Preservation)
+                            local tmp_file="_import_${id}_$$.fox"
+                            extract_block_by_id "$import_path" "$id" > "$tmp_file"
+
+                            # Recursive Parse
+                            # Note: IS_MAIN_FILE is 0 now.
+                            parse_file "$tmp_file"
+
+                            rm "$tmp_file"
+                        done
+                    else
+                        echo "; Error: Import file not found: $import_path"
+                    fi
+                fi
+                ;;
+
+            # Import (ambil - lowercase) File-based
             ambil*)
                 if [[ "$line" =~ ^ambil[[:space:]]+\"(.*)\" ]]; then
                     local import_path="${BASH_REMATCH[1]}"
