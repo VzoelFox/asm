@@ -2,3 +2,4 @@
 ; Mendaftarkan fungsi matematika dasar
 
 Daftar "lib/math.fox" = 100-101
+Daftar "lib/buffer.fox" = 310-319

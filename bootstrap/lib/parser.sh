@@ -352,7 +352,8 @@ parse_file() {
                         IFS=',' read -ra VAL_LIST <<< "$args"
                         local arg_count=0
                         for val in "${VAL_LIST[@]}"; do
-                            val=$(echo "$val" | xargs)
+                            # Use sed to trim spaces while preserving quotes
+                            val=$(echo "$val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
                             local target_reg=""
                             case "$arg_count" in
@@ -365,7 +366,13 @@ parse_file() {
                             esac
 
                             if [[ -n "$target_reg" ]]; then
-                                if [[ "$val" =~ ^-?[0-9]+$ ]]; then
+                                if [[ "$val" =~ ^\"(.*)\"$ ]]; then
+                                    # String Literal support for panggil
+                                    local content="${BASH_REMATCH[1]}"
+                                    local label="str_arg_p_${LINE_NO}_${arg_count}"
+                                    emit_raw_data_fixed "$label db \"$content\", 0"
+                                    echo "    mov $target_reg, $label"
+                                elif [[ "$val" =~ ^-?[0-9]+$ ]]; then
                                     echo "    mov $target_reg, $val"
                                 else
                                     echo "    mov $target_reg, [var_$val]"
@@ -435,7 +442,43 @@ parse_file() {
                              emit_variable_assign "$name" ""
                              VAR_TYPE_MAP["$name"]="$struct_name"
                          else
-                             :
+                             # Generic Function Call in Assignment
+                             # Handle Arguments (Same as panggil but with string literal support)
+                             if [[ -n "$args_str" ]]; then
+                                 IFS=',' read -ra VAL_LIST <<< "$args_str"
+                                 local arg_count=0
+                                 for val in "${VAL_LIST[@]}"; do
+                                     # Use sed to trim spaces while preserving quotes
+                                     val=$(echo "$val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+                                     local target_reg=""
+                                     case "$arg_count" in
+                                         0) target_reg="rdi" ;;
+                                         1) target_reg="rsi" ;;
+                                         2) target_reg="rdx" ;;
+                                         3) target_reg="rcx" ;;
+                                         4) target_reg="r8" ;;
+                                         5) target_reg="r9" ;;
+                                     esac
+
+                                     if [[ -n "$target_reg" ]]; then
+                                         if [[ "$val" =~ ^\"(.*)\"$ ]]; then
+                                             # String Literal
+                                             local content="${BASH_REMATCH[1]}"
+                                             local label="str_arg_${LINE_NO}_${arg_count}"
+                                             emit_raw_data_fixed "$label db \"$content\", 0"
+                                             echo "    mov $target_reg, $label"
+                                         elif [[ "$val" =~ ^-?[0-9]+$ ]]; then
+                                             echo "    mov $target_reg, $val"
+                                         else
+                                             echo "    mov $target_reg, [var_$val]"
+                                         fi
+                                     fi
+                                     ((arg_count++))
+                                 done
+                             fi
+                             emit_call "$struct_name"
+                             emit_variable_assign "$name" ""
                          fi
                     elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
                          local op1="${BASH_REMATCH[1]}"

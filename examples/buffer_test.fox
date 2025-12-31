@@ -1,0 +1,56 @@
+; Buffer Library Test
+indeks "plugins/vc/tagger.fox"
+Ambil 310, 311, 312, 313, 314, 315, 316
+
+fungsi mulai()
+  cetak("=== BUFFER I/O STDLIB TEST ===")
+
+  ; Test 1: Create buffer
+  var buffer = buffer_buat(1024)
+  jika (buffer.capacity == 1024)
+    cetak("✅ Buffer creation: PASS")
+  lain
+    cetak("❌ Buffer creation: FAIL")
+  tutup_jika
+
+  ; Test 2: Write to buffer
+  var written = buffer_tulis(buffer, "test data")
+  jika (written > 0)
+     cetak("✅ Buffer write: PASS")
+  lain
+     cetak("❌ Buffer write: FAIL")
+  tutup_jika
+
+  ; Test 3: Read from buffer
+  ; Need to seek first
+  var ok = buffer_seek(buffer, 0)
+
+  var data = buffer_baca(buffer, 5)
+  var is_eq = str_eq(data, "test ")
+  jika (is_eq == 1)
+      cetak("✅ Buffer read: PASS")
+  lain
+      cetak_str(data)
+      cetak("❌ Buffer read: FAIL")
+  tutup_jika
+
+  ; Test 4: Seek position
+  var seek_res = buffer_seek(buffer, 0)
+  jika (seek_res == 1)
+      cetak("✅ Buffer seek: PASS")
+  lain
+      cetak("❌ Buffer seek: FAIL")
+  tutup_jika
+
+  ; Test 5: Readonly mode
+  panggil buffer_readonly(buffer)
+  var ro_write = buffer_tulis(buffer, "fail")
+
+  jika (ro_write == -1)
+      cetak("✅ Readonly protection: PASS")
+  lain
+      cetak("❌ Readonly protection: FAIL")
+  tutup_jika
+
+  cetak("🚀 BUFFER I/O READY!")
+tutup_fungsi
