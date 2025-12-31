@@ -1,0 +1,3 @@
+fungsi common_func()
+  cetak("Common Function Called")
+tutup_fungsi

@@ -7,6 +7,10 @@ declare -A STRUCT_SIZES
 declare -A STRUCT_OFFSETS
 declare -A VAR_TYPE_MAP
 
+# Import Guard Arrays (Global)
+declare -A PROCESSED_FILES
+declare -A PROCESSED_BLOCKS
+
 # Global flag to track if we are parsing the main file
 IS_MAIN_FILE=1
 LINE_NO=0
@@ -164,6 +168,14 @@ parse_file() {
                         for id in "${ID_LIST[@]}"; do
                             id=$(echo "$id" | xargs)
 
+                            # GUARD: Check if block already processed
+                            local block_key="${import_path}:${id}"
+                            if [ "${PROCESSED_BLOCKS[$block_key]}" == "1" ]; then
+                                # Already processed, skip
+                                continue
+                            fi
+                            PROCESSED_BLOCKS[$block_key]=1
+
                             # Use Temporary File to avoid Subshell (State Preservation)
                             local tmp_file="_import_${id}_$$.fox"
                             extract_block_by_id "$import_path" "$id" > "$tmp_file"
@@ -187,10 +199,19 @@ parse_file() {
                     if [[ "$import_path" != *.fox ]]; then
                         import_path="$import_path.fox"
                     fi
-                    if [ -f "$import_path" ]; then
-                        parse_file "$import_path"
+
+                    # GUARD: Check if file already processed
+                    if [ "${PROCESSED_FILES[$import_path]}" == "1" ]; then
+                        # Already processed, skip
+                        # echo "; Info: Skipping duplicate import $import_path"
+                        :
                     else
-                        echo "; Error: Import file not found: $import_path"
+                        PROCESSED_FILES[$import_path]=1
+                        if [ -f "$import_path" ]; then
+                            parse_file "$import_path"
+                        else
+                            echo "; Error: Import file not found: $import_path"
+                        fi
                     fi
                 fi
                 ;;
