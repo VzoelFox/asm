@@ -339,17 +339,6 @@ emit_print_str() {
     echo "    call print_string_ptr"
 }
 
-# --- Function & Flow Control ---
-
-emit_function_start() {
-    local name="$1"
-    echo "$name:"
-}
-
-emit_function_end() {
-    echo "    ret"
-}
-
 emit_print() {
     local content="$1"
 
@@ -388,15 +377,6 @@ EOF
         echo "    call print_int"
         echo "    call print_newline"
     fi
-    echo "    cmp rax, rbx"
-    case "$cond" in
-        "==") echo "    jne $lbl_end" ;;
-        "!=") echo "    je $lbl_end" ;;
-        "<")  echo "    jge $lbl_end" ;;
-        ">")  echo "    jle $lbl_end" ;;
-        "<=") echo "    jg $lbl_end" ;;
-        ">=") echo "    jl $lbl_end" ;;
-    esac
 }
 
 emit_if_start() {
@@ -488,6 +468,68 @@ emit_read() {
         echo "    mov rax, [var_$size]"
     fi
     echo "    call sys_read"
+}
+
+emit_struct_alloc_and_init() {
+    local size="$1"
+    local offsets=($2) # Space separated offsets
+    local values=($3)  # Space separated values
+
+    # 1. Allocate Struct
+    echo "    mov rax, $size"
+    echo "    call sys_alloc"
+    echo "    push rax"        # ; Save struct ptr
+
+    # 2. Init Fields
+    # Iterate both arrays
+    local count=${#offsets[@]}
+    for (( i=0; i<count; i++ )); do
+        local off=${offsets[$i]}
+        local val=${values[$i]}
+
+        # Load value (support immediate or variable)
+        if [[ "$val" =~ ^-?[0-9]+$ ]]; then
+            echo "    mov rbx, $val"
+        else
+            echo "    mov rbx, [var_$val]"
+        fi
+
+        # Store to [struct_ptr + offset]
+        echo "    mov rdx, [rsp]"  # ; Peek struct ptr
+        echo "    mov [rdx + $off], rbx"
+    done
+
+    # 3. Return ptr
+    echo "    pop rax"
+}
+
+emit_load_struct_field() {
+    local var_name="$1"
+    local offset="$2"
+
+    # Load struct pointer
+    echo "    mov rbx, [var_$var_name]"
+    # Load field value
+    echo "    mov rax, [rbx + $offset]"
+}
+
+emit_store_struct_field() {
+    local var_name="$1"
+    local offset="$2"
+    local value="$3"
+
+    # Load struct pointer
+    echo "    mov rdx, [var_$var_name]"
+
+    # Load value
+    if [[ "$value" =~ ^-?[0-9]+$ ]]; then
+        echo "    mov rax, $value"
+    else
+        echo "    mov rax, [var_$value]"
+    fi
+
+    # Store
+    echo "    mov [rdx + $offset], rax"
 }
 
 emit_snapshot() {

@@ -2,6 +2,11 @@
 
 # Note: codegen.sh should be sourced by the main script before this.
 
+# Symbol Table Arrays (Global)
+declare -A STRUCT_SIZES
+declare -A STRUCT_OFFSETS
+declare -A VAR_TYPE_MAP
+
 parse_file() {
     local input_file="$1"
 
@@ -9,6 +14,8 @@ parse_file() {
 
     local in_asm_block=0
     local in_data_block=0
+    local in_struct_block=0
+    local current_struct_name=""
 
     while IFS= read -r line || [ -n "$line" ]; do
         # Trim whitespace
@@ -22,12 +29,36 @@ parse_file() {
             CURRENT_FUNC_NAME="${BASH_REMATCH[1]}"
         fi
 
-        # --- Handle Blocks (ASM & Data) ---
+        # --- Handle Blocks (ASM & Data & Struct) ---
         if [ "$in_asm_block" -eq 1 ]; then
             if [ "$line" == "tutup_asm" ]; then
                 in_asm_block=0
             else
                 emit_raw_asm "$line"
+            fi
+            continue
+        fi
+
+        if [ "$in_struct_block" -eq 1 ]; then
+            if [ "$line" == "akhir" ]; then
+                in_struct_block=0
+                # Finalize struct size
+                # echo "Struct $current_struct_name size: ${STRUCT_SIZES[$current_struct_name]}"
+            else
+                # Parse field: name type
+                # Example: x int
+                if [[ "$line" =~ ^([a-zA-Z0-9_]+)[[:space:]]+([a-zA-Z0-9_]+)$ ]]; then
+                    local field_name="${BASH_REMATCH[1]}"
+                    # local field_type="${BASH_REMATCH[2]}"
+
+                    local current_size=${STRUCT_SIZES[$current_struct_name]}
+
+                    # Map: STRUCT_OFFSETS_StructName_FieldName = Offset
+                    STRUCT_OFFSETS["${current_struct_name}_${field_name}"]=$current_size
+
+                    # Increment size (always 8 bytes for now)
+                    STRUCT_SIZES[$current_struct_name]=$((current_size + 8))
+                fi
             fi
             continue
         fi
@@ -43,6 +74,16 @@ parse_file() {
 
         # --- Handle Normal Statements ---
         case "$line" in
+            # Struktur Definisi
+            struktur*)
+                if [[ "$line" =~ ^struktur[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    current_struct_name="${BASH_REMATCH[1]}"
+                    in_struct_block=1
+                    STRUCT_SIZES[$current_struct_name]=0
+                    # echo "DEBUG: Found struct $current_struct_name"
+                fi
+                ;;
+
             # fungsi nama(arg1, arg2)
             fungsi*)
                 if [[ "$line" =~ ^fungsi[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)$ ]]; then
@@ -96,10 +137,47 @@ parse_file() {
 
                     emit_variable_decl "$name"
 
-                    if [[ "$expr" =~ ^baca\((.*)\)$ ]]; then
-                         local size="${BASH_REMATCH[1]}"
-                         emit_read "$size"
-                         emit_variable_assign "$name" ""
+                    # Check for struct instantiation: Point(1, 2)
+                    # Regex: Name(Args)
+                    if [[ "$expr" =~ ^([a-zA-Z0-9_]+)\((.*)\)$ ]]; then
+                         local struct_name="${BASH_REMATCH[1]}"
+                         local args_str="${BASH_REMATCH[2]}"
+
+                         # Check if it is a struct or built-in 'baca'
+                         if [[ "$struct_name" == "baca" ]]; then
+                             emit_read "$args_str"
+                             emit_variable_assign "$name" ""
+                         elif [[ -n "${STRUCT_SIZES[$struct_name]}" ]]; then
+                             # Struct Instantiation
+                             local size=${STRUCT_SIZES[$struct_name]}
+
+                             # Parse args (comma separated)
+                             # Note: Bash regex doesn't support repeating groups well.
+                             # Simple split by comma.
+                             IFS=',' read -ra ADDR <<< "$args_str"
+
+                             local offsets_str=""
+                             local values_str=""
+                             local current_offset=0
+
+                             for val in "${ADDR[@]}"; do
+                                 # Trim
+                                 val=$(echo "$val" | xargs)
+                                 offsets_str="$offsets_str $current_offset"
+                                 values_str="$values_str $val"
+                                 current_offset=$((current_offset + 8))
+                             done
+
+                             emit_struct_alloc_and_init "$size" "$offsets_str" "$values_str"
+                             emit_variable_assign "$name" ""
+
+                             # Store variable type for member access
+                             VAR_TYPE_MAP["$name"]="$struct_name"
+                         else
+                             # Function call? Or error?
+                             # For now assume everything else is not handled or func result (TODO)
+                             :
+                         fi
                     elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
                          local op1="${BASH_REMATCH[1]}"
                          local op="${BASH_REMATCH[2]}"
@@ -161,6 +239,21 @@ parse_file() {
                     local content="${BASH_REMATCH[1]}"
                     emit_print "\"$content\""
 
+                elif [[ "$line" =~ ^cetak\(([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)\)$ ]]; then
+                    # Struct field access print: cetak(p.x)
+                    local var_name="${BASH_REMATCH[1]}"
+                    local field_name="${BASH_REMATCH[2]}"
+
+                    local struct_name="${VAR_TYPE_MAP[$var_name]}"
+                    if [[ -n "$struct_name" ]]; then
+                        local offset="${STRUCT_OFFSETS[${struct_name}_${field_name}]}"
+                        if [[ -n "$offset" ]]; then
+                             emit_load_struct_field "$var_name" "$offset"
+                             # Result in RAX, print implicit
+                             emit_print ""
+                        fi
+                    fi
+
                 elif [[ "$line" =~ ^cetak\(([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)\)$ ]]; then
                     local op1="${BASH_REMATCH[1]}"
                     local op="${BASH_REMATCH[2]}"
@@ -175,7 +268,21 @@ parse_file() {
 
             # --- Assignment ke Variabel Ada (tanpa var) ---
             *)
-                 if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+                 # Struct Field Assignment: p.x = 100
+                 if [[ "$line" =~ ^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+                     local var_name="${BASH_REMATCH[1]}"
+                     local field_name="${BASH_REMATCH[2]}"
+                     local val="${BASH_REMATCH[3]}"
+
+                     local struct_name="${VAR_TYPE_MAP[$var_name]}"
+                     if [[ -n "$struct_name" ]]; then
+                         local offset="${STRUCT_OFFSETS[${struct_name}_${field_name}]}"
+                         if [[ -n "$offset" ]]; then
+                             emit_store_struct_field "$var_name" "$offset" "$val"
+                         fi
+                     fi
+
+                 elif [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
                     local name="${BASH_REMATCH[1]}"
                     local expr="${BASH_REMATCH[2]}"
 
