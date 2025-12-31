@@ -11,6 +11,9 @@ declare -A VAR_TYPE_MAP
 declare -A PROCESSED_FILES
 declare -A PROCESSED_BLOCKS
 
+# ID Registry (Global Map: ID -> Filepath)
+declare -A ID_MAP
+
 # Global flag to track if we are parsing the main file
 IS_MAIN_FILE=1
 LINE_NO=0
@@ -45,6 +48,12 @@ extract_block_by_id() {
     # Print lines until next "###" or EOF
 
     local in_target_block=0
+
+    # Check if file exists
+    if [ ! -f "$file" ]; then
+        echo "; Error: File not found for extraction: $file" >&2
+        return
+    fi
 
     while IFS= read -r line || [ -n "$line" ]; do
         # Check for marker
@@ -85,9 +94,6 @@ parse_file() {
     local current_struct_name=""
 
     local CURRENT_FILE_LINE=0
-
-    # Read loop must be robust against modifying input_file?
-    # We are reading line by line.
 
     while IFS= read -r line || [ -n "$line" ]; do
         ((CURRENT_FILE_LINE++))
@@ -152,43 +158,101 @@ parse_file() {
 
         # --- Handle Normal Statements ---
         case "$line" in
-            # Import (Ambil - Capitalized) ID-based
+            # Indeks (Load Tagger Index)
+            indeks*)
+                if [[ "$line" =~ ^indeks[[:space:]]+\"(.*)\" ]]; then
+                    local index_path="${BASH_REMATCH[1]}"
+                    # Just recursively parse the tagger file
+                    # Tagger file contains 'Daftar' commands which update ID_MAP
+                    if [ -f "$index_path" ]; then
+                        parse_file "$index_path"
+                    else
+                        echo "; Error: Index file not found: $index_path"
+                    fi
+                fi
+                ;;
+
+            # Daftar <Path> = <Range/ID> (Registration)
+            Daftar*)
+                # Format: Daftar "lib/math.fox" = 100-105
+                # Regex needs to be flexible
+                if [[ "$line" =~ ^Daftar[[:space:]]+\"(.*)\"[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+                    local target_file="${BASH_REMATCH[1]}"
+                    local range_str="${BASH_REMATCH[2]}"
+
+                    # Ensure extension
+                    if [[ "$target_file" != *.fox ]]; then target_file="$target_file.fox"; fi
+
+                    # Parse Range/List (Comma separated)
+                    IFS=',' read -ra RANGES <<< "$range_str"
+                    for r in "${RANGES[@]}"; do
+                        r=$(echo "$r" | xargs) # Trim
+                        if [[ "$r" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+                            # Range: Start-End
+                            local start="${BASH_REMATCH[1]}"
+                            local end="${BASH_REMATCH[2]}"
+                            for (( i=start; i<=end; i++ )); do
+                                ID_MAP[$i]="$target_file"
+                            done
+                        elif [[ "$r" =~ ^([0-9]+)$ ]]; then
+                            # Single ID
+                            local id="${BASH_REMATCH[1]}"
+                            ID_MAP[$id]="$target_file"
+                        fi
+                    done
+                fi
+                ;;
+
+            # Import (Ambil - Capitalized) ID-based & Global Registry
             Ambil*)
-                # Format: Ambil "filepath" 1, 2
+                # Format: Ambil "filepath" 1, 2  (Explicit File)
+                # Format: Ambil 100, 101         (Global ID Lookup)
+
+                # Check for explicit filepath first (contains quote)
                 if [[ "$line" =~ ^Ambil[[:space:]]+\"(.*)\"[[:space:]]+(.*)$ ]]; then
                     local import_path="${BASH_REMATCH[1]}"
                     local ids="${BASH_REMATCH[2]}"
-
-                    if [[ "$import_path" != *.fox ]]; then
-                        import_path="$import_path.fox"
-                    fi
+                    if [[ "$import_path" != *.fox ]]; then import_path="$import_path.fox"; fi
 
                     if [ -f "$import_path" ]; then
                         IFS=',' read -ra ID_LIST <<< "$ids"
                         for id in "${ID_LIST[@]}"; do
                             id=$(echo "$id" | xargs)
-
-                            # GUARD: Check if block already processed
                             local block_key="${import_path}:${id}"
-                            if [ "${PROCESSED_BLOCKS[$block_key]}" == "1" ]; then
-                                # Already processed, skip
-                                continue
-                            fi
+                            if [ "${PROCESSED_BLOCKS[$block_key]}" == "1" ]; then continue; fi
                             PROCESSED_BLOCKS[$block_key]=1
-
-                            # Use Temporary File to avoid Subshell (State Preservation)
                             local tmp_file="_import_${id}_$$.fox"
                             extract_block_by_id "$import_path" "$id" > "$tmp_file"
-
-                            # Recursive Parse
-                            # Note: IS_MAIN_FILE is 0 now.
                             parse_file "$tmp_file"
-
                             rm "$tmp_file"
                         done
                     else
                         echo "; Error: Import file not found: $import_path"
                     fi
+
+                # Check for Global ID List (only numbers and commas)
+                elif [[ "$line" =~ ^Ambil[[:space:]]+([0-9,[:space:]]+)$ ]]; then
+                    local ids="${BASH_REMATCH[1]}"
+                    IFS=',' read -ra ID_LIST <<< "$ids"
+                    for id in "${ID_LIST[@]}"; do
+                        id=$(echo "$id" | xargs)
+
+                        # Lookup in ID_MAP
+                        local mapped_file="${ID_MAP[$id]}"
+                        if [ -n "$mapped_file" ]; then
+                            # Found mapping!
+                            local block_key="${mapped_file}:${id}"
+                            if [ "${PROCESSED_BLOCKS[$block_key]}" == "1" ]; then continue; fi
+                            PROCESSED_BLOCKS[$block_key]=1
+
+                            local tmp_file="_import_${id}_$$.fox"
+                            extract_block_by_id "$mapped_file" "$id" > "$tmp_file"
+                            parse_file "$tmp_file"
+                            rm "$tmp_file"
+                        else
+                            echo "; Error: ID $id not found in registry. Did you load 'indeks'?"
+                        fi
+                    done
                 fi
                 ;;
 
@@ -202,8 +266,6 @@ parse_file() {
 
                     # GUARD: Check if file already processed
                     if [ "${PROCESSED_FILES[$import_path]}" == "1" ]; then
-                        # Already processed, skip
-                        # echo "; Info: Skipping duplicate import $import_path"
                         :
                     else
                         PROCESSED_FILES[$import_path]=1
@@ -216,6 +278,7 @@ parse_file() {
                 fi
                 ;;
 
+            # ... (Rest of existing handlers: struktur, fungsi, var, jika, loop, cetak, assignment) ...
             # Struktur Definisi
             struktur*)
                 if [[ "$line" =~ ^struktur[[:space:]]+([a-zA-Z0-9_]+) ]]; then

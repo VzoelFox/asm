@@ -1,4 +1,4 @@
-Ambil "lib/math" 1, 2
+Ambil "lib/math" 100, 101
 
 fungsi mulai()
   var x = 10

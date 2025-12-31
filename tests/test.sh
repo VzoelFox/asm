@@ -90,8 +90,12 @@ run_test "Loops" "examples/loop.fox" "Mulai Loop Counter (0 sampai 4): Loop ke: 
 # 4. Control Flow
 run_test "Control Flow" "examples/control_flow.fox" "Testing If/Else: a lebih kecil dari b (Benar) Masuk blok lain (Benar) c adalah 30 (Benar)"
 
-# 5. Import (ID-Based)
-run_test "Import ID-Based" "examples/import_test.fox" "Hasil Tambah: 15 Hasil Kurang: 5"
+# 5. Import (ID-Based Explicit File)
+# Updated to use ID 100, 101 as per new lib/math.fox
+run_test "Import ID-Based (Explicit)" "examples/import_test.fox" "Hasil Tambah (via ID 100): 15 Hasil Kurang (via ID 101): 5"
 
-# 6. Double Import (Expected FAIL for now)
+# 6. Double Import
 run_test "Double Import" "examples/double_import.fox" "Common Function Called Module A Called"
+
+# 7. Global Registry Import (Tagger)
+run_test "Global Registry Import" "examples/global_id_test.fox" "Hasil Tambah (via ID 100): 70 Hasil Kurang (via ID 101): 30"
