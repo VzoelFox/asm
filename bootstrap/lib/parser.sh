@@ -344,6 +344,18 @@ parse_file() {
                              local arg2=$(echo "${ADDR[1]}" | xargs)
                              emit_str_concat "$arg1" "$arg2"
                              emit_variable_assign "$name" ""
+                         elif [[ "$struct_name" == "str_eq" ]]; then
+                             IFS=',' read -ra ADDR <<< "$args_str"
+                             local arg1=$(echo "${ADDR[0]}" | xargs)
+                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             emit_str_eq "$arg1" "$arg2"
+                             emit_variable_assign "$name" ""
+                         elif [[ "$struct_name" == "str_get" ]]; then
+                             IFS=',' read -ra ADDR <<< "$args_str"
+                             local arg1=$(echo "${ADDR[0]}" | xargs)
+                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             emit_str_get "$arg1" "$arg2"
+                             emit_variable_assign "$name" ""
                          elif [[ -n "${STRUCT_SIZES[$struct_name]}" ]]; then
                              local size=${STRUCT_SIZES[$struct_name]}
                              IFS=',' read -ra ADDR <<< "$args_str"

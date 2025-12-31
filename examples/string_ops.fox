@@ -1,0 +1,30 @@
+fungsi mulai()
+  cetak("--- Test String Equality ---")
+  var s1 = "hello"
+  var s2 = "hello"
+  var s3 = "world"
+
+  var cek1 = str_eq(s1, s2)
+  cetak("s1 == s2 (Harus 1):")
+  cetak(cek1)
+
+  var cek2 = str_eq(s1, s3)
+  cetak("s1 == s3 (Harus 0):")
+  cetak(cek2)
+
+  cetak("--- Test String Get (Char Access) ---")
+  ; "hello", index 1 adalah 'e' (101)
+  var char_e = str_get(s1, 1)
+  cetak("Huruf ke-1 dari hello (Harus 101):")
+  cetak(char_e)
+
+  cetak("--- Test Array of Strings ---")
+  var daftar [3]int
+  daftar[0] = "Satu"
+  daftar[1] = "Dua"
+
+  cetak("Item 0:")
+  cetak_str(daftar[0])
+  cetak("Item 1:")
+  cetak_str(daftar[1])
+tutup_fungsi

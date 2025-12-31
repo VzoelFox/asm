@@ -29,6 +29,42 @@ _start:
 
 ; --- Helper Functions ---
 
+; sys_strcmp: Compare two strings (RSI, RDX)
+; Output: RAX (1 if equal, 0 if not)
+sys_strcmp:
+    push rsi
+    push rdx
+    push rbx
+    push rcx
+
+.loop:
+    mov al, [rsi]
+    mov bl, [rdx]
+
+    cmp al, bl
+    jne .not_equal
+
+    test al, al
+    jz .equal       ; Reached null terminator and they are equal
+
+    inc rsi
+    inc rdx
+    jmp .loop
+
+.not_equal:
+    mov rax, 0
+    jmp .done
+
+.equal:
+    mov rax, 1
+
+.done:
+    pop rcx
+    pop rbx
+    pop rdx
+    pop rsi
+    ret
+
 ; print_string_ptr: Prints null-terminated string pointed by RSI
 print_string_ptr:
     push rbx
@@ -669,6 +705,47 @@ emit_str_concat() {
     echo "    call sys_str_concat"
 }
 
+emit_str_eq() {
+    local op1="$1"
+    local op2="$2"
+
+    # Load op1 to RSI
+    if [[ "$op1" =~ ^\" ]]; then
+        # Handle string literal? For now assume variables.
+        # Ideally we should generate label if it's literal.
+        :
+    else
+        echo "    mov rsi, [var_$op1]"
+    fi
+
+    # Load op2 to RDX
+    if [[ "$op2" =~ ^\" ]]; then
+        :
+    else
+        echo "    mov rdx, [var_$op2]"
+    fi
+
+    echo "    call sys_strcmp"
+}
+
+emit_str_get() {
+    local str_var="$1"
+    local index="$2"
+
+    # Load string pointer to RSI
+    echo "    mov rsi, [var_$str_var]"
+
+    # Load index to RBX
+    if [[ "$index" =~ ^[0-9]+$ ]]; then
+        echo "    mov rbx, $index"
+    else
+        echo "    mov rbx, [var_$index]"
+    fi
+
+    # Load byte at [rsi + rbx] into AL, then zero extend to RAX
+    echo "    movzx rax, byte [rsi + rbx]"
+}
+
 emit_array_alloc() {
     local size="$1"
     # size is number of elements
@@ -715,7 +792,20 @@ emit_store_array_elem() {
     fi
 
     # Load value
-    if [[ "$value" =~ ^-?[0-9]+$ ]]; then
+    if [[ "$value" =~ ^\" ]]; then
+        # String Literal!
+        local content="${value%\"}"
+        content="${content#\"}"
+        local label="str_lit_$STR_COUNT"
+        ((STR_COUNT++))
+
+        cat <<EOF
+section .data
+    $label db "$content", 0
+section .text
+    mov rax, $label
+EOF
+    elif [[ "$value" =~ ^-?[0-9]+$ ]]; then
         echo "    mov rax, $value"
     else
         echo "    mov rax, [var_$value]"
