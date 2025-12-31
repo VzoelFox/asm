@@ -49,17 +49,11 @@ parse_file() {
     local in_struct_block=0
     local current_struct_name=""
 
-    # Reset Line Counter for this file? No, global might be confusing if recursive.
-    # But recursive calls parse_file.
-    # Let's use local LINE_NO per file context if possible? No, bash vars are global or local.
-    # We will just increment global LINE_NO or reset it per file but handle errors relative to current file being parsed.
-    # Simpler: just track line number in the loop.
-
     local CURRENT_FILE_LINE=0
 
     while IFS= read -r line || [ -n "$line" ]; do
         ((CURRENT_FILE_LINE++))
-        LINE_NO=$CURRENT_FILE_LINE # Update global for helper access if needed
+        LINE_NO=$CURRENT_FILE_LINE
 
         # Trim whitespace
         line=$(echo "$line" | sed 's/^[ \t]*//;s/[ \t]*$//')
@@ -154,15 +148,6 @@ parse_file() {
                     emit_function_start "$name"
                     push_block "fungsi"
 
-                    # Handle Arguments: Declare them as variables and assign from registers
-                    # Argument passing convention:
-                    # 1st arg -> rdi
-                    # 2nd arg -> rsi
-                    # 3rd arg -> rdx
-                    # 4th arg -> rcx
-                    # 5th arg -> r8
-                    # 6th arg -> r9
-
                     if [[ -n "$args" ]]; then
                         IFS=',' read -ra ARG_LIST <<< "$args"
                         local arg_count=0
@@ -170,7 +155,6 @@ parse_file() {
                             arg=$(echo "$arg" | xargs)
                             emit_variable_decl "$arg"
 
-                            # Emit move from register to variable
                             case "$arg_count" in
                                 0) echo "    mov [var_$arg], rdi" ;;
                                 1) echo "    mov [var_$arg], rsi" ;;
@@ -214,14 +198,12 @@ parse_file() {
                     local name="${BASH_REMATCH[1]}"
                     local args="${BASH_REMATCH[2]}"
 
-                    # Handle Argument Passing
                     if [[ -n "$args" ]]; then
                         IFS=',' read -ra VAL_LIST <<< "$args"
                         local arg_count=0
                         for val in "${VAL_LIST[@]}"; do
                             val=$(echo "$val" | xargs)
 
-                            # Move value to register
                             local target_reg=""
                             case "$arg_count" in
                                 0) target_reg="rdi" ;;
@@ -249,7 +231,6 @@ parse_file() {
 
             # --- Variabel (Deklarasi) ---
             var*)
-                # Array Declaration
                 if [[ "$line" =~ ^var[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]+\[([0-9]+)\]int$ ]]; then
                     local name="${BASH_REMATCH[1]}"
                     local size="${BASH_REMATCH[2]}"
@@ -257,7 +238,6 @@ parse_file() {
                     emit_array_alloc "$size"
                     emit_variable_assign "$name" ""
 
-                # Normal Variable
                 elif [[ "$line" =~ ^var[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
                     local name="${BASH_REMATCH[1]}"
                     local expr="${BASH_REMATCH[2]}"
@@ -293,7 +273,6 @@ parse_file() {
                              emit_variable_assign "$name" ""
                              VAR_TYPE_MAP["$name"]="$struct_name"
                          else
-                             # Function Call Result? (Not implemented fully)
                              :
                          fi
                     elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
@@ -325,6 +304,36 @@ parse_file() {
                     op2=$(echo "$op2" | xargs)
                     emit_if_start "$op1" "$cond" "$op2"
                     push_block "jika"
+                fi
+                ;;
+
+            lain_jika*)
+                if [[ "$line" =~ ^lain_jika[[:space:]]*\((.*)[[:space:]]*(==|!=|>=|<=|>|<)[[:space:]]*(.*)\)$ ]]; then
+                    # Check if inside 'jika' block
+                    local len=${#BLOCK_STACK[@]}
+                    if [ $len -eq 0 ] || [ "${BLOCK_STACK[$len-1]}" != "jika" ]; then
+                         echo "Error on line $LINE_NO: 'lain_jika' must be inside a 'jika' block." >&2
+                         exit 1
+                    fi
+
+                    local op1="${BASH_REMATCH[1]}"
+                    local cond="${BASH_REMATCH[2]}"
+                    local op2="${BASH_REMATCH[3]}"
+                    op1=$(echo "$op1" | xargs)
+                    op2=$(echo "$op2" | xargs)
+                    emit_else_if "$op1" "$cond" "$op2"
+                fi
+                ;;
+
+            lain*)
+                if [[ "$line" =~ ^lain$ ]]; then
+                    # Check if inside 'jika' block
+                    local len=${#BLOCK_STACK[@]}
+                    if [ $len -eq 0 ] || [ "${BLOCK_STACK[$len-1]}" != "jika" ]; then
+                         echo "Error on line $LINE_NO: 'lain' must be inside a 'jika' block." >&2
+                         exit 1
+                    fi
+                    emit_else
                 fi
                 ;;
 

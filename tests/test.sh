@@ -18,12 +18,10 @@ fi
 # Priority: Environment Vars > config.mk > Error
 
 if [ -f "config.mk" ]; then
-    # Load vars from config.mk but don't export them blindly if they contain spaces without quotes
-    # Safe source:
     eval $(grep -v '^#' config.mk | sed 's/ *= */=/g')
 fi
 
-# Fallback defaults for non-sensitive data
+# Fallback defaults
 VPS_HOST=${VPS_HOST:-"144.202.18.239"}
 VPS_USER=${VPS_USER:-"root"}
 VPS_DIR=${VPS_DIR:-"morph_build"}
@@ -45,17 +43,6 @@ run_test() {
     echo "Running Test: $test_name"
     echo "Source: $source_file"
 
-    # We need to pass variables to Make.
-    # Instead of overwriting config.mk, we pass them as arguments to make.
-    # Makefile uses `include config.mk`, variables defined on command line override those in Makefile,
-    # but `include`d vars might take precedence depending on assignment type in config.mk.
-    # However, Makefile doesn't use `?=` usually.
-    # Let's check Makefile... it just says `include config.mk`.
-    # And then uses $(SOURCE).
-    # If we pass SOURCE=... to make, it overrides.
-
-    # We need to construct the make command carefully.
-
     OUTPUT=$(make all \
         SOURCE="$source_file" \
         OUTPUT_NAME="test_bin" \
@@ -74,11 +61,8 @@ run_test() {
         return 1
     fi
 
-    # Extract actual program output
-    # Filter out build/deploy logs
     CLEAN_OUTPUT=$(echo "$OUTPUT" | grep -vE "^---" | grep -v "Warning: Permanently added" | grep -v "sshpass" | grep -v "Generated" | grep -v "mkdir -p" | grep -v "chmod +x" | grep -v "make")
 
-    # Trim whitespace
     CLEAN_OUTPUT=$(echo "$CLEAN_OUTPUT" | xargs)
     EXPECTED_TRIMMED=$(echo "$expected_output" | xargs)
 
@@ -102,3 +86,11 @@ run_test "Functions & Snapshot" "examples/functions.fox" "Memanggil fungsi tamba
 
 # 3. Loops
 run_test "Loops" "examples/loop.fox" "Mulai Loop Counter (0 sampai 4): Loop ke: 0"
+
+# 4. Control Flow (If/Else/ElseIf)
+# Output control_flow.fox:
+# Testing If/Else:
+# a lebih kecil dari b (Benar)
+# Masuk blok lain (Benar)
+# c adalah 30 (Benar)
+run_test "Control Flow" "examples/control_flow.fox" "Testing If/Else: a lebih kecil dari b (Benar) Masuk blok lain (Benar) c adalah 30 (Benar)"

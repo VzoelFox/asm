@@ -4,6 +4,8 @@
 STR_COUNT=0
 LBL_COUNT=0
 declare -a BSS_VARS
+declare -a IF_STACK         # Stack for End Labels
+declare -a IF_CHECK_STACK   # Stack for Next Check Labels (Else/ElseIf target)
 
 init_codegen() {
     cat <<EOF
@@ -423,16 +425,19 @@ EOF
     fi
 }
 
+# --- Control Flow: IF / ELSE / ELSE IF ---
+
 emit_if_start() {
     local op1="$1"
     local cond="$2"
     local op2="$3"
 
-    local lbl_else="else_$LBL_COUNT"
+    local lbl_next_check="next_check_$LBL_COUNT"
     local lbl_end="end_$LBL_COUNT"
     ((LBL_COUNT++))
 
     IF_STACK+=("$lbl_end")
+    IF_CHECK_STACK+=("$lbl_next_check")
 
     load_operand_to_rax "$op1"
 
@@ -444,19 +449,84 @@ emit_if_start() {
 
     echo "    cmp rax, rbx"
 
+    # Jump to Next Check if condition is FALSE
     case "$cond" in
-        "==") echo "    jne $lbl_end" ;;
-        "!=") echo "    je $lbl_end" ;;
-        "<")  echo "    jge $lbl_end" ;;
-        ">")  echo "    jle $lbl_end" ;;
-        "<=") echo "    jg $lbl_end" ;;
-        ">=") echo "    jl $lbl_end" ;;
+        "==") echo "    jne $lbl_next_check" ;;
+        "!=") echo "    je $lbl_next_check" ;;
+        "<")  echo "    jge $lbl_next_check" ;;
+        ">")  echo "    jle $lbl_next_check" ;;
+        "<=") echo "    jg $lbl_next_check" ;;
+        ">=") echo "    jl $lbl_next_check" ;;
     esac
+}
+
+emit_else_if() {
+    local op1="$1"
+    local cond="$2"
+    local op2="$3"
+
+    # 1. End previous block: Jump to END
+    local lbl_end="${IF_STACK[-1]}"
+    echo "    jmp $lbl_end"
+
+    # 2. Define label for previous check failure
+    local lbl_current_check="${IF_CHECK_STACK[-1]}"
+    unset 'IF_CHECK_STACK[${#IF_CHECK_STACK[@]}-1]'
+    echo "$lbl_current_check:"
+
+    # 3. Start new check
+    local lbl_next_check="next_check_$LBL_COUNT"
+    ((LBL_COUNT++))
+    IF_CHECK_STACK+=("$lbl_next_check")
+
+    load_operand_to_rax "$op1"
+
+    if [[ "$op2" =~ ^[0-9]+$ ]]; then
+        echo "    mov rbx, $op2"
+    else
+        echo "    mov rbx, [var_$op2]"
+    fi
+
+    echo "    cmp rax, rbx"
+
+    # Jump to Next Check if condition is FALSE
+    case "$cond" in
+        "==") echo "    jne $lbl_next_check" ;;
+        "!=") echo "    je $lbl_next_check" ;;
+        "<")  echo "    jge $lbl_next_check" ;;
+        ">")  echo "    jle $lbl_next_check" ;;
+        "<=") echo "    jg $lbl_next_check" ;;
+        ">=") echo "    jl $lbl_next_check" ;;
+    esac
+}
+
+emit_else() {
+    # 1. End previous block: Jump to END
+    local lbl_end="${IF_STACK[-1]}"
+    echo "    jmp $lbl_end"
+
+    # 2. Define label for previous check failure
+    local lbl_current_check="${IF_CHECK_STACK[-1]}"
+    unset 'IF_CHECK_STACK[${#IF_CHECK_STACK[@]}-1]'
+    echo "$lbl_current_check:"
+
+    # 3. Push empty marker to stack so size matches IF_STACK
+    # (Or just don't push anything, IF_CHECK_STACK size < IF_STACK size)
+    # We will choose NOT to push anything, and check for empty on emit_if_end.
 }
 
 emit_if_end() {
     local lbl_end="${IF_STACK[-1]}"
     unset 'IF_STACK[${#IF_STACK[@]}-1]'
+
+    # If there is a pending check label (i.e. we did NOT hit 'else'), define it
+    # This handles the "Fallthrough" case where no condition met and no else exists.
+    if [ ${#IF_CHECK_STACK[@]} -gt ${#IF_STACK[@]} ]; then
+        local lbl_fallthrough="${IF_CHECK_STACK[-1]}"
+        unset 'IF_CHECK_STACK[${#IF_CHECK_STACK[@]}-1]'
+        echo "$lbl_fallthrough:"
+    fi
+
     echo "$lbl_end:"
 }
 
