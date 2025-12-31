@@ -21,6 +21,16 @@ parse_file() {
         # Trim whitespace
         line=$(echo "$line" | sed 's/^[ \t]*//;s/[ \t]*$//')
 
+        # Replace 'benar' with 1, 'salah' with 0 (Boolean Support)
+        # Note: simplistic replacement, might match strings if not careful
+        # Ideally should only replace tokens.
+        # sed "s/\bbenar\b/1/g" is not standard in minimal sed
+        # Using pure bash substitution with patterns
+        if [[ "$line" != *"\""* ]]; then # Avoid replacing inside strings for now (simplification)
+            line="${line//benar/1}"
+            line="${line//salah/0}"
+        fi
+
         # Skip empty
         if [ -z "$line" ]; then continue; fi
 
@@ -147,6 +157,13 @@ parse_file() {
                          if [[ "$struct_name" == "baca" ]]; then
                              emit_read "$args_str"
                              emit_variable_assign "$name" ""
+                         elif [[ "$struct_name" == "str_concat" ]]; then
+                             # str_concat(a, b)
+                             IFS=',' read -ra ADDR <<< "$args_str"
+                             local arg1=$(echo "${ADDR[0]}" | xargs)
+                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             emit_str_concat "$arg1" "$arg2"
+                             emit_variable_assign "$name" ""
                          elif [[ -n "${STRUCT_SIZES[$struct_name]}" ]]; then
                              # Struct Instantiation
                              local size=${STRUCT_SIZES[$struct_name]}
@@ -184,8 +201,15 @@ parse_file() {
                          local op2="${BASH_REMATCH[3]}"
                          emit_arithmetic_op "$op1" "$op" "$op2" "$name"
                     else
+                        # Check for string literal
+                        if [[ "$expr" =~ ^\"(.*)\"$ ]]; then
+                           local content="${BASH_REMATCH[1]}"
+                           # We need to emit this string to data section and get pointer
+                           # Reuse emit_print mechanism logic?
+                           # Better: create emit_string_literal_assign
+                           emit_string_literal_assign "$name" "$content"
                         # Check for number (positive or negative)
-                        if [[ ! "$expr" =~ ^-?[0-9]+$ ]]; then
+                        elif [[ ! "$expr" =~ ^-?[0-9]+$ ]]; then
                            load_operand_to_rax "$expr"
                            emit_variable_assign "$name" ""
                         else

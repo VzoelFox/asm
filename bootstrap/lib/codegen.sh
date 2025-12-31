@@ -91,6 +91,7 @@ print_string_ptr:
 ; Output: RAX = pointer
 sys_alloc:
     push rbx
+    push rdx
 
     ; Align size to 8 bytes (simple bump)
     ; TODO: Better alignment
@@ -108,6 +109,104 @@ sys_alloc:
 
     mov rax, rdx            ; Return pointer
 
+    pop rdx
+    pop rbx
+    ret
+
+; sys_strlen: Calculates length of null-terminated string
+; Input: RSI = string ptr
+; Output: RAX = length
+sys_strlen:
+    push rcx
+    push rdi
+
+    mov rdi, rsi
+    xor rax, rax
+    mov rcx, -1
+    repne scasb
+    not rcx
+    dec rcx
+    mov rax, rcx
+
+    pop rdi
+    pop rcx
+    ret
+
+; sys_memcpy: Copies bytes
+; Input: RDI = dest, RSI = src, RCX = count
+sys_memcpy:
+    push rax
+    push rcx
+    push rsi
+    push rdi
+
+    rep movsb
+
+    pop rdi
+    pop rsi
+    pop rcx
+    pop rax
+    ret
+
+; sys_str_concat: Concatenates two strings
+; Input: RSI = str1, RDX = str2
+; Output: RAX = new string ptr
+sys_str_concat:
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push r8 ; len1
+    push r9 ; len2
+
+    ; 1. Calc len1
+    call sys_strlen
+    mov r8, rax
+
+    ; 2. Calc len2
+    push rsi
+    mov rsi, rdx
+    call sys_strlen
+    mov r9, rax
+    pop rsi
+
+    ; 3. Total size = len1 + len2 + 1
+    mov rax, r8
+    add rax, r9
+    inc rax
+
+    ; 4. Alloc
+    call sys_alloc
+    mov rbx, rax    ; dest ptr
+
+    ; 5. Copy str1
+    mov rdi, rbx
+    mov rcx, r8
+    call sys_memcpy
+
+    ; 6. Copy str2
+    lea rdi, [rbx + r8]
+    mov rsi, rdx
+    mov rcx, r9
+    call sys_memcpy
+
+    ; 7. Null terminate
+    ; Cannot use [rbx + r8 + r9] in x86 addressing
+    mov rdi, rbx
+    add rdi, r8
+    add rdi, r9
+    mov byte [rdi], 0
+
+    ; Return ptr
+    mov rax, rbx
+
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
     pop rbx
     ret
 
@@ -530,6 +629,46 @@ emit_store_struct_field() {
 
     # Store
     echo "    mov [rdx + $offset], rax"
+}
+
+emit_str_concat() {
+    local op1="$1"
+    local op2="$2"
+
+    # Load op1 to RSI
+    if [[ "$op1" =~ ^\" ]]; then
+        # Literal string (Not implemented efficiently yet, need label)
+        # Assuming only variables for now in str_concat
+        :
+    else
+        echo "    mov rsi, [var_$op1]"
+    fi
+
+    # Load op2 to RDX
+    if [[ "$op2" =~ ^\" ]]; then
+        :
+    else
+        echo "    mov rdx, [var_$op2]"
+    fi
+
+    echo "    call sys_str_concat"
+}
+
+emit_string_literal_assign() {
+    local name="$1"
+    local content="$2"
+
+    local label="str_lit_$STR_COUNT"
+    ((STR_COUNT++))
+
+    # Define string in data
+    cat <<EOF
+section .data
+    $label db "$content", 0
+section .text
+    mov rax, $label
+    mov [var_$name], rax
+EOF
 }
 
 emit_snapshot() {
