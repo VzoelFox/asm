@@ -80,6 +80,14 @@ parse_file() {
                 fi
                 ;;
 
+            # --- Baca (Input) ---
+            baca*)
+                # Usage: var x = baca(100)
+                # But here we handle standalone? Usually part of assignment.
+                # Let's handle it in assignment block below?
+                # Or just regex match specifically if used standalone (unlikely to be useful).
+                ;;
+
             # --- Variabel (Deklarasi) ---
             var*)
                 if [[ "$line" =~ ^var[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
@@ -88,13 +96,18 @@ parse_file() {
 
                     emit_variable_decl "$name"
 
-                    if [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
+                    if [[ "$expr" =~ ^baca\((.*)\)$ ]]; then
+                         local size="${BASH_REMATCH[1]}"
+                         emit_read "$size"
+                         emit_variable_assign "$name" ""
+                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
                          local op1="${BASH_REMATCH[1]}"
                          local op="${BASH_REMATCH[2]}"
                          local op2="${BASH_REMATCH[3]}"
                          emit_arithmetic_op "$op1" "$op" "$op2" "$name"
                     else
-                        if [[ ! "$expr" =~ ^[0-9]+$ ]]; then
+                        # Check for number (positive or negative)
+                        if [[ ! "$expr" =~ ^-?[0-9]+$ ]]; then
                            load_operand_to_rax "$expr"
                            emit_variable_assign "$name" ""
                         else
@@ -134,6 +147,13 @@ parse_file() {
 
             "tutup_selama")
                 emit_loop_end
+                ;;
+
+            cetak_str*)
+                if [[ "$line" =~ ^cetak_str\(([a-zA-Z0-9_]+)\)$ ]]; then
+                    local content="${BASH_REMATCH[1]}"
+                    emit_print_str "$content"
+                fi
                 ;;
 
             cetak*)
