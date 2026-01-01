@@ -57,10 +57,13 @@ fungsi mulai(arg_unused1, arg_unused2)
 
   var line_count = vec_len(lines)
 
+  ; --- Parser State ---
+  var current_func = ""
+
   ; --- Parser Loop ---
-  var i = 0
-  selama (i < line_count)
-    var raw_line = vec_get(lines, i)
+  var line_idx = 0
+  selama (line_idx < line_count)
+    var raw_line = vec_get(lines, line_idx)
 
     ; 1. Clean Line
     ; Remove comments
@@ -70,40 +73,76 @@ fungsi mulai(arg_unused1, arg_unused2)
     ; Trim whitespace
     var line = str_trim(line_no_comment)
 
-    var len = str_len(line)
-    jika (len > 0)
+    var line_len = str_len(line)
+    jika (line_len > 0)
+
        ; 2. Parse Keyword
        var is_fungsi = str_starts_with(line, "fungsi")
        jika (is_fungsi == 1)
-          var func_decl = str_substring_after(line, 6) ; after "fungsi"
-          var func_name = str_trim(func_decl)
-          cetak("DEBUG: Keyword 'fungsi' detected.")
-          cetak("       Name: ")
-          cetak_str(func_name)
+          var func_decl_full = str_substring_after(line, 6) ; after "fungsi"
+          var func_decl = str_trim(func_decl_full)
+
+          ; Parse Name vs Args: split by '('
+          var f_parts = str_split_once(func_decl, 40) ; 40 is '('
+          var f_name_raw = vec_get(f_parts, 0)
+          var f_name_clean = str_trim(f_name_raw)
+
+          var f_args_raw = vec_get(f_parts, 1) ; "arg1, arg2)"
+          ; Remove ')'
+          var f_args_parts = str_split_once(f_args_raw, 41) ; 41 is ')'
+          var f_args_clean = vec_get(f_args_parts, 0)
+
+          cetak("[PARSER] Function Definition")
+          cetak("         Name: ")
+          cetak_str(f_name_clean)
+          cetak("         Args: ")
+          cetak_str(f_args_clean)
+
+          current_func = f_name_clean
        tutup_jika
 
        var is_end_func = str_starts_with(line, "tutup_fungsi")
        jika (is_end_func == 1)
-          cetak("DEBUG: Keyword 'tutup_fungsi' detected.")
+          cetak("[PARSER] End Function")
+          current_func = ""
        tutup_jika
 
        var is_cetak = str_starts_with(line, "cetak")
        jika (is_cetak == 1)
-          cetak("DEBUG: Keyword 'cetak' detected.")
+          cetak("[PARSER] Print Statement")
+       tutup_jika
+
+       var is_var = str_starts_with(line, "var")
+       jika (is_var == 1)
+          var var_decl_full = str_substring_after(line, 3)
+          var var_decl = str_trim(var_decl_full)
+          ; Parse Name vs Value: split by '='
+          var v_parts = str_split_once(var_decl, 61) ; 61 is '='
+          var v_name_raw = vec_get(v_parts, 0)
+          var v_name = str_trim(v_name_raw)
+
+          var v_val_raw = vec_get(v_parts, 1)
+          var v_val = str_trim(v_val_raw)
+
+          cetak("[PARSER] Variable Declaration")
+          cetak("         Name: ")
+          cetak_str(v_name)
+          cetak("         Value: ")
+          cetak_str(v_val)
        tutup_jika
 
        var is_asm = str_starts_with(line, "asm_mulai")
        jika (is_asm == 1)
-          cetak("DEBUG: Keyword 'asm_mulai' detected.")
+          cetak("[PARSER] ASM Block Start")
        tutup_jika
 
        var is_end_asm = str_starts_with(line, "tutup_asm")
        jika (is_end_asm == 1)
-          cetak("DEBUG: Keyword 'tutup_asm' detected.")
+          cetak("[PARSER] ASM Block End")
        tutup_jika
     tutup_jika
 
-    i = i + 1
+    line_idx = line_idx + 1
   tutup_selama
 
 tutup_fungsi
