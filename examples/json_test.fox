@@ -1,0 +1,86 @@
+; JSON Library Test
+indeks "plugins/vc/tagger.fox"
+; Import Public API + Internal Helpers
+Ambil 350, 351, 352, 353
+Ambil 360, 361, 362, 363, 364, 365, 366
+Ambil 320, 321, 322, 323, 324 ; Format Lib
+
+fungsi mulai()
+  format_print("=== JSON PARSER TEST ===")
+
+  ; Test 1: Simple Object
+  var json_str = "{\"key\": \"value\", \"num\": 123, \"flag\": true}"
+  format_print("Parsing: ")
+  format_print(json_str)
+
+  var root = json_parse(json_str)
+  tipe root JsonValue
+
+  jika (root.type == 3)
+      format_print("✅ Root Type Object: PASS")
+  lain
+      format_print("❌ Root Type Object: FAIL")
+  tutup_jika
+
+  ; Test 2: Get String
+  var val_key = json_get(root, "key")
+  tipe val_key JsonValue
+
+  jika (val_key.type == 1)
+      format_print("✅ Key Type String: PASS")
+      var s_val = val_key.string_val
+      var is_eq = str_eq(s_val, "value")
+      jika (is_eq == 1)
+         format_print("✅ Key Value Match: PASS")
+      tutup_jika
+  lain
+      format_print("❌ Key Type String: FAIL")
+  tutup_jika
+
+  ; Test 3: Get Number
+  var val_num = json_get(root, "num")
+  tipe val_num JsonValue
+
+  jika (val_num.type == 2)
+      format_print("✅ Num Type Number: PASS")
+      var n_val = val_num.number_val
+      var s_n = format_int(n_val)
+      format_print(s_n)
+
+      jika (n_val == 123)
+          format_print("✅ Num Value Match: PASS")
+      tutup_jika
+  tutup_jika
+
+  ; Test 4: Get Bool
+  var val_flag = json_get(root, "flag")
+  tipe val_flag JsonValue
+
+  jika (val_flag.type == 5)
+      format_print("✅ Flag Type Bool: PASS")
+      jika (val_flag.bool_val == 1)
+          format_print("✅ Flag Value True: PASS")
+      tutup_jika
+  tutup_jika
+
+  ; Test 5: Nested Array
+  var json_arr_str = "{\"list\": [10, 20]}"
+  format_print("Parsing Array:")
+  format_print(json_arr_str)
+
+  var root_arr = json_parse(json_arr_str)
+  var list = json_get(root_arr, "list")
+  tipe list JsonValue
+
+  jika (list.type == 4)
+      format_print("✅ List Type Array: PASS")
+
+      var elem0 = json_arr_get(list, 0)
+      tipe elem0 JsonValue
+      jika (elem0.number_val == 10)
+          format_print("✅ Array[0] Match: PASS")
+      tutup_jika
+  tutup_jika
+
+  format_print("🚀 JSON READY!")
+tutup_fungsi
