@@ -1,0 +1,241 @@
+### 330
+fungsi hash_djb2(key)
+  ; DJB2 Hash Algorithm
+  var hash = 5381
+
+  asm_mulai
+  mov rsi, [var_key]      ; RSI = string ptr
+  mov rax, 5381           ; RAX = hash
+  xor rcx, rcx            ; RCX = c (char)
+
+.hash_loop:
+  mov cl, byte [rsi]
+  test cl, cl
+  jz .hash_done
+
+  ; hash = ((hash << 5) + hash) + c
+  mov rdx, rax
+  shl rdx, 5              ; hash << 5
+  add rdx, rax            ; (hash << 5) + hash
+  add rdx, rcx            ; + c
+  mov rax, rdx
+
+  inc rsi
+  jmp .hash_loop
+
+.hash_done:
+  mov [var_hash], rax
+  tutup_asm
+
+  asm_mulai
+  mov rax, [var_hash]
+  tutup_asm
+tutup_fungsi
+
+### 331
+struktur HashNode
+  key int     ; string ptr
+  value int   ; int value or ptr
+  next int    ; next node ptr
+tutup_struktur
+
+struktur HashMap
+  buckets int ; ptr to array of HashNode ptrs
+  capacity int
+tutup_struktur
+
+fungsi map_create(capacity)
+  var map = HashMap(0, capacity)
+
+  ; Allocate buckets array (capacity * 8 bytes)
+  var buckets_size = capacity * 8
+
+  asm_mulai
+  mov rax, [var_buckets_size]
+  call sys_alloc
+  mov [var_buckets_size], rax
+
+  ; Zero out buckets
+  mov rdi, rax
+  mov rcx, [var_capacity]
+  xor rax, rax
+  rep stosq
+
+  ; map.buckets = ptr (Offset 0)
+  mov rbx, [var_map]
+  mov rax, [var_buckets_size] ; This var holds the allocated ptr now
+  mov [rbx], rax
+  tutup_asm
+
+  asm_mulai
+  mov rax, [var_map]
+  tutup_asm
+tutup_fungsi
+
+### 332
+fungsi map_put(map, key, value)
+  ; 1. Calculate Hash
+  var h = hash_djb2(key)
+
+  ; 2. Calculate Index
+  var idx = 0
+  var cap = 0
+
+  ; Manual Access: map.capacity (Offset 8)
+  asm_mulai
+  mov rbx, [var_map]
+  mov rax, [rbx + 8]
+  mov [var_cap], rax
+  tutup_asm
+
+  asm_mulai
+  mov rax, [var_h]
+  xor rdx, rdx
+  mov rbx, [var_cap]
+  div rbx
+  mov [var_idx], rdx
+  tutup_asm
+
+  ; 3. Get Bucket Ptr
+  var buckets_base = 0
+  ; Manual Access: map.buckets (Offset 0)
+  asm_mulai
+  mov rbx, [var_map]
+  mov rax, [rbx]
+  mov [var_buckets_base], rax
+  tutup_asm
+
+  var head_node_ptr = 0
+  asm_mulai
+  mov rbx, [var_buckets_base]
+  mov rcx, [var_idx]
+  mov rax, [rbx + rcx * 8]
+  mov [var_head_node_ptr], rax
+  tutup_asm
+
+  ; 4. Iterate List
+  var curr = head_node_ptr
+  var found = 0
+
+  selama (curr != 0)
+    var curr_key = 0
+    asm_mulai
+    mov rbx, [var_curr]
+    mov rax, [rbx]        ; Offset 0 is key
+    mov [var_curr_key], rax
+    tutup_asm
+
+    var is_eq = str_eq(curr_key, key)
+    jika (is_eq == 1)
+       ; Update value
+       asm_mulai
+       mov rbx, [var_curr]
+       mov rax, [var_value]
+       mov [rbx + 8], rax ; Offset 8 is value
+       tutup_asm
+
+       found = 1
+       curr = 0 ; Break
+    lain
+       ; Advance
+       asm_mulai
+       mov rbx, [var_curr]
+       mov rax, [rbx + 16] ; Offset 16 is next
+       mov [var_curr], rax
+       tutup_asm
+    tutup_jika
+  tutup_selama
+
+  ; 5. If not found, Insert New Node
+  jika (found == 0)
+    ; New Node (key, value, head_node_ptr)
+    ; We need to pass head_node_ptr as 'next'
+
+    ; Note: 'HashNode' constructor expects 'key', 'value', 'next'.
+    ; But here 'head_node_ptr' is the old head.
+    var new_node = HashNode(key, value, head_node_ptr)
+
+    ; bucket[idx] = new_node
+    asm_mulai
+    mov rbx, [var_buckets_base]
+    mov rcx, [var_idx]
+    mov rax, [var_new_node]
+    mov [rbx + rcx * 8], rax
+    tutup_asm
+  tutup_jika
+tutup_fungsi
+
+### 333
+fungsi map_get(map, key)
+  ; 1. Calculate Hash
+  var h = hash_djb2(key)
+
+  ; 2. Index
+  var idx = 0
+  var cap = 0
+
+  ; Manual Access: map.capacity (Offset 8)
+  asm_mulai
+  mov rbx, [var_map]
+  mov rax, [rbx + 8]
+  mov [var_cap], rax
+  tutup_asm
+
+  asm_mulai
+  mov rax, [var_h]
+  xor rdx, rdx
+  mov rbx, [var_cap]
+  div rbx
+  mov [var_idx], rdx
+  tutup_asm
+
+  ; 3. Get Head
+  var buckets_base = 0
+  ; Manual Access: map.buckets (Offset 0)
+  asm_mulai
+  mov rbx, [var_map]
+  mov rax, [rbx]
+  mov [var_buckets_base], rax
+  tutup_asm
+
+  var curr = 0
+  asm_mulai
+  mov rbx, [var_buckets_base]
+  mov rcx, [var_idx]
+  mov rax, [rbx + rcx * 8]
+  mov [var_curr], rax
+  tutup_asm
+
+  var result = -1
+
+  selama (curr != 0)
+    var curr_key = 0
+    asm_mulai
+    mov rbx, [var_curr]
+    mov rax, [rbx]
+    mov [var_curr_key], rax
+    tutup_asm
+
+    var is_eq = str_eq(curr_key, key)
+    jika (is_eq == 1)
+       ; Found
+       asm_mulai
+       mov rbx, [var_curr]
+       mov rax, [rbx + 8] ; Offset 8 is value
+       mov [var_result], rax
+       tutup_asm
+       curr = 0
+    lain
+       ; Advance
+       asm_mulai
+       mov rbx, [var_curr]
+       mov rax, [rbx + 16]
+       mov [var_curr], rax
+       tutup_asm
+    tutup_jika
+  tutup_selama
+
+  asm_mulai
+  mov rax, [var_result]
+  tutup_asm
+tutup_fungsi

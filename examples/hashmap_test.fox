@@ -1,0 +1,74 @@
+; Hashmap Library Test
+indeks "plugins/vc/tagger.fox"
+Ambil 330, 331, 332, 333
+Ambil 320, 321, 322, 323, 324 ; Format Lib for printing
+Ambil 201 ; str_eq
+
+fungsi mulai()
+  format_print("=== HASHMAP STDLIB TEST ===")
+
+  ; Test 1: Hash Function
+  var h = hash_djb2("key")
+  ; DJB2("key"):
+  ; 5381 * 33 + 'k'(107) = 177680
+  ; 177680 * 33 + 'e'(101) = 5863541
+  ; 5863541 * 33 + 'y'(121) = 193496974
+  ; Expected: 193496974
+
+  var s_hash = format_int(h)
+  format_print(s_hash)
+
+  jika (h == 193496974)
+     format_print("✅ Hash DJB2: PASS")
+  lain
+     format_print("❌ Hash DJB2: FAIL")
+  tutup_jika
+
+  ; Test 2: Map Create & Put
+  var map = map_create(16)
+
+  map_put(map, "name", 100) ; "name" -> 100
+  map_put(map, "age", 25)   ; "age" -> 25
+
+  ; Test 3: Map Get
+  var val_name = map_get(map, "name")
+  var s_val = format_int(val_name)
+  format_print("Get 'name':")
+  format_print(s_val)
+
+  jika (val_name == 100)
+      format_print("✅ Map Get (name): PASS")
+  lain
+      format_print("❌ Map Get (name): FAIL")
+  tutup_jika
+
+  var val_age = map_get(map, "age")
+  jika (val_age == 25)
+      format_print("✅ Map Get (age): PASS")
+  lain
+      format_print("❌ Map Get (age): FAIL")
+  tutup_jika
+
+  ; Test 4: Collision / Chaining (Need keys that collide or just fill bucket)
+  ; With capacity 16, collisions are likely if we add many.
+  ; Or assume distinct keys work is enough for basic test.
+
+  ; Test 5: Update Value
+  map_put(map, "name", 200) ; Update 100 -> 200
+  var val_new = map_get(map, "name")
+  jika (val_new == 200)
+      format_print("✅ Map Update: PASS")
+  lain
+      format_print("❌ Map Update: FAIL")
+  tutup_jika
+
+  ; Test 6: Not Found
+  var val_missing = map_get(map, "missing")
+  jika (val_missing == -1)
+      format_print("✅ Map Not Found: PASS")
+  lain
+      format_print("❌ Map Not Found: FAIL")
+  tutup_jika
+
+  format_print("🚀 HASHMAP READY!")
+tutup_fungsi
