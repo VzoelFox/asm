@@ -28,8 +28,10 @@ tutup_fungsi
 
 ### 311
 fungsi buffer_tulis(buf, data)
+  tipe buf MemoryBuffer
   ; Check if readonly
-  jika (buf.is_readonly == 1)
+  var ro = buf.is_readonly
+  jika (ro == 1)
     var err = -1
     asm_mulai
     mov rax, -1
@@ -61,11 +63,15 @@ fungsi buffer_tulis(buf, data)
     tutup_asm
 
     ; Update position
-    buf.position = buf.position + len
+    ; Cannot do: buf.position = buf.position + len
+    var pos = buf.position
+    pos = pos + len
+    buf.position = pos
 
     ; Update size (if pos > size)
-    jika (buf.position > buf.size)
-      buf.size = buf.position
+    var sz = buf.size
+    jika (pos > sz)
+      buf.size = pos
     tutup_jika
 
     ; Return bytes written
@@ -77,6 +83,7 @@ tutup_fungsi
 
 ### 312
 fungsi buffer_baca(buf, size)
+  tipe buf MemoryBuffer
   ; Read 'size' bytes from current position
   ; Allocate new string buffer for result
   var res_ptr = 0
@@ -105,7 +112,10 @@ fungsi buffer_baca(buf, size)
   tutup_asm
 
   ; Update position
-  buf.position = buf.position + size
+  ; buf.position = buf.position + size
+  var pos = buf.position
+  pos = pos + size
+  buf.position = pos
 
   ; Return result string
   asm_mulai
@@ -115,8 +125,10 @@ tutup_fungsi
 
 ### 313
 fungsi buffer_seek(buf, pos)
+  tipe buf MemoryBuffer
   jika (pos >= 0)
-    jika (pos <= buf.size)
+    var sz = buf.size
+    jika (pos <= sz)
       buf.position = pos
       var ok = 1
       asm_mulai
@@ -139,6 +151,7 @@ tutup_fungsi
 
 ### 314
 fungsi buffer_size(buf)
+  tipe buf MemoryBuffer
   var s = buf.size
   asm_mulai
   mov rax, [var_s]
@@ -147,11 +160,13 @@ tutup_fungsi
 
 ### 315
 fungsi buffer_reset(buf)
+  tipe buf MemoryBuffer
   buf.size = 0
   buf.position = 0
 tutup_fungsi
 
 ### 316
 fungsi buffer_readonly(buf)
+  tipe buf MemoryBuffer
   buf.is_readonly = 1
 tutup_fungsi

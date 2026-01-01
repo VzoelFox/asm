@@ -1,0 +1,82 @@
+### 318
+fungsi buffer_dari_file(filepath)
+  ; 1. Open File
+  var fd = 0
+  asm_mulai
+  mov rsi, [var_filepath]
+  mov rdx, 0 ; RDONLY
+  call sys_open
+  mov [var_fd], rax
+  tutup_asm
+
+  jika (fd < 0)
+    cetak("Error: Cannot open file")
+    var null = 0
+    asm_mulai
+    mov rax, 0
+    tutup_asm
+  lain
+    ; 2. Read Content (Assume max 1MB for now, chunking later)
+    var size = 1048576
+    var content_ptr = 0
+    var bytes_read = 0
+
+    asm_mulai
+    mov rdi, [var_fd]
+    mov rsi, [var_size]
+    call sys_read_fd
+    mov [var_content_ptr], rax
+    mov [var_bytes_read], rdx
+    tutup_asm
+
+    ; 3. Close File
+    asm_mulai
+    mov rdi, [var_fd]
+    call sys_close
+    tutup_asm
+
+    ; 4. Create Buffer Wrapper
+    var buf = MemoryBuffer(content_ptr, bytes_read, size, 0, 1)
+
+    asm_mulai
+    mov rax, [var_buf]
+    tutup_asm
+  tutup_jika
+tutup_fungsi
+
+### 319
+fungsi file_write_str(filepath, content)
+  ; Flags: O_WRONLY(1) | O_CREAT(64) | O_TRUNC(512) = 577
+  ; Mode: 0644 (420 decimal)
+  var flags = 577
+  var mode = 420
+
+  var fd = 0
+  asm_mulai
+  mov rsi, [var_filepath]
+  mov rdx, [var_flags]
+  mov rax, 2 ; sys_open
+  mov rdi, rsi
+  mov rsi, rdx
+  mov rdx, [var_mode]
+  syscall
+  mov [var_fd], rax
+  tutup_asm
+
+  jika (fd < 0)
+     cetak("Error: Cannot open file for writing")
+  lain
+     var len = str_len(content)
+     asm_mulai
+     mov rdi, [var_fd]
+     mov rsi, [var_content]
+     mov rdx, [var_len]
+     call sys_write_fd
+     tutup_asm
+
+     asm_mulai
+     mov rdi, [var_fd]
+     call sys_close
+     tutup_asm
+  tutup_jika
+tutup_fungsi

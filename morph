@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# Morph CLI Runner
+# Usage: ./morph <file.fox>
+# Behaves like 'python3 file.py' by compiling, deploying, and running on VPS.
+
+# 1. Load Configuration
+if [ -f config.mk ]; then
+    # Load variables, ignoring comments
+    export $(grep -v '^#' config.mk | xargs)
+else
+    echo "Error: config.mk not found. Copy config.mk.example and set credentials."
+    exit 1
+fi
+
+# 2. Validate Arguments
+INPUT_FILE="$1"
+if [ -z "$INPUT_FILE" ]; then
+    echo "Usage: ./morph <file.fox>"
+    exit 1
+fi
+
+if [ ! -f "$INPUT_FILE" ]; then
+    echo "Error: File '$INPUT_FILE' not found."
+    exit 1
+fi
+
+BASENAME=$(basename "$INPUT_FILE" .fox)
+ASM_FILE="${BASENAME}.asm"
+OBJ_FILE="${BASENAME}.o"
+BIN_FILE="${BASENAME}"
+
+# 3. Compile (Local Bootstrap)
+# Future: This will use the self-hosted 'morph' binary once fully ready.
+echo "--- Compiling $INPUT_FILE ---"
+chmod +x ./bootstrap/morph.sh
+./bootstrap/morph.sh "$INPUT_FILE" > "$ASM_FILE"
+
+if [ $? -ne 0 ]; then
+    echo "Error: Compilation failed."
+    rm -f "$ASM_FILE"
+    exit 1
+fi
+
+# 4. Deploy & Run (Remote VPS)
+echo "--- Running on VPS ($VPS_HOST) ---"
+
+# Ensure remote dir exists (fail silent if exists)
+sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "mkdir -p $VPS_DIR"
+
+# Upload ASM
+sshpass -p "$VPS_PASS" scp -o StrictHostKeyChecking=no "$ASM_FILE" "$VPS_USER@$VPS_HOST:$VPS_DIR/"
+
+# Remote Assemble, Link, Run
+# We use 'set -e' remotely to stop on errors
+# Pass extra arguments to the binary using "$@" (shift first)
+shift
+ARGS="$@"
+CMD="cd $VPS_DIR && nasm -f elf64 $ASM_FILE -o $OBJ_FILE && ld $OBJ_FILE -o $BIN_FILE && ./$BIN_FILE $ARGS"
+
+sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "$CMD"
+
+# Cleanup Local
+rm -f "$ASM_FILE"
