@@ -14,12 +14,13 @@ fungsi vec_create(capacity)
   asm_mulai
   mov rax, [var_byte_size]
   call sys_alloc
-  mov [var_byte_size], rax ; Store ptr
-
-  ; Store to vec.data_ptr (Offset 0)
-  mov rbx, [var_vec]
-  mov [rbx], rax
+  mov [var_byte_size], rax
   tutup_asm
+
+  ; Store to vec.data_ptr
+  ; Note: vec is a pointer, so we need 'tipe' to access fields
+  tipe vec Vector
+  vec.data_ptr = byte_size ; byte_size variable holds the pointer now
 
   asm_mulai
   mov rax, [var_vec]
@@ -28,17 +29,10 @@ tutup_fungsi
 
 ### 341
 fungsi vec_push(vec, value)
-  ; 1. Load size & capacity (Manual ASM)
-  var sz = 0
-  var cap = 0
+  tipe vec Vector
 
-  asm_mulai
-  mov rbx, [var_vec]
-  mov rax, [rbx + 8]  ; Offset 8 is size
-  mov [var_sz], rax
-  mov rax, [rbx + 16] ; Offset 16 is capacity
-  mov [var_cap], rax
-  tutup_asm
+  var sz = vec.size
+  var cap = vec.capacity
 
   ; 2. Check resize
   jika (sz >= cap)
@@ -59,47 +53,36 @@ fungsi vec_push(vec, value)
      tutup_asm
 
      ; Copy old to new
-     ; sys_memcpy(dest=new_ptr, src=vec.data_ptr, len=sz*8)
      var copy_size = sz * 8
+     var old_ptr = vec.data_ptr
+
      asm_mulai
      mov rdi, [var_new_ptr]
-
-     mov rbx, [var_vec]
-     mov rsi, [rbx]      ; vec.data_ptr
-
+     mov rsi, [var_old_ptr]
      mov rcx, [var_copy_size]
      call sys_memcpy
-
-     ; Update vec.data_ptr = new_ptr
-     mov rbx, [var_vec]
-     mov rax, [var_new_ptr]
-     mov [rbx], rax
-
-     ; Update vec.capacity = new_cap
-     mov rax, [var_new_cap]
-     mov [rbx + 16], rax
      tutup_asm
 
+     ; Update vec
+     vec.data_ptr = new_ptr
+     vec.capacity = new_cap
      cap = new_cap
   tutup_jika
 
   ; 3. Append value
   ; vec.data[sz] = value
+  ; Accessing raw array still needs manual ASM or trick
+  ; Trick: var arr = vec.data_ptr -> then arr[sz] = value?
+  ; Parser supports 'arr[idx] = val' but assumes 'arr' is a variable holding pointer.
+  ; Let's try that.
 
-  asm_mulai
-  mov rbx, [var_vec]
-  mov rdi, [rbx]      ; data_ptr
-  mov rcx, [var_sz]   ; index
-  mov rax, [var_value]
-  mov [rdi + rcx * 8], rax
+  var arr = vec.data_ptr
+  arr[sz] = value
 
   ; vec.size++
-  inc rcx
-  mov [rbx + 8], rcx
-  tutup_asm
-
-  ; Return new size
   var new_sz = sz + 1
+  vec.size = new_sz
+
   asm_mulai
   mov rax, [var_new_sz]
   tutup_asm
@@ -107,14 +90,25 @@ tutup_fungsi
 
 ### 342
 fungsi vec_get(vec, index)
-  ; Return vec.data[index]
-  var val = 0
+  tipe vec Vector
 
+  var arr = vec.data_ptr
+
+  ; We can't do 'var val = arr[index]' directly in parser?
+  ; Parser: 'var name = expr'. If expr is 'arr[index]'?
+  ; Parser check: 'cetak(arr[idx])' works. 'arr[idx] = val' works.
+  ; 'var x = arr[idx]'?
+  ; Check parser.sh 'var' handler...
+  ; It handles: 'struct(...)', 'func(...)', 'op1 op op2', 'string', 'number/var'.
+  ; It DOES NOT handle 'var x = arr[idx]'.
+  ; So we need ASM for reading array element to variable, OR update parser.
+  ; For now, keep ASM for array read to avoid blocking refactor.
+
+  var val = 0
   asm_mulai
-  mov rbx, [var_vec]
-  mov rdi, [rbx]      ; data_ptr
+  mov rbx, [var_arr]  ; Array base
   mov rcx, [var_index]
-  mov rax, [rdi + rcx * 8]
+  mov rax, [rbx + rcx * 8]
   mov [var_val], rax
   tutup_asm
 
@@ -125,25 +119,17 @@ tutup_fungsi
 
 ### 343
 fungsi vec_set(vec, index, value)
-  ; vec.data[index] = value
-  asm_mulai
-  mov rbx, [var_vec]
-  mov rdi, [rbx]
-  mov rcx, [var_index]
-  mov rax, [var_value]
-  mov [rdi + rcx * 8], rax
-  tutup_asm
+  tipe vec Vector
+  var arr = vec.data_ptr
+
+  ; Parser supports: arr[index] = value
+  arr[index] = value
 tutup_fungsi
 
 ### 344
 fungsi vec_len(vec)
-  var sz = 0
-  asm_mulai
-  mov rbx, [var_vec]
-  mov rax, [rbx + 8]
-  mov [var_sz], rax
-  tutup_asm
-
+  tipe vec Vector
+  var sz = vec.size
   asm_mulai
   mov rax, [var_sz]
   tutup_asm
