@@ -1,0 +1,45 @@
+var json_str = "  \"Hello World\"  "
+var input_ptr = json_str
+
+; Panggil internal primitive assembly
+var result_str = 0
+asm_mulai
+mov rsi, [var_input_ptr]
+call sys_json_skip_whitespace
+call sys_json_parse_string
+mov [var_result_str], rax
+tutup_asm
+
+cetak("Parsed string:")
+cetak_str(result_str)
+
+var num_str = " 12345 "
+var num_ptr = num_str
+var result_num = 0
+
+asm_mulai
+mov rsi, [var_num_ptr]
+call sys_json_skip_whitespace
+call sys_json_parse_number
+mov [var_result_num], rax
+tutup_asm
+
+cetak("Parsed number:")
+cetak(result_num)
+
+; Test Checkpoint
+var chk = 0
+asm_mulai
+call sys_mem_checkpoint
+mov [var_chk], rax
+tutup_asm
+
+cetak("Checkpoint saved.")
+var dummy = buffer_buat(1000) ; Allocate garbage
+cetak("Garbage allocated.")
+
+asm_mulai
+mov rax, [var_chk]
+call sys_mem_rollback
+tutup_asm
+cetak("Rollback complete.")
