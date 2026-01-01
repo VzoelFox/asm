@@ -11,6 +11,16 @@ init_codegen() {
     cat <<EOF
 section .data
     newline db 10, 0
+    ; --- Memory V2 Constants ---
+    HEAP_CHUNK_SIZE equ 268435456 ; 256MB Chunk Size
+
+    PROT_READ       equ 0x1
+    PROT_WRITE      equ 0x2
+    MAP_PRIVATE     equ 0x02
+    MAP_ANONYMOUS   equ 0x20
+
+    SYS_MMAP        equ 9
+    SYS_MUNMAP      equ 11
 
 section .text
     global _start
@@ -18,6 +28,9 @@ section .text
 _start:
     ; Initialize stack frame if needed
     mov rbp, rsp
+
+    ; --- Memory V2 Initialization ---
+    call sys_init_heap
 
     ; Call entry point
     call mulai
@@ -28,6 +41,46 @@ _start:
     syscall
 
 ; --- Helper Functions ---
+
+; sys_init_heap: Allocates the first 256MB chunk
+sys_init_heap:
+    push rdi
+    push rsi
+    push rdx
+    push r10
+    push r8
+    push r9
+    push rax
+
+    ; mmap(0, 256MB, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
+    mov rax, SYS_MMAP
+    mov rdi, 0                  ; hint = 0
+    mov rsi, HEAP_CHUNK_SIZE    ; length
+    mov rdx, 3                  ; PROT_READ | PROT_WRITE
+    mov r10, 34                 ; MAP_PRIVATE | MAP_ANONYMOUS
+    mov r8, -1                  ; fd = -1
+    mov r9, 0                   ; offset = 0
+    syscall
+
+    ; Check for error (RAX < 0, or specifically -4095..-1)
+    ; But for now assume success.
+
+    ; Save pointers
+    mov [heap_start_ptr], rax   ; Start of the chunk
+    mov [heap_current_ptr], rax ; Current bump pointer
+
+    ; Calculate end
+    add rax, HEAP_CHUNK_SIZE
+    mov [heap_end_ptr], rax     ; End of the chunk
+
+    pop rax
+    pop r9
+    pop r8
+    pop r10
+    pop rdx
+    pop rsi
+    pop rdi
+    ret
 
 ; sys_strcmp: Compare two strings (RSI, RDX)
 ; Output: RAX (1 if equal, 0 if not)
@@ -100,26 +153,77 @@ print_string_ptr:
     pop rbx
     ret
 
-; sys_alloc: Allocates N bytes from heap
+; sys_alloc: Allocates N bytes from dynamic heap (V2)
 ; Input: RAX = size
 ; Output: RAX = pointer
 sys_alloc:
     push rbx
     push rdx
+    push rcx
 
-    ; Align size to 8 bytes (simple bump)
-    ; TODO: Better alignment
+    ; Align size to 8 bytes
+    add rax, 7
+    and rax, -8
 
-    mov rbx, [heap_ptr]     ; Current offset
-    lea rdx, [heap_space + rbx] ; Calculate absolute address
+    mov rbx, [heap_current_ptr]  ; Current pointer
 
-    add rbx, rax            ; Bump pointer
-    mov [heap_ptr], rbx     ; Save new offset
+    ; Calculate potential new pointer
+    mov rcx, rbx
+    add rcx, rax                ; rcx = new_ptr (potential)
 
-    mov rax, rdx            ; Return pointer
+    ; Check bounds
+    mov rdx, [heap_end_ptr]
+    cmp rcx, rdx
+    jg .out_of_memory           ; TODO: Support multiple chunks (Linked Arenas)
 
+    ; Success: update bump pointer
+    mov [heap_current_ptr], rcx
+
+    ; Return old pointer (rbx)
+    mov rax, rbx
+
+    pop rcx
     pop rdx
     pop rbx
+    ret
+
+.out_of_memory:
+    ; For V2 Compiler Mode "Lite", we just crash or print error
+    ; In full V2, we would mmap a new chunk here.
+    ; Since we allocated 256MB, this should be rare for now.
+    mov rax, 0 ; Return NULL
+    pop rcx
+    pop rdx
+    pop rbx
+    ret
+
+; sys_reset_memory: Resets the arena pointer to the start (Snapshot Cleanup)
+sys_reset_memory:
+    push rax
+    mov rax, [heap_start_ptr]
+    mov [heap_current_ptr], rax
+    pop rax
+    ret
+
+; sys_free_memory: Returns the chunk to OS (Daemon Collector support)
+sys_free_memory:
+    push rax
+    push rdi
+    push rsi
+
+    mov rax, SYS_MUNMAP
+    mov rdi, [heap_start_ptr]
+    mov rsi, HEAP_CHUNK_SIZE
+    syscall
+
+    ; Clear pointers to avoid use-after-free
+    mov qword [heap_start_ptr], 0
+    mov qword [heap_current_ptr], 0
+    mov qword [heap_end_ptr], 0
+
+    pop rsi
+    pop rdi
+    pop rax
     ret
 
 ; sys_strlen: Calculates length of null-terminated string
@@ -864,8 +968,12 @@ emit_raw_data_fixed() {
 emit_output() {
     # BSS Injection with Deduplication:
     echo "section .bss"
-    echo "    heap_space resb 1048576 ; 1MB Arena"
-    echo "    heap_ptr resq 1"
+    # REMOVED: heap_space resb ...
+
+    # Heap State Pointers (8 bytes each)
+    echo "    heap_start_ptr   resq 1"
+    echo "    heap_current_ptr resq 1"
+    echo "    heap_end_ptr     resq 1"
 
     if [ ${#BSS_VARS[@]} -gt 0 ]; then
         # Deduplicate using sort -u

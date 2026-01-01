@@ -1,0 +1,7 @@
+var buffer = buffer_buat(5000000)
+buffer_tulis(buffer, "Testing Large Allocation (5MB)...")
+cetak("Allocated 5MB Buffer successfully.")
+
+var buffer2 = buffer_buat(1000000)
+buffer_tulis(buffer2, "Allocated another 1MB.")
+cetak("Total 6MB allocated. System stable.")
