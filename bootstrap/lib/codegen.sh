@@ -11,6 +11,16 @@ init_codegen() {
     cat <<EOF
 section .data
     newline db 10, 0
+    ; --- Memory V2 Constants ---
+    HEAP_CHUNK_SIZE equ 268435456 ; 256MB Chunk Size
+
+    PROT_READ       equ 0x1
+    PROT_WRITE      equ 0x2
+    MAP_PRIVATE     equ 0x02
+    MAP_ANONYMOUS   equ 0x20
+
+    SYS_MMAP        equ 9
+    SYS_MUNMAP      equ 11
 
 section .text
     global _start
@@ -18,6 +28,9 @@ section .text
 _start:
     ; Initialize stack frame if needed
     mov rbp, rsp
+
+    ; --- Memory V2 Initialization ---
+    call sys_init_heap
 
     ; Call entry point
     call mulai
@@ -28,6 +41,46 @@ _start:
     syscall
 
 ; --- Helper Functions ---
+
+; sys_init_heap: Allocates the first 256MB chunk
+sys_init_heap:
+    push rdi
+    push rsi
+    push rdx
+    push r10
+    push r8
+    push r9
+    push rax
+
+    ; mmap(0, 256MB, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
+    mov rax, SYS_MMAP
+    mov rdi, 0                  ; hint = 0
+    mov rsi, HEAP_CHUNK_SIZE    ; length
+    mov rdx, 3                  ; PROT_READ | PROT_WRITE
+    mov r10, 34                 ; MAP_PRIVATE | MAP_ANONYMOUS
+    mov r8, -1                  ; fd = -1
+    mov r9, 0                   ; offset = 0
+    syscall
+
+    ; Check for error (RAX < 0, or specifically -4095..-1)
+    ; But for now assume success.
+
+    ; Save pointers
+    mov [heap_start_ptr], rax   ; Start of the chunk
+    mov [heap_current_ptr], rax ; Current bump pointer
+
+    ; Calculate end
+    add rax, HEAP_CHUNK_SIZE
+    mov [heap_end_ptr], rax     ; End of the chunk
+
+    pop rax
+    pop r9
+    pop r8
+    pop r10
+    pop rdx
+    pop rsi
+    pop rdi
+    ret
 
 ; sys_strcmp: Compare two strings (RSI, RDX)
 ; Output: RAX (1 if equal, 0 if not)
@@ -100,26 +153,107 @@ print_string_ptr:
     pop rbx
     ret
 
-; sys_alloc: Allocates N bytes from heap
+; sys_alloc: Allocates N bytes from dynamic heap (V2)
 ; Input: RAX = size
 ; Output: RAX = pointer
 sys_alloc:
     push rbx
     push rdx
+    push rcx
 
-    ; Align size to 8 bytes (simple bump)
-    ; TODO: Better alignment
+    ; Align size to 8 bytes
+    add rax, 7
+    and rax, -8
 
-    mov rbx, [heap_ptr]     ; Current offset
-    lea rdx, [heap_space + rbx] ; Calculate absolute address
+    mov rbx, [heap_current_ptr]  ; Current pointer
 
-    add rbx, rax            ; Bump pointer
-    mov [heap_ptr], rbx     ; Save new offset
+    ; Calculate potential new pointer
+    mov rcx, rbx
+    add rcx, rax                ; rcx = new_ptr (potential)
 
-    mov rax, rdx            ; Return pointer
+    ; Check bounds
+    mov rdx, [heap_end_ptr]
+    cmp rcx, rdx
+    jg .out_of_memory           ; TODO: Support multiple chunks (Linked Arenas)
 
+    ; Success: update bump pointer
+    mov [heap_current_ptr], rcx
+
+    ; Return old pointer (rbx)
+    mov rax, rbx
+
+    pop rcx
     pop rdx
     pop rbx
+    ret
+
+.out_of_memory:
+    ; For V2 Compiler Mode "Lite", we just crash or print error
+    ; In full V2, we would mmap a new chunk here.
+    ; Since we allocated 256MB, this should be rare for now.
+    mov rax, 0 ; Return NULL
+    pop rcx
+    pop rdx
+    pop rbx
+    ret
+
+; sys_mem_checkpoint: Saves current heap pointer (returns it in RAX)
+sys_mem_checkpoint:
+    mov rax, [heap_current_ptr]
+    ret
+
+; sys_mem_rollback: Restores heap pointer from RAX
+; Input: RAX = saved_heap_ptr
+sys_mem_rollback:
+    ; Safety Check: Rollback ptr must be >= start_ptr AND <= end_ptr
+    mov rbx, [heap_start_ptr]
+    cmp rax, rbx
+    jl .invalid_rollback
+
+    mov rbx, [heap_end_ptr]
+    cmp rax, rbx
+    jg .invalid_rollback
+
+    ; Perform Rollback
+    mov [heap_current_ptr], rax
+    mov rax, 1 ; Success
+    ret
+
+.invalid_rollback:
+    mov rax, 0 ; Fail
+    ret
+
+; sys_mem_rewind: Same as rollback, alias
+sys_mem_rewind:
+    jmp sys_mem_rollback
+
+; sys_reset_memory: Resets the arena pointer to the start (Snapshot Cleanup)
+sys_reset_memory:
+    push rax
+    mov rax, [heap_start_ptr]
+    mov [heap_current_ptr], rax
+    pop rax
+    ret
+
+; sys_free_memory: Returns the chunk to OS (Daemon Collector support)
+sys_free_memory:
+    push rax
+    push rdi
+    push rsi
+
+    mov rax, SYS_MUNMAP
+    mov rdi, [heap_start_ptr]
+    mov rsi, HEAP_CHUNK_SIZE
+    syscall
+
+    ; Clear pointers to avoid use-after-free
+    mov qword [heap_start_ptr], 0
+    mov qword [heap_current_ptr], 0
+    mov qword [heap_end_ptr], 0
+
+    pop rsi
+    pop rdi
+    pop rax
     ret
 
 ; sys_strlen: Calculates length of null-terminated string
@@ -328,6 +462,140 @@ print_int:
     syscall
 
     leave
+    ret
+
+; --- JSON Primitive Parsers (Kernel Level) ---
+
+; sys_json_skip_whitespace: Skips whitespace chars (space, tab, newline)
+; Input: RSI = buffer_ptr
+; Output: RSI = new_buffer_ptr (at first non-whitespace)
+sys_json_skip_whitespace:
+    push rax
+.skip_loop:
+    mov al, [rsi]
+    cmp al, 32  ; space
+    je .next
+    cmp al, 9   ; tab
+    je .next
+    cmp al, 10  ; newline
+    je .next
+    cmp al, 13  ; CR
+    je .next
+
+    ; Not whitespace
+    jmp .done_skip
+
+.next:
+    inc rsi
+    jmp .skip_loop
+
+.done_skip:
+    pop rax
+    ret
+
+; sys_json_parse_string: Parses "quoted string" to a new allocated buffer
+; Input: RSI = buffer_ptr (points to opening quote or content)
+; Output: RAX = new_string_ptr, RSI = buffer_ptr (after closing quote)
+sys_json_parse_string:
+    push rbx
+    push rcx
+    push rdx
+
+    ; Check for opening quote
+    cmp byte [rsi], 34 ; "
+    jne .not_quote
+    inc rsi ; Skip opening quote
+
+.not_quote:
+    mov rbx, rsi ; Save start of content
+
+    ; Scan for length
+    xor rcx, rcx
+.scan_len:
+    mov al, [rsi]
+    cmp al, 34 ; "
+    je .found_end
+    cmp al, 0
+    je .error_unterminated
+    inc rsi
+    inc rcx
+    jmp .scan_len
+
+.found_end:
+    ; rcx = length of content
+    ; Alloc new buffer
+    mov rax, rcx
+    inc rax ; +1 for null
+    push rsi ; Save current position (closing quote)
+    push rcx ; Save length
+
+    call sys_alloc ; RAX = new buffer
+
+    pop rcx ; Restore length
+    pop rsi ; Restore closing quote pos
+
+    ; Copy content
+    ; dest = RAX, src = RBX, len = RCX
+    push rdi
+    push rsi
+
+    mov rdi, rax
+    mov rsi, rbx
+    rep movsb
+
+    mov byte [rdi], 0 ; Null terminate
+
+    pop rsi
+    pop rdi
+
+    inc rsi ; Move past closing quote
+    ; RAX already has new pointer
+
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
+
+.error_unterminated:
+    mov rax, 0
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
+
+; sys_json_parse_number: Parses integer from buffer
+; Input: RSI = buffer_ptr
+; Output: RAX = integer value, RSI = buffer_ptr (after number)
+sys_json_parse_number:
+    push rbx
+    push rcx
+    push rdx
+
+    xor rax, rax ; Result
+    xor rbx, rbx ; Temp digit
+
+    ; TODO: Handle negative sign?
+
+.num_loop:
+    mov cl, [rsi]
+    cmp cl, '0'
+    jl .done_num
+    cmp cl, '9'
+    jg .done_num
+
+    sub cl, '0'
+    movzx rbx, cl
+
+    imul rax, 10
+    add rax, rbx
+
+    inc rsi
+    jmp .num_loop
+
+.done_num:
+    pop rdx
+    pop rcx
+    pop rbx
     ret
 EOF
 }
@@ -864,8 +1132,12 @@ emit_raw_data_fixed() {
 emit_output() {
     # BSS Injection with Deduplication:
     echo "section .bss"
-    echo "    heap_space resb 1048576 ; 1MB Arena"
-    echo "    heap_ptr resq 1"
+    # REMOVED: heap_space resb ...
+
+    # Heap State Pointers (8 bytes each)
+    echo "    heap_start_ptr   resq 1"
+    echo "    heap_current_ptr resq 1"
+    echo "    heap_end_ptr     resq 1"
 
     if [ ${#BSS_VARS[@]} -gt 0 ]; then
         # Deduplicate using sort -u
