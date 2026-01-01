@@ -642,6 +642,20 @@ emit_variable_assign() {
         echo "    mov [var_$name], rax"
     elif [[ "$value" =~ ^-?[0-9]+$ ]]; then
         echo "    mov qword [var_$name], $value"
+    elif [[ "$value" =~ ^\" ]]; then
+        # String Literal Assignment to Var
+        local content="${value%\"}"
+        content="${content#\"}"
+        local label="str_lit_$STR_COUNT"
+        ((STR_COUNT++))
+
+        cat <<EOF
+section .data
+    $label db "$content", 0
+section .text
+    mov rax, $label
+    mov [var_$name], rax
+EOF
     else
         echo "    mov rax, [var_$value]"
         echo "    mov [var_$name], rax"
@@ -652,6 +666,19 @@ load_operand_to_rax() {
     local op="$1"
     if [[ "$op" =~ ^-?[0-9]+$ ]]; then
         echo "    mov rax, $op"
+    elif [[ "$op" =~ ^\" ]]; then
+        # String Literal as Operand
+        local content="${op%\"}"
+        content="${content#\"}"
+        local label="str_lit_$STR_COUNT"
+        ((STR_COUNT++))
+
+        cat <<EOF
+section .data
+    $label db "$content", 0
+section .text
+    mov rax, $label
+EOF
     elif [[ -n "$op" ]]; then
         echo "    mov rax, [var_$op]"
     else

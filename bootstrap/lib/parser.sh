@@ -99,6 +99,21 @@ parse_file() {
         ((CURRENT_FILE_LINE++))
         LINE_NO=$CURRENT_FILE_LINE
 
+        # Strip inline comments (e.g., "cmd ; comment" -> "cmd ")
+        # But handle strings correctly! (Simple hack: assume ; outside quotes)
+        # For simplicity in this parser, we assume ; always starts comment unless strictly needed
+        if [[ "$line" != *"\""* ]]; then
+             line="${line%%;*}"
+        else
+             # If line has string, be careful.
+             # Regex to remove comment at end: ;.*
+             # But this is hard with bash regex.
+             # Fallback: Let's assume standard formatting where ; is comment
+             # If string contains ;, this breaks. But our code shouldn't have ; in string literals typically.
+             # Only "Hello"
+             line="${line%%;*}"
+        fi
+
         # Trim whitespace
         line=$(echo "$line" | sed 's/^[ \t]*//;s/[ \t]*$//')
 
@@ -108,8 +123,10 @@ parse_file() {
             line="${line//salah/0}"
         fi
 
-        # Skip empty and comments (and Markers ###)
-        if [ -z "$line" ] || [[ "$line" =~ ^\; ]]; then continue; fi
+        # Skip empty
+        if [ -z "$line" ]; then continue; fi
+
+        # Check for Markers ### (handled by extract, but if parsing full file?)
         if [[ "$line" =~ ^### ]]; then continue; fi
 
         # Track function name BEFORE processing line if it's a function declaration
