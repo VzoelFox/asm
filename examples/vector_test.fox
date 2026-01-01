@@ -1,0 +1,59 @@
+; Vector Library Test
+indeks "plugins/vc/tagger.fox"
+Ambil 340, 341, 342, 343, 344
+Ambil 320, 321, 322, 323, 324 ; Format Lib
+
+fungsi mulai()
+  format_print("=== VECTOR STDLIB TEST ===")
+
+  ; Test 1: Create
+  var vec = vec_create(2) ; Small cap to force resize
+
+  ; Test 2: Push
+  vec_push(vec, 10)
+  vec_push(vec, 20)
+
+  var l = vec_len(vec)
+  var s_len = format_int(l)
+  format_print("Len after 2 pushes: ")
+  format_print(s_len)
+
+  jika (l == 2)
+      format_print("✅ Length Check: PASS")
+  lain
+      format_print("❌ Length Check: FAIL")
+  tutup_jika
+
+  ; Test 3: Resize (Push 3rd element)
+  vec_push(vec, 30)
+  l = vec_len(vec)
+  jika (l == 3)
+      format_print("✅ Resize Check: PASS")
+  lain
+      format_print("❌ Resize Check: FAIL")
+  tutup_jika
+
+  ; Test 4: Get
+  var v1 = vec_get(vec, 0)
+  var v2 = vec_get(vec, 1)
+  var v3 = vec_get(vec, 2)
+
+  jika (v1 == 10)
+    jika (v2 == 20)
+      jika (v3 == 30)
+         format_print("✅ Get Check: PASS")
+      tutup_jika
+    tutup_jika
+  tutup_jika
+
+  ; Test 5: Set
+  vec_set(vec, 1, 99)
+  var v2_new = vec_get(vec, 1)
+  jika (v2_new == 99)
+     format_print("✅ Set Check: PASS")
+  lain
+     format_print("❌ Set Check: FAIL")
+  tutup_jika
+
+  format_print("🚀 VECTOR READY!")
+tutup_fungsi
