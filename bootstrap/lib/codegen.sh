@@ -197,6 +197,36 @@ sys_alloc:
     pop rbx
     ret
 
+; sys_mem_checkpoint: Saves current heap pointer (returns it in RAX)
+sys_mem_checkpoint:
+    mov rax, [heap_current_ptr]
+    ret
+
+; sys_mem_rollback: Restores heap pointer from RAX
+; Input: RAX = saved_heap_ptr
+sys_mem_rollback:
+    ; Safety Check: Rollback ptr must be >= start_ptr AND <= end_ptr
+    mov rbx, [heap_start_ptr]
+    cmp rax, rbx
+    jl .invalid_rollback
+
+    mov rbx, [heap_end_ptr]
+    cmp rax, rbx
+    jg .invalid_rollback
+
+    ; Perform Rollback
+    mov [heap_current_ptr], rax
+    mov rax, 1 ; Success
+    ret
+
+.invalid_rollback:
+    mov rax, 0 ; Fail
+    ret
+
+; sys_mem_rewind: Same as rollback, alias
+sys_mem_rewind:
+    jmp sys_mem_rollback
+
 ; sys_reset_memory: Resets the arena pointer to the start (Snapshot Cleanup)
 sys_reset_memory:
     push rax
@@ -432,6 +462,140 @@ print_int:
     syscall
 
     leave
+    ret
+
+; --- JSON Primitive Parsers (Kernel Level) ---
+
+; sys_json_skip_whitespace: Skips whitespace chars (space, tab, newline)
+; Input: RSI = buffer_ptr
+; Output: RSI = new_buffer_ptr (at first non-whitespace)
+sys_json_skip_whitespace:
+    push rax
+.skip_loop:
+    mov al, [rsi]
+    cmp al, 32  ; space
+    je .next
+    cmp al, 9   ; tab
+    je .next
+    cmp al, 10  ; newline
+    je .next
+    cmp al, 13  ; CR
+    je .next
+
+    ; Not whitespace
+    jmp .done_skip
+
+.next:
+    inc rsi
+    jmp .skip_loop
+
+.done_skip:
+    pop rax
+    ret
+
+; sys_json_parse_string: Parses "quoted string" to a new allocated buffer
+; Input: RSI = buffer_ptr (points to opening quote or content)
+; Output: RAX = new_string_ptr, RSI = buffer_ptr (after closing quote)
+sys_json_parse_string:
+    push rbx
+    push rcx
+    push rdx
+
+    ; Check for opening quote
+    cmp byte [rsi], 34 ; "
+    jne .not_quote
+    inc rsi ; Skip opening quote
+
+.not_quote:
+    mov rbx, rsi ; Save start of content
+
+    ; Scan for length
+    xor rcx, rcx
+.scan_len:
+    mov al, [rsi]
+    cmp al, 34 ; "
+    je .found_end
+    cmp al, 0
+    je .error_unterminated
+    inc rsi
+    inc rcx
+    jmp .scan_len
+
+.found_end:
+    ; rcx = length of content
+    ; Alloc new buffer
+    mov rax, rcx
+    inc rax ; +1 for null
+    push rsi ; Save current position (closing quote)
+    push rcx ; Save length
+
+    call sys_alloc ; RAX = new buffer
+
+    pop rcx ; Restore length
+    pop rsi ; Restore closing quote pos
+
+    ; Copy content
+    ; dest = RAX, src = RBX, len = RCX
+    push rdi
+    push rsi
+
+    mov rdi, rax
+    mov rsi, rbx
+    rep movsb
+
+    mov byte [rdi], 0 ; Null terminate
+
+    pop rsi
+    pop rdi
+
+    inc rsi ; Move past closing quote
+    ; RAX already has new pointer
+
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
+
+.error_unterminated:
+    mov rax, 0
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
+
+; sys_json_parse_number: Parses integer from buffer
+; Input: RSI = buffer_ptr
+; Output: RAX = integer value, RSI = buffer_ptr (after number)
+sys_json_parse_number:
+    push rbx
+    push rcx
+    push rdx
+
+    xor rax, rax ; Result
+    xor rbx, rbx ; Temp digit
+
+    ; TODO: Handle negative sign?
+
+.num_loop:
+    mov cl, [rsi]
+    cmp cl, '0'
+    jl .done_num
+    cmp cl, '9'
+    jg .done_num
+
+    sub cl, '0'
+    movzx rbx, cl
+
+    imul rax, 10
+    add rax, rbx
+
+    inc rsi
+    jmp .num_loop
+
+.done_num:
+    pop rdx
+    pop rcx
+    pop rbx
     ret
 EOF
 }
