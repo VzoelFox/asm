@@ -387,6 +387,21 @@ parse_file() {
                 ;;
 
             # --- Variabel (Deklarasi) ---
+            # --- Type Casting / Hinting ---
+            tipe*)
+                if [[ "$line" =~ ^tipe[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]+([a-zA-Z0-9_]+)$ ]]; then
+                    local var_name="${BASH_REMATCH[1]}"
+                    local struct_name="${BASH_REMATCH[2]}"
+
+                    if [[ -n "${STRUCT_SIZES[$struct_name]}" ]]; then
+                        VAR_TYPE_MAP["$var_name"]="$struct_name"
+                        # No assembly emission needed, purely metadata update
+                    else
+                         echo "; Warning: Unknown struct type '$struct_name' in 'tipe' declaration."
+                    fi
+                fi
+                ;;
+
             var*)
                 if [[ "$line" =~ ^var[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]+\[([0-9]+)\]int$ ]]; then
                     local name="${BASH_REMATCH[1]}"
