@@ -1,0 +1,136 @@
+### 340
+struktur Vector
+  data_ptr int
+  size int
+  capacity int
+tutup_struktur
+
+fungsi vec_create(capacity)
+  var vec = Vector(0, 0, capacity)
+
+  ; Alloc data array (capacity * 8)
+  var byte_size = capacity * 8
+
+  asm_mulai
+  mov rax, [var_byte_size]
+  call sys_alloc
+  mov [var_byte_size], rax
+  tutup_asm
+
+  ; Store to vec.data_ptr
+  ; Note: vec is a pointer, so we need 'tipe' to access fields
+  tipe vec Vector
+  vec.data_ptr = byte_size ; byte_size variable holds the pointer now
+
+  asm_mulai
+  mov rax, [var_vec]
+  tutup_asm
+tutup_fungsi
+
+### 341
+fungsi vec_push(vec, value)
+  tipe vec Vector
+
+  var sz = vec.size
+  var cap = vec.capacity
+
+  ; 2. Check resize
+  jika (sz >= cap)
+     ; Grow capacity (double)
+     var new_cap = cap * 2
+     jika (new_cap == 0)
+        new_cap = 4
+     tutup_jika
+
+     ; Alloc new array
+     var new_byte_size = new_cap * 8
+     var new_ptr = 0
+
+     asm_mulai
+     mov rax, [var_new_byte_size]
+     call sys_alloc
+     mov [var_new_ptr], rax
+     tutup_asm
+
+     ; Copy old to new
+     var copy_size = sz * 8
+     var old_ptr = vec.data_ptr
+
+     asm_mulai
+     mov rdi, [var_new_ptr]
+     mov rsi, [var_old_ptr]
+     mov rcx, [var_copy_size]
+     call sys_memcpy
+     tutup_asm
+
+     ; Update vec
+     vec.data_ptr = new_ptr
+     vec.capacity = new_cap
+     cap = new_cap
+  tutup_jika
+
+  ; 3. Append value
+  ; vec.data[sz] = value
+  ; Accessing raw array still needs manual ASM or trick
+  ; Trick: var arr = vec.data_ptr -> then arr[sz] = value?
+  ; Parser supports 'arr[idx] = val' but assumes 'arr' is a variable holding pointer.
+  ; Let's try that.
+
+  var arr = vec.data_ptr
+  arr[sz] = value
+
+  ; vec.size++
+  var new_sz = sz + 1
+  vec.size = new_sz
+
+  asm_mulai
+  mov rax, [var_new_sz]
+  tutup_asm
+tutup_fungsi
+
+### 342
+fungsi vec_get(vec, index)
+  tipe vec Vector
+
+  var arr = vec.data_ptr
+
+  ; We can't do 'var val = arr[index]' directly in parser?
+  ; Parser: 'var name = expr'. If expr is 'arr[index]'?
+  ; Parser check: 'cetak(arr[idx])' works. 'arr[idx] = val' works.
+  ; 'var x = arr[idx]'?
+  ; Check parser.sh 'var' handler...
+  ; It handles: 'struct(...)', 'func(...)', 'op1 op op2', 'string', 'number/var'.
+  ; It DOES NOT handle 'var x = arr[idx]'.
+  ; So we need ASM for reading array element to variable, OR update parser.
+  ; For now, keep ASM for array read to avoid blocking refactor.
+
+  var val = 0
+  asm_mulai
+  mov rbx, [var_arr]  ; Array base
+  mov rcx, [var_index]
+  mov rax, [rbx + rcx * 8]
+  mov [var_val], rax
+  tutup_asm
+
+  asm_mulai
+  mov rax, [var_val]
+  tutup_asm
+tutup_fungsi
+
+### 343
+fungsi vec_set(vec, index, value)
+  tipe vec Vector
+  var arr = vec.data_ptr
+
+  ; Parser supports: arr[index] = value
+  arr[index] = value
+tutup_fungsi
+
+### 344
+fungsi vec_len(vec)
+  tipe vec Vector
+  var sz = vec.size
+  asm_mulai
+  mov rax, [var_sz]
+  tutup_asm
+tutup_fungsi
