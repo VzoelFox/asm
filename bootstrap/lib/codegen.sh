@@ -22,6 +22,13 @@ section .data
     SYS_MMAP        equ 9
     SYS_MUNMAP      equ 11
 
+    ; Error Messages
+    msg_oom db "Fatal: Out of Memory (Heap Exhausted)", 10, 0
+    len_msg_oom equ $ - msg_oom
+
+    msg_heap_fail db "Fatal: Heap Initialization Failed (mmap error)", 10, 0
+    len_msg_heap_fail equ $ - msg_heap_fail
+
 section .text
     global _start
 
@@ -41,6 +48,18 @@ _start:
     syscall
 
 ; --- Helper Functions ---
+
+; sys_panic: Prints error to stderr (fd=2) and exits with code 1
+; Input: RSI = message ptr, RDX = length
+sys_panic:
+    mov rax, 1      ; sys_write
+    mov rdi, 2      ; stderr
+    syscall
+
+    mov rax, 60     ; sys_exit
+    mov rdi, 1      ; status = 1
+    syscall
+    ret
 
 ; sys_init_heap: Allocates the first 256MB chunk
 sys_init_heap:
@@ -62,8 +81,9 @@ sys_init_heap:
     mov r9, 0                   ; offset = 0
     syscall
 
-    ; Check for error (RAX < 0, or specifically -4095..-1)
-    ; But for now assume success.
+    ; Check for error (RAX < 0)
+    cmp rax, 0
+    jl .init_fail
 
     ; Save pointers
     mov [heap_start_ptr], rax   ; Start of the chunk
@@ -81,6 +101,12 @@ sys_init_heap:
     pop rsi
     pop rdi
     ret
+
+.init_fail:
+    mov rsi, msg_heap_fail
+    mov rdx, len_msg_heap_fail
+    call sys_panic
+    ret ; Never reached
 
 ; sys_strcmp: Compare two strings (RSI, RDX)
 ; Output: RAX (1 if equal, 0 if not)
@@ -174,7 +200,7 @@ sys_alloc:
     ; Check bounds
     mov rdx, [heap_end_ptr]
     cmp rcx, rdx
-    jg .out_of_memory           ; TODO: Support multiple chunks (Linked Arenas)
+    jg .out_of_memory
 
     ; Success: update bump pointer
     mov [heap_current_ptr], rcx
@@ -188,10 +214,11 @@ sys_alloc:
     ret
 
 .out_of_memory:
-    ; For V2 Compiler Mode "Lite", we just crash or print error
-    ; In full V2, we would mmap a new chunk here.
-    ; Since we allocated 256MB, this should be rare for now.
-    mov rax, 0 ; Return NULL
+    mov rsi, msg_oom
+    mov rdx, len_msg_oom
+    call sys_panic
+    ; Never reached
+    mov rax, 0
     pop rcx
     pop rdx
     pop rbx
