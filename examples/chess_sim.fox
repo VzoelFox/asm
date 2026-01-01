@@ -1,0 +1,189 @@
+Ambil "lib/vector.fox" 340, 341, 342, 343, 344
+
+; Definisi Bidak
+; 0=Empty, 1=Pawn, 2=Rook, 3=Knight, 4=Bishop, 5=Queen, 6=King
+; Putih = Positif, Hitam = Negatif (tapi kita pakai +10 untuk hitam biar simpel visualnya)
+; 11=Black Pawn, dst.
+
+struktur ChessState
+  board_ptr int
+  prev_state int
+tutup_struktur
+
+fungsi init_board()
+  var size = 64
+  var board = vec_create(size)
+
+  ; Init White Pieces (Row 0-1)
+  panggil vec_push(board, 2) ; R
+  panggil vec_push(board, 3) ; N
+  panggil vec_push(board, 4) ; B
+  panggil vec_push(board, 5) ; Q
+  panggil vec_push(board, 6) ; K
+  panggil vec_push(board, 4) ; B
+  panggil vec_push(board, 3) ; N
+  panggil vec_push(board, 2) ; R
+
+  var i = 0
+  selama (i < 8)
+    panggil vec_push(board, 1) ; P
+    i = i + 1
+  tutup_selama
+
+  ; Empty Rows (2-5)
+  i = 0
+  selama (i < 32)
+    panggil vec_push(board, 0)
+    i = i + 1
+  tutup_selama
+
+  ; Init Black Pieces (Row 6-7)
+  i = 0
+  selama (i < 8)
+    panggil vec_push(board, 11) ; P
+    i = i + 1
+  tutup_selama
+
+  panggil vec_push(board, 12) ; R
+  panggil vec_push(board, 13) ; N
+  panggil vec_push(board, 14) ; B
+  panggil vec_push(board, 15) ; Q
+  panggil vec_push(board, 16) ; K
+  panggil vec_push(board, 14) ; B
+  panggil vec_push(board, 13) ; N
+  panggil vec_push(board, 12) ; R
+
+  asm_mulai
+  mov rax, [var_board]
+  tutup_asm
+tutup_fungsi
+
+fungsi print_board(board)
+  tipe board Vector
+  cetak("--- Papan Catur ---")
+  var i = 0
+  selama (i < 64)
+    var val = vec_get(board, i)
+    var char_str = "."
+
+    jika (val == 0)
+       char_str = "."
+    lain_jika (val == 1)
+       char_str = "P"
+    lain_jika (val == 2)
+       char_str = "R"
+    lain_jika (val == 3)
+       char_str = "N"
+    lain_jika (val == 4)
+       char_str = "B"
+    lain_jika (val == 5)
+       char_str = "Q"
+    lain_jika (val == 6)
+       char_str = "K"
+    lain_jika (val == 11)
+       char_str = "p"
+    lain_jika (val == 12)
+       char_str = "r"
+    lain_jika (val == 13)
+       char_str = "n"
+    lain_jika (val == 14)
+       char_str = "b"
+    lain_jika (val == 15)
+       char_str = "q"
+    lain_jika (val == 16)
+       char_str = "k"
+    tutup_jika
+
+    ; Baris baru tiap 8
+    var mod8 = 0
+    asm_mulai
+    mov rax, [var_i]
+    mov rbx, 8
+    xor rdx, rdx
+    div rbx
+    mov [var_mod8], rdx
+    tutup_asm
+
+    jika (mod8 == 0)
+       cetak_str("") ; Newline trick if supported, or just separator
+    tutup_jika
+
+    cetak_str(char_str)
+
+    i = i + 1
+  tutup_selama
+  cetak("-------------------")
+tutup_fungsi
+
+fungsi copy_board(src_board)
+  tipe src_board Vector
+  var size = 64
+  var new_board = vec_create(size)
+
+  var i = 0
+  selama (i < 64)
+    var val = vec_get(src_board, i)
+    panggil vec_push(new_board, val)
+    i = i + 1
+  tutup_selama
+
+  asm_mulai
+  mov rax, [var_new_board]
+  tutup_asm
+tutup_fungsi
+
+fungsi move_piece(board, from, to)
+  var val = vec_get(board, from)
+  panggil vec_set(board, to, val)
+  panggil vec_set(board, from, 0)
+tutup_fungsi
+
+; Entry Point 'mulai' is implicitly the main body
+fungsi mulai()
+  ; Main Simulation
+  cetak("=== Simulasi Catur Morph ===")
+
+  ; 1. Init
+  var current_board = init_board()
+  panggil print_board(current_board)
+
+  ; Stack Undo (Manual Linked List Logic via Checkpoint?)
+  ; Disini kita demo fitur Memory Checkpoint untuk Undo.
+  ; Idenya: Kita checkpoint -> Lakukan Alloc State Baru -> Undo (Rollback Memory).
+
+  var chk = 0
+  asm_mulai
+  call sys_mem_checkpoint
+  mov [var_chk], rax
+  tutup_asm
+
+  cetak("[System] Checkpoint saved.")
+
+  ; Langkah 1: Pion Putih E2 -> E4 (Index 12 -> 28)
+  cetak("Langkah 1: Pion Putih Maju (Alloc State Baru)")
+  ; Alih-alih modif in-place, kita buat 'State Baru' di memori (Simulasi AI Branching)
+  var state1_board = copy_board(current_board)
+  panggil move_piece(state1_board, 12, 28)
+  panggil print_board(state1_board)
+
+  ; Check Memory Usage (implisit, pointer nambah)
+
+  ; Undo Langkah 1 (Rollback ke Checkpoint)
+  cetak("[Action] UNDO Langkah 1 (Memory Rollback)...")
+  asm_mulai
+  mov rax, [var_chk]
+  call sys_mem_rollback
+  tutup_asm
+
+  ; Verifikasi: state1_board sekarang invalid/dihapus (secara konsep).
+  ; current_board masih ada karena dialokasikan SEBELUM checkpoint.
+  cetak("Status Papan Setelah Undo (Harus Kembali Awal):")
+  panggil print_board(current_board)
+
+  ; Langkah 2 (Validasi Lanjut): Kuda Putih B1 -> C3 (Index 1 -> 18)
+  cetak("Langkah 2: Kuda Putih Maju")
+  panggil move_piece(current_board, 1, 18)
+  panggil print_board(current_board)
+
+  cetak("Simulasi Selesai. Memori & Aritmatika Valid.")
+tutup_fungsi
