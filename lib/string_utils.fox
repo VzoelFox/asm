@@ -46,8 +46,9 @@ fungsi str_get(s, index)
   asm_mulai
   mov rsi, [var_s]
   mov rbx, [var_index]
+  add rsi, rbx
   xor rax, rax
-  mov al, byte [rsi + rbx]
+  mov al, [rsi]
   mov [var_val], rax
   tutup_asm
 
@@ -206,4 +207,18 @@ fungsi str_split_once(s, delim_char)
    asm_mulai
    mov rax, [var_v]
    tutup_asm
+tutup_fungsi
+
+### 387
+fungsi str_substring_after(s, start_index)
+  var len = str_len(s)
+  var res = ""
+  jika (start_index < len)
+     var new_len = len - start_index
+     var temp = str_slice(s, start_index, new_len)
+     res = temp
+  tutup_jika
+  asm_mulai
+  mov rax, [var_res]
+  tutup_asm
 tutup_fungsi

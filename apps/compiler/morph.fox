@@ -7,19 +7,12 @@ Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
 Ambil 318 ; File IO
 Ambil 320, 321, 322 ; Format
 Ambil 340, 341, 342, 343, 344 ; Vector
-Ambil 380, 381, 382, 383, 384, 385 ; String Utils
+Ambil 380, 381, 382, 383, 384, 385, 386, 387 ; String Utils
 
-; Argumen Global (diisi oleh prologue 'mulai' atau manual injection di _start)
-var argc = 0
-var argv = 0
-
-fungsi mulai(argc_val, argv_val)
-  ; Simpan argumen ke variabel global (jika didukung)
-  ; Note: Prologue fungsi saat ini memindahkan arg ke var_local.
-  ; Kita perlu memindahkannya ke var global atau menggunakannya langsung.
-
-  var args_count = argc_val
-  var args_ptr = argv_val
+fungsi mulai(arg_unused1, arg_unused2)
+  ; Retrieve Globals (Injected by Kernel)
+  var args_count = global_argc
+  var args_ptr = global_argv
 
   jika (args_count < 2)
      cetak("Penggunaan: ./morph <file.fox>")
@@ -32,10 +25,7 @@ fungsi mulai(argc_val, argv_val)
   tutup_jika
 
   ; Ambil Argumen ke-1 (Filename)
-  ; argv adalah pointer ke array of pointers (char**)
-  ; argv[0] = program name
-  ; argv[1] = input file
-
+  ; argv[1]
   var filename_ptr = 0
   asm_mulai
   mov rbx, [var_args_ptr]
@@ -44,6 +34,7 @@ fungsi mulai(argc_val, argv_val)
   tutup_asm
 
   cetak("Morph Self-Hosted Compiler v0.1")
+  cetak("Compiling:")
   cetak_str(filename_ptr)
 
   ; Baca File Input
@@ -58,31 +49,60 @@ fungsi mulai(argc_val, argv_val)
      tutup_asm
   tutup_jika
 
-  var size = buf.size
-  cetak("Ukuran File:")
-  cetak(size)
-
-  ; Convert Buffer to String (Vector of Lines)
-  ; Buffer data ada di buf.data_ptr
+  ; Convert Buffer to Lines
+  tipe buf MemoryBuffer
   var content = buf.data_ptr
-
   var lines = vec_create(100)
   panggil str_split_lines(content, lines)
 
   var line_count = vec_len(lines)
-  cetak("Jumlah Baris:")
-  cetak(line_count)
 
-  ; Print first 5 lines for verification
+  ; --- Parser Loop ---
   var i = 0
-  var limit = 5
-  jika (line_count < 5)
-    limit = line_count
-  tutup_jika
+  selama (i < line_count)
+    var raw_line = vec_get(lines, i)
 
-  selama (i < limit)
-    var line_str = vec_get(lines, i)
-    cetak_str(line_str)
+    ; 1. Clean Line
+    ; Remove comments
+    var parts = str_split_once(raw_line, 59) ; 59 is ';'
+    var line_no_comment = vec_get(parts, 0)
+
+    ; Trim whitespace
+    var line = str_trim(line_no_comment)
+
+    var len = str_len(line)
+    jika (len > 0)
+       ; 2. Parse Keyword
+       var is_fungsi = str_starts_with(line, "fungsi")
+       jika (is_fungsi == 1)
+          var func_decl = str_substring_after(line, 6) ; after "fungsi"
+          var func_name = str_trim(func_decl)
+          cetak("DEBUG: Keyword 'fungsi' detected.")
+          cetak("       Name: ")
+          cetak_str(func_name)
+       tutup_jika
+
+       var is_end_func = str_starts_with(line, "tutup_fungsi")
+       jika (is_end_func == 1)
+          cetak("DEBUG: Keyword 'tutup_fungsi' detected.")
+       tutup_jika
+
+       var is_cetak = str_starts_with(line, "cetak")
+       jika (is_cetak == 1)
+          cetak("DEBUG: Keyword 'cetak' detected.")
+       tutup_jika
+
+       var is_asm = str_starts_with(line, "asm_mulai")
+       jika (is_asm == 1)
+          cetak("DEBUG: Keyword 'asm_mulai' detected.")
+       tutup_jika
+
+       var is_end_asm = str_starts_with(line, "tutup_asm")
+       jika (is_end_asm == 1)
+          cetak("DEBUG: Keyword 'tutup_asm' detected.")
+       tutup_jika
+    tutup_jika
+
     i = i + 1
   tutup_selama
 

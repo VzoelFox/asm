@@ -21,6 +21,8 @@ section .data
 
     SYS_MMAP        equ 9
     SYS_MUNMAP      equ 11
+    SYS_OPEN        equ 2
+    SYS_CLOSE       equ 3
 
     ; Error Messages
     msg_oom db "Fatal: Out of Memory (Heap Exhausted)", 10, 0
@@ -36,8 +38,26 @@ _start:
     ; Initialize stack frame if needed
     mov rbp, rsp
 
+    ; --- Get argc and argv ---
+    ; Stack layout at _start:
+    ; [RSP]    = argc
+    ; [RSP+8]  = argv[0]
+    ; [RSP+16] = argv[1] ...
+    mov rdi, [rsp]      ; rdi = argc
+    lea rsi, [rsp+8]    ; rsi = argv pointer
+
     ; --- Memory V2 Initialization ---
+    push rdi
+    push rsi
     call sys_init_heap
+    pop rsi
+    pop rdi
+
+    ; --- Save to Global Variables ---
+    ; We assume 'var global_argc' and 'var global_argv' are declared in Morph
+    ; which generates 'var_global_argc' and 'var_global_argv' labels.
+    mov [var_global_argc], rdi
+    mov [var_global_argv], rsi
 
     ; Call entry point
     call mulai
@@ -379,38 +399,101 @@ sys_str_concat:
     pop rbx
     ret
 
-; sys_read: Reads N bytes from stdin to new heap buffer
+; sys_read: Reads N bytes from FD (default stdin if RDI not set, but wait, Morph calling convention)
+; Helper Wrapper: sys_read_fd(fd, size)
+; Input: RDI = fd, RSI = size
+; Output: RAX = buffer_pointer, RDX = bytes_read
+sys_read_fd:
+    push rbx
+    push rcx
+    push rdi  ; Save fd
+    push rsi  ; Save size
+
+    ; 1. Allocate buffer
+    mov rax, rsi    ; size
+    call sys_alloc  ; rax = buffer_pointer
+    mov rbx, rax    ; rbx = buffer_pointer
+
+    pop rsi         ; size (count)
+    pop rdi         ; fd
+
+    ; 2. Syscall Read
+    push rbx        ; Save buffer ptr
+    mov rax, 0      ; sys_read
+    mov rdx, rsi    ; count
+    mov rsi, rbx    ; buf
+    ; RDI is already fd
+    syscall
+
+    ; RAX now has bytes read
+    pop rbx         ; Restore buffer ptr
+
+    ; Null-terminate
+    cmp rax, 0
+    jl .read_error
+    mov byte [rbx + rax], 0
+
+    mov rdx, rax    ; Return bytes read in RDX
+    mov rax, rbx    ; Return buffer ptr in RAX
+
+    pop rcx
+    pop rbx
+    ret
+
+.read_error:
+    mov rax, 0
+    pop rcx
+    pop rbx
+    ret
+
+; sys_read: Legacy wrapper for stdin
 ; Input: RAX = max_size
 ; Output: RAX = buffer_pointer
 sys_read:
-    push rbx
-    push rcx
-    push rdx
-    push rsi
     push rdi
+    push rsi
+    push rdx
 
-    ; 1. Allocate buffer
-    mov rbx, rax    ; rbx = size
-    call sys_alloc  ; rax = buffer_pointer
+    mov rsi, rax ; size
+    mov rdi, 0   ; stdin
+    call sys_read_fd
 
-    ; 2. Syscall Read
-    mov rsi, rax    ; buf
-    mov rdx, rbx    ; count
-    mov rax, 0      ; sys_read
-    mov rdi, 0      ; stdin
+    pop rdx
+    pop rsi
+    pop rdi
+    ret
+
+; sys_open: Open file
+; Input: RSI = filename_ptr, RDX = flags (0=RDONLY)
+; Output: RAX = fd
+sys_open:
+    push rdi
+    push rsi
+    push rdx
+
+    mov rax, 2      ; sys_open
+    mov rdi, rsi    ; filename
+    mov rsi, rdx    ; flags
+    mov rdx, 0      ; mode (ignored for read)
     syscall
 
-    ; Null-terminate the input for safety
-    mov byte [rsi + rax], 0
+    pop rdx
+    pop rsi
+    pop rdi
+    ret
 
-    ; We return the buffer pointer (which is in RSI)
-    mov rax, rsi
+; sys_close: Close file
+; Input: RDI = fd
+sys_close:
+    push rax
+    push rdi
+
+    mov rax, 3      ; sys_close
+    ; RDI is fd
+    syscall
 
     pop rdi
-    pop rsi
-    pop rdx
-    pop rcx
-    pop rbx
+    pop rax
     ret
 
 ; print_string: Expects address in RSI, length in RDX
@@ -1192,6 +1275,10 @@ emit_output() {
     echo "    heap_start_ptr   resq 1"
     echo "    heap_current_ptr resq 1"
     echo "    heap_end_ptr     resq 1"
+
+    # Global Args (Always define them so _start doesn't fail)
+    echo "    var_global_argc  resq 1"
+    echo "    var_global_argv  resq 1"
 
     if [ ${#BSS_VARS[@]} -gt 0 ]; then
         # Deduplicate using sort -u
