@@ -485,6 +485,38 @@ parse_file() {
                          local op="${BASH_REMATCH[2]}"
                          local op2="${BASH_REMATCH[3]}"
                          emit_arithmetic_op "$op1" "$op" "$op2" "$name"
+                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)$ ]]; then
+                         # Struct Field Access (RHS)
+                         local struct_var="${BASH_REMATCH[1]}"
+                         local field="${BASH_REMATCH[2]}"
+                         local struct_type="${VAR_TYPE_MAP[$struct_var]}"
+
+                         if [[ -n "$struct_type" ]]; then
+                             local offset="${STRUCT_OFFSETS[${struct_type}_${field}]}"
+                             if [[ -n "$offset" ]]; then
+                                 emit_load_struct_field "$struct_var" "$offset"
+                                 emit_variable_assign "$name" ""
+                             else
+                                 echo "; Error: Unknown field '$field' in struct '$struct_type'"
+                             fi
+                         else
+                             # Fallback: Maybe it's not registered in VAR_TYPE_MAP (e.g. passed as arg)
+                             # In that case we can't determine offset at compile time EASILY without type info.
+                             # BUT, in 'map_put', 'map' is an argument. We don't know its type!
+                             # This is a limitation of this untyped/simple parser.
+                             # CRITICAL: We need a way to cast or know type.
+                             # For now, we might need to assume or look up recursively? No.
+                             #
+                             # WORKAROUND: For arguments that are structs, we need to manually define offsets?
+                             # Or we can check if 'map' matches known struct names? No.
+                             #
+                             # Wait, how does 'cetak(map.capacity)' work?
+                             # It uses VAR_TYPE_MAP.
+                             # If 'map' was passed as arg, it is NOT in VAR_TYPE_MAP.
+                             # So 'cetak(map.capacity)' would also fail if 'map' is an argument!
+
+                             echo "; Warning: Cannot resolve type for '$struct_var'. Assuming offset lookup fails."
+                         fi
                     else
                         if [[ "$expr" =~ ^\"(.*)\"$ ]]; then
                            local content="${BASH_REMATCH[1]}"
