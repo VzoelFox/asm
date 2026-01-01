@@ -2,8 +2,10 @@
 ; Mendaftarkan fungsi matematika dasar
 
 Daftar "lib/math.fox" = 100-101
-Daftar "lib/buffer.fox" = 310-319
+Daftar "lib/buffer.fox" = 310-317
+Daftar "lib/file_io.fox" = 318
 Daftar "lib/format.fox" = 320-329
 Daftar "lib/hashmap.fox" = 330-339
 Daftar "lib/vector.fox" = 340-349
 Daftar "lib/json.fox" = 350-369
+Daftar "lib/string_utils.fox" = 380-399

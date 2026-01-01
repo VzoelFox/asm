@@ -1,0 +1,109 @@
+### 1000
+; Morph Self-Hosted Compiler Entry Point
+
+indeks "plugins/vc/tagger.fox"
+
+Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
+Ambil 318 ; File IO
+Ambil 320, 321, 322 ; Format
+Ambil 340, 341, 342, 343, 344 ; Vector
+Ambil 380, 381, 382, 383, 384, 385, 386, 387 ; String Utils
+
+fungsi mulai(arg_unused1, arg_unused2)
+  ; Retrieve Globals (Injected by Kernel)
+  var args_count = global_argc
+  var args_ptr = global_argv
+
+  jika (args_count < 2)
+     cetak("Penggunaan: ./morph <file.fox>")
+     var exit_code = 1
+     asm_mulai
+     mov rax, 60
+     mov rdi, 1
+     syscall
+     tutup_asm
+  tutup_jika
+
+  ; Ambil Argumen ke-1 (Filename)
+  ; argv[1]
+  var filename_ptr = 0
+  asm_mulai
+  mov rbx, [var_args_ptr]
+  mov rax, [rbx + 8] ; index 1 * 8 bytes
+  mov [var_filename_ptr], rax
+  tutup_asm
+
+  cetak("Morph Self-Hosted Compiler v0.1")
+  cetak("Compiling:")
+  cetak_str(filename_ptr)
+
+  ; Baca File Input
+  var buf = buffer_dari_file(filename_ptr)
+
+  jika (buf == 0)
+     cetak("Fatal: Gagal membaca file input.")
+     asm_mulai
+     mov rax, 60
+     mov rdi, 1
+     syscall
+     tutup_asm
+  tutup_jika
+
+  ; Convert Buffer to Lines
+  tipe buf MemoryBuffer
+  var content = buf.data_ptr
+  var lines = vec_create(100)
+  panggil str_split_lines(content, lines)
+
+  var line_count = vec_len(lines)
+
+  ; --- Parser Loop ---
+  var i = 0
+  selama (i < line_count)
+    var raw_line = vec_get(lines, i)
+
+    ; 1. Clean Line
+    ; Remove comments
+    var parts = str_split_once(raw_line, 59) ; 59 is ';'
+    var line_no_comment = vec_get(parts, 0)
+
+    ; Trim whitespace
+    var line = str_trim(line_no_comment)
+
+    var len = str_len(line)
+    jika (len > 0)
+       ; 2. Parse Keyword
+       var is_fungsi = str_starts_with(line, "fungsi")
+       jika (is_fungsi == 1)
+          var func_decl = str_substring_after(line, 6) ; after "fungsi"
+          var func_name = str_trim(func_decl)
+          cetak("DEBUG: Keyword 'fungsi' detected.")
+          cetak("       Name: ")
+          cetak_str(func_name)
+       tutup_jika
+
+       var is_end_func = str_starts_with(line, "tutup_fungsi")
+       jika (is_end_func == 1)
+          cetak("DEBUG: Keyword 'tutup_fungsi' detected.")
+       tutup_jika
+
+       var is_cetak = str_starts_with(line, "cetak")
+       jika (is_cetak == 1)
+          cetak("DEBUG: Keyword 'cetak' detected.")
+       tutup_jika
+
+       var is_asm = str_starts_with(line, "asm_mulai")
+       jika (is_asm == 1)
+          cetak("DEBUG: Keyword 'asm_mulai' detected.")
+       tutup_jika
+
+       var is_end_asm = str_starts_with(line, "tutup_asm")
+       jika (is_end_asm == 1)
+          cetak("DEBUG: Keyword 'tutup_asm' detected.")
+       tutup_jika
+    tutup_jika
+
+    i = i + 1
+  tutup_selama
+
+tutup_fungsi

@@ -1,0 +1,224 @@
+### 380
+fungsi str_len(s)
+  var len = 0
+  asm_mulai
+  mov rsi, [var_s]
+  call sys_strlen
+  mov [var_len], rax
+  tutup_asm
+  asm_mulai
+  mov rax, [var_len]
+  tutup_asm
+tutup_fungsi
+
+### 381
+fungsi str_slice(s, start, len)
+  var new_ptr = 0
+  asm_mulai
+  ; Alloc
+  mov rax, [var_len]
+  inc rax
+  call sys_alloc
+  mov [var_new_ptr], rax
+
+  ; Copy
+  mov rdi, rax         ; dest
+  mov rsi, [var_s]     ; source base
+  add rsi, [var_start] ; source offset
+  mov rcx, [var_len]   ; count
+  call sys_memcpy
+
+  ; Null terminate
+  mov rdi, [var_new_ptr]
+  add rdi, [var_len]
+  mov byte [rdi], 0
+  tutup_asm
+
+  asm_mulai
+  mov rax, [var_new_ptr]
+  tutup_asm
+tutup_fungsi
+
+### 386
+fungsi str_get(s, index)
+  ; Get byte at index from string s
+  var val = 0
+  asm_mulai
+  mov rsi, [var_s]
+  mov rbx, [var_index]
+  add rsi, rbx
+  xor rax, rax
+  mov al, [rsi]
+  mov [var_val], rax
+  tutup_asm
+
+  asm_mulai
+  mov rax, [var_val]
+  tutup_asm
+tutup_fungsi
+
+### 382
+fungsi str_trim(s)
+  var len = str_len(s)
+  var start = 0
+  var end = len - 1
+
+  ; Find start
+  var loop = 1
+  selama (loop == 1)
+     jika (start >= len)
+       loop = 0
+     lain
+       var ch = str_get(s, start)
+       ; 32=space, 9=tab, 10=nl
+       jika (ch == 32)
+         start = start + 1
+       lain_jika (ch == 9)
+         start = start + 1
+       lain_jika (ch == 10)
+         start = start + 1
+       lain
+         loop = 0
+       tutup_jika
+     tutup_jika
+  tutup_selama
+
+  ; Find end
+  loop = 1
+  selama (loop == 1)
+     jika (end < start)
+       loop = 0
+     lain
+       var ch = str_get(s, end)
+       jika (ch == 32)
+         end = end - 1
+       lain_jika (ch == 9)
+         end = end - 1
+       lain_jika (ch == 10)
+         end = end - 1
+       lain
+         loop = 0
+       tutup_jika
+     tutup_jika
+  tutup_selama
+
+  var new_len = end - start
+  new_len = new_len + 1
+
+  jika (new_len <= 0)
+     var empty = ""
+     asm_mulai
+     mov rax, [var_empty]
+     tutup_asm
+  lain
+     var res = str_slice(s, start, new_len)
+     asm_mulai
+     mov rax, [var_res]
+     tutup_asm
+  tutup_jika
+tutup_fungsi
+
+### 383
+fungsi str_split_lines(content, vec)
+  ; vec must be Vector
+  var len = str_len(content)
+  var start = 0
+  var i = 0
+
+  selama (i < len)
+    var ch = str_get(content, i)
+    jika (ch == 10)
+      ; Newline found
+      var line_len = i - start
+      var line = str_slice(content, start, line_len)
+      panggil vec_push(vec, line)
+      start = i + 1
+    tutup_jika
+    i = i + 1
+  tutup_selama
+
+  ; Last line
+  jika (start < len)
+     var line_len = len - start
+     var line = str_slice(content, start, line_len)
+     panggil vec_push(vec, line)
+  tutup_jika
+tutup_fungsi
+
+### 384
+fungsi str_starts_with(s, prefix)
+  var len_p = str_len(prefix)
+  var len_s = str_len(s)
+  var res = 0
+
+  jika (len_s >= len_p)
+    ; Check bytes
+    var match = 1
+    var i = 0
+    selama (i < len_p)
+      var c1 = str_get(s, i)
+      var c2 = str_get(prefix, i)
+      jika (c1 != c2)
+        match = 0
+        i = len_p ; break
+      tutup_jika
+      i = i + 1
+    tutup_selama
+    res = match
+  tutup_jika
+
+  asm_mulai
+  mov rax, [var_res]
+  tutup_asm
+tutup_fungsi
+
+### 385
+fungsi str_split_once(s, delim_char)
+   ; Returns Vector of size 2. [0]=left, [1]=right.
+   ; If delim not found, [0]=s, [1]=""
+
+   var len = str_len(s)
+   var i = 0
+   var found = -1
+
+   selama (i < len)
+     var ch = str_get(s, i)
+     jika (ch == delim_char)
+       found = i
+       i = len ; break
+     tutup_jika
+     i = i + 1
+   tutup_selama
+
+   var v = vec_create(2)
+
+   jika (found == -1)
+      panggil vec_push(v, s)
+      panggil vec_push(v, "")
+   lain
+      var left = str_slice(s, 0, found)
+      var right_start = found + 1
+      var right_len = len - right_start
+      var right = str_slice(s, right_start, right_len)
+      panggil vec_push(v, left)
+      panggil vec_push(v, right)
+   tutup_jika
+
+   asm_mulai
+   mov rax, [var_v]
+   tutup_asm
+tutup_fungsi
+
+### 387
+fungsi str_substring_after(s, start_index)
+  var len = str_len(s)
+  var res = ""
+  jika (start_index < len)
+     var new_len = len - start_index
+     var temp = str_slice(s, start_index, new_len)
+     res = temp
+  tutup_jika
+  asm_mulai
+  mov rax, [var_res]
+  tutup_asm
+tutup_fungsi
