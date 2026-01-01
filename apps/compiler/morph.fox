@@ -1,0 +1,89 @@
+### 1000
+; Morph Self-Hosted Compiler Entry Point
+
+indeks "plugins/vc/tagger.fox"
+
+Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
+Ambil 318 ; File IO
+Ambil 320, 321, 322 ; Format
+Ambil 340, 341, 342, 343, 344 ; Vector
+Ambil 380, 381, 382, 383, 384, 385 ; String Utils
+
+; Argumen Global (diisi oleh prologue 'mulai' atau manual injection di _start)
+var argc = 0
+var argv = 0
+
+fungsi mulai(argc_val, argv_val)
+  ; Simpan argumen ke variabel global (jika didukung)
+  ; Note: Prologue fungsi saat ini memindahkan arg ke var_local.
+  ; Kita perlu memindahkannya ke var global atau menggunakannya langsung.
+
+  var args_count = argc_val
+  var args_ptr = argv_val
+
+  jika (args_count < 2)
+     cetak("Penggunaan: ./morph <file.fox>")
+     var exit_code = 1
+     asm_mulai
+     mov rax, 60
+     mov rdi, 1
+     syscall
+     tutup_asm
+  tutup_jika
+
+  ; Ambil Argumen ke-1 (Filename)
+  ; argv adalah pointer ke array of pointers (char**)
+  ; argv[0] = program name
+  ; argv[1] = input file
+
+  var filename_ptr = 0
+  asm_mulai
+  mov rbx, [var_args_ptr]
+  mov rax, [rbx + 8] ; index 1 * 8 bytes
+  mov [var_filename_ptr], rax
+  tutup_asm
+
+  cetak("Morph Self-Hosted Compiler v0.1")
+  cetak_str(filename_ptr)
+
+  ; Baca File Input
+  var buf = buffer_dari_file(filename_ptr)
+
+  jika (buf == 0)
+     cetak("Fatal: Gagal membaca file input.")
+     asm_mulai
+     mov rax, 60
+     mov rdi, 1
+     syscall
+     tutup_asm
+  tutup_jika
+
+  var size = buf.size
+  cetak("Ukuran File:")
+  cetak(size)
+
+  ; Convert Buffer to String (Vector of Lines)
+  ; Buffer data ada di buf.data_ptr
+  var content = buf.data_ptr
+
+  var lines = vec_create(100)
+  panggil str_split_lines(content, lines)
+
+  var line_count = vec_len(lines)
+  cetak("Jumlah Baris:")
+  cetak(line_count)
+
+  ; Print first 5 lines for verification
+  var i = 0
+  var limit = 5
+  jika (line_count < 5)
+    limit = line_count
+  tutup_jika
+
+  selama (i < limit)
+    var line_str = vec_get(lines, i)
+    cetak_str(line_str)
+    i = i + 1
+  tutup_selama
+
+tutup_fungsi
