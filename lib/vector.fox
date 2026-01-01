@@ -1,0 +1,150 @@
+### 340
+struktur Vector
+  data_ptr int
+  size int
+  capacity int
+tutup_struktur
+
+fungsi vec_create(capacity)
+  var vec = Vector(0, 0, capacity)
+
+  ; Alloc data array (capacity * 8)
+  var byte_size = capacity * 8
+
+  asm_mulai
+  mov rax, [var_byte_size]
+  call sys_alloc
+  mov [var_byte_size], rax ; Store ptr
+
+  ; Store to vec.data_ptr (Offset 0)
+  mov rbx, [var_vec]
+  mov [rbx], rax
+  tutup_asm
+
+  asm_mulai
+  mov rax, [var_vec]
+  tutup_asm
+tutup_fungsi
+
+### 341
+fungsi vec_push(vec, value)
+  ; 1. Load size & capacity (Manual ASM)
+  var sz = 0
+  var cap = 0
+
+  asm_mulai
+  mov rbx, [var_vec]
+  mov rax, [rbx + 8]  ; Offset 8 is size
+  mov [var_sz], rax
+  mov rax, [rbx + 16] ; Offset 16 is capacity
+  mov [var_cap], rax
+  tutup_asm
+
+  ; 2. Check resize
+  jika (sz >= cap)
+     ; Grow capacity (double)
+     var new_cap = cap * 2
+     jika (new_cap == 0)
+        new_cap = 4
+     tutup_jika
+
+     ; Alloc new array
+     var new_byte_size = new_cap * 8
+     var new_ptr = 0
+
+     asm_mulai
+     mov rax, [var_new_byte_size]
+     call sys_alloc
+     mov [var_new_ptr], rax
+     tutup_asm
+
+     ; Copy old to new
+     ; sys_memcpy(dest=new_ptr, src=vec.data_ptr, len=sz*8)
+     var copy_size = sz * 8
+     asm_mulai
+     mov rdi, [var_new_ptr]
+
+     mov rbx, [var_vec]
+     mov rsi, [rbx]      ; vec.data_ptr
+
+     mov rcx, [var_copy_size]
+     call sys_memcpy
+
+     ; Update vec.data_ptr = new_ptr
+     mov rbx, [var_vec]
+     mov rax, [var_new_ptr]
+     mov [rbx], rax
+
+     ; Update vec.capacity = new_cap
+     mov rax, [var_new_cap]
+     mov [rbx + 16], rax
+     tutup_asm
+
+     cap = new_cap
+  tutup_jika
+
+  ; 3. Append value
+  ; vec.data[sz] = value
+
+  asm_mulai
+  mov rbx, [var_vec]
+  mov rdi, [rbx]      ; data_ptr
+  mov rcx, [var_sz]   ; index
+  mov rax, [var_value]
+  mov [rdi + rcx * 8], rax
+
+  ; vec.size++
+  inc rcx
+  mov [rbx + 8], rcx
+  tutup_asm
+
+  ; Return new size
+  var new_sz = sz + 1
+  asm_mulai
+  mov rax, [var_new_sz]
+  tutup_asm
+tutup_fungsi
+
+### 342
+fungsi vec_get(vec, index)
+  ; Return vec.data[index]
+  var val = 0
+
+  asm_mulai
+  mov rbx, [var_vec]
+  mov rdi, [rbx]      ; data_ptr
+  mov rcx, [var_index]
+  mov rax, [rdi + rcx * 8]
+  mov [var_val], rax
+  tutup_asm
+
+  asm_mulai
+  mov rax, [var_val]
+  tutup_asm
+tutup_fungsi
+
+### 343
+fungsi vec_set(vec, index, value)
+  ; vec.data[index] = value
+  asm_mulai
+  mov rbx, [var_vec]
+  mov rdi, [rbx]
+  mov rcx, [var_index]
+  mov rax, [var_value]
+  mov [rdi + rcx * 8], rax
+  tutup_asm
+tutup_fungsi
+
+### 344
+fungsi vec_len(vec)
+  var sz = 0
+  asm_mulai
+  mov rbx, [var_vec]
+  mov rax, [rbx + 8]
+  mov [var_sz], rax
+  tutup_asm
+
+  asm_mulai
+  mov rax, [var_sz]
+  tutup_asm
+tutup_fungsi
