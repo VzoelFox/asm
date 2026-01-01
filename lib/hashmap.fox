@@ -1,0 +1,176 @@
+### 330
+fungsi hash_djb2(key)
+  ; DJB2 Hash Algorithm
+  var hash = 5381
+
+  asm_mulai
+  mov rsi, [var_key]
+  mov rax, 5381
+  xor rcx, rcx
+.hash_loop:
+  mov cl, byte [rsi]
+  test cl, cl
+  jz .hash_done
+  mov rdx, rax
+  shl rdx, 5
+  add rdx, rax
+  add rdx, rcx
+  mov rax, rdx
+  inc rsi
+  jmp .hash_loop
+.hash_done:
+  mov [var_hash], rax
+  tutup_asm
+
+  asm_mulai
+  mov rax, [var_hash]
+  tutup_asm
+tutup_fungsi
+
+### 331
+struktur HashNode
+  key int
+  value int
+  next int
+tutup_struktur
+
+struktur HashMap
+  buckets int
+  capacity int
+tutup_struktur
+
+fungsi map_create(capacity)
+  var map = HashMap(0, capacity)
+
+  ; Allocate buckets array
+  var buckets_size = capacity * 8
+  var b_ptr = 0
+
+  asm_mulai
+  mov rax, [var_buckets_size]
+  call sys_alloc
+  mov [var_b_ptr], rax
+  ; Zero out
+  mov rdi, rax
+  mov rcx, [var_capacity]
+  xor rax, rax
+  rep stosq
+  tutup_asm
+
+  tipe map HashMap
+  map.buckets = b_ptr
+
+  asm_mulai
+  mov rax, [var_map]
+  tutup_asm
+tutup_fungsi
+
+### 332
+fungsi map_put(map, key, value)
+  tipe map HashMap
+
+  ; 1. Calculate Hash
+  var h = hash_djb2(key)
+
+  ; 2. Calculate Index
+  var cap = map.capacity
+  var idx = 0
+
+  asm_mulai
+  mov rax, [var_h]
+  xor rdx, rdx
+  mov rbx, [var_cap]
+  div rbx
+  mov [var_idx], rdx
+  tutup_asm
+
+  ; 3. Get Bucket Ptr
+  var buckets_base = map.buckets
+  var head_node_ptr = 0
+
+  ; Array read: buckets_base[idx] -> ASM
+  asm_mulai
+  mov rbx, [var_buckets_base]
+  mov rcx, [var_idx]
+  mov rax, [rbx + rcx * 8]
+  mov [var_head_node_ptr], rax
+  tutup_asm
+
+  ; 4. Iterate List
+  var curr = head_node_ptr
+  var found = 0
+
+  selama (curr != 0)
+    tipe curr HashNode
+    var curr_key = curr.key
+
+    var is_eq = str_eq(curr_key, key)
+    jika (is_eq == 1)
+       curr.value = value
+       found = 1
+       curr = 0 ; Break
+    lain
+       curr = curr.next
+    tutup_jika
+  tutup_selama
+
+  ; 5. Insert New Node
+  jika (found == 0)
+    var new_node_ptr = HashNode(key, value, head_node_ptr)
+
+    ; buckets_base[idx] = new_node_ptr
+    ; Parser supports array write: arr[idx] = val
+    buckets_base[idx] = new_node_ptr
+  tutup_jika
+tutup_fungsi
+
+### 333
+fungsi map_get(map, key)
+  tipe map HashMap
+
+  ; 1. Calculate Hash
+  var h = hash_djb2(key)
+
+  ; 2. Index
+  var cap = map.capacity
+  var idx = 0
+
+  asm_mulai
+  mov rax, [var_h]
+  xor rdx, rdx
+  mov rbx, [var_cap]
+  div rbx
+  mov [var_idx], rdx
+  tutup_asm
+
+  ; 3. Get Head
+  var buckets_base = map.buckets
+  var curr = 0
+
+  ; Array read: ASM
+  asm_mulai
+  mov rbx, [var_buckets_base]
+  mov rcx, [var_idx]
+  mov rax, [rbx + rcx * 8]
+  mov [var_curr], rax
+  tutup_asm
+
+  var result = -1
+
+  selama (curr != 0)
+    tipe curr HashNode
+    var curr_key = curr.key
+
+    var is_eq = str_eq(curr_key, key)
+    jika (is_eq == 1)
+       result = curr.value
+       curr = 0 ; Break
+    lain
+       curr = curr.next
+    tutup_jika
+  tutup_selama
+
+  asm_mulai
+  mov rax, [var_result]
+  tutup_asm
+tutup_fungsi

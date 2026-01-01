@@ -1,0 +1,157 @@
+### 310
+struktur MemoryBuffer
+  data_ptr int
+  size int
+  capacity int
+  position int
+  is_readonly int
+tutup_struktur
+
+fungsi buffer_buat(capacity)
+  var buf = MemoryBuffer(0, 0, capacity, 0, 0)
+  var ptr = 0
+
+  ; Allocate raw memory
+  asm_mulai
+  mov rax, [var_capacity]
+  call sys_alloc
+  mov [var_ptr], rax
+  tutup_asm
+
+  buf.data_ptr = ptr
+
+  ; Return buf (pointer to struct)
+  asm_mulai
+  mov rax, [var_buf]
+  tutup_asm
+tutup_fungsi
+
+### 311
+fungsi buffer_tulis(buf, data)
+  ; Check if readonly
+  jika (buf.is_readonly == 1)
+    var err = -1
+    asm_mulai
+    mov rax, -1
+    tutup_asm
+    cetak("Error: Buffer is Read-Only")
+    ; Return -1 logic is implicit in RAX
+  lain
+    ; Calculate length of data string
+    var len = 0
+    asm_mulai
+    mov rsi, [var_data]
+    call sys_strlen
+    mov [var_len], rax
+    tutup_asm
+
+    ; TODO: Check capacity (buf.position + len <= buf.capacity)
+
+    ; Perform memcpy(dest=buf.data_ptr + buf.position, src=data, len=len)
+    asm_mulai
+    mov rbx, [var_buf]      ; rbx = struct ptr
+    mov rdi, [rbx]          ; rdi = buf.data_ptr (offset 0)
+
+    mov rcx, [rbx + 24]     ; rcx = buf.position (offset 24: 0,8,16,24)
+    add rdi, rcx            ; rdi = destination address
+
+    mov rsi, [var_data]     ; rsi = source
+    mov rcx, [var_len]      ; rcx = length
+    call sys_memcpy
+    tutup_asm
+
+    ; Update position
+    buf.position = buf.position + len
+
+    ; Update size (if pos > size)
+    jika (buf.position > buf.size)
+      buf.size = buf.position
+    tutup_jika
+
+    ; Return bytes written
+    asm_mulai
+    mov rax, [var_len]
+    tutup_asm
+  tutup_jika
+tutup_fungsi
+
+### 312
+fungsi buffer_baca(buf, size)
+  ; Read 'size' bytes from current position
+  ; Allocate new string buffer for result
+  var res_ptr = 0
+
+  asm_mulai
+  ; 1. Alloc (size + 1)
+  mov rax, [var_size]
+  inc rax
+  call sys_alloc
+  mov [var_res_ptr], rax
+
+  ; 2. Memcpy
+  mov rbx, [var_buf]
+  mov rsi, [rbx]          ; rsi = buf.data_ptr
+  mov rcx, [rbx + 24]     ; rcx = buf.position
+  add rsi, rcx            ; rsi = source (data + pos)
+
+  mov rdi, [var_res_ptr]  ; rdi = dest
+  mov rcx, [var_size]     ; rcx = count
+  call sys_memcpy
+
+  ; 3. Null terminate
+  mov rdi, [var_res_ptr]
+  add rdi, [var_size]
+  mov byte [rdi], 0
+  tutup_asm
+
+  ; Update position
+  buf.position = buf.position + size
+
+  ; Return result string
+  asm_mulai
+  mov rax, [var_res_ptr]
+  tutup_asm
+tutup_fungsi
+
+### 313
+fungsi buffer_seek(buf, pos)
+  jika (pos >= 0)
+    jika (pos <= buf.size)
+      buf.position = pos
+      var ok = 1
+      asm_mulai
+      mov rax, 1
+      tutup_asm
+    lain
+      var err = 0
+      asm_mulai
+      mov rax, 0
+      tutup_asm
+    tutup_jika
+  lain
+    ; pos < 0
+    var err2 = 0
+    asm_mulai
+    mov rax, 0
+    tutup_asm
+  tutup_jika
+tutup_fungsi
+
+### 314
+fungsi buffer_size(buf)
+  var s = buf.size
+  asm_mulai
+  mov rax, [var_s]
+  tutup_asm
+tutup_fungsi
+
+### 315
+fungsi buffer_reset(buf)
+  buf.size = 0
+  buf.position = 0
+tutup_fungsi
+
+### 316
+fungsi buffer_readonly(buf)
+  buf.is_readonly = 1
+tutup_fungsi
