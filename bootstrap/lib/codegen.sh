@@ -355,7 +355,7 @@ emit_variable_assign() {
 
 load_operand_to_rax() {
     local op="$1"
-    if [[ "$op" =~ ^[0-9]+$ ]]; then
+    if [[ "$op" =~ ^-?[0-9]+$ ]]; then
         echo "    mov rax, $op"
     elif [[ -n "$op" ]]; then
         echo "    mov rax, [var_$op]"
@@ -372,7 +372,7 @@ emit_arithmetic_op() {
 
     load_operand_to_rax "$op1"
 
-    if [[ "$op2" =~ ^[0-9]+$ ]]; then
+    if [[ "$op2" =~ ^-?[0-9]+$ ]]; then
         echo "    mov rbx, $op2"
     else
         echo "    mov rbx, [var_$op2]"
@@ -477,7 +477,7 @@ emit_if_start() {
 
     load_operand_to_rax "$op1"
 
-    if [[ "$op2" =~ ^[0-9]+$ ]]; then
+    if [[ "$op2" =~ ^-?[0-9]+$ ]]; then
         echo "    mov rbx, $op2"
     else
         echo "    mov rbx, [var_$op2]"
@@ -517,7 +517,7 @@ emit_else_if() {
 
     load_operand_to_rax "$op1"
 
-    if [[ "$op2" =~ ^[0-9]+$ ]]; then
+    if [[ "$op2" =~ ^-?[0-9]+$ ]]; then
         echo "    mov rbx, $op2"
     else
         echo "    mov rbx, [var_$op2]"
@@ -580,7 +580,7 @@ emit_loop_start() {
 
     echo "$lbl_start:"
     load_operand_to_rax "$op1"
-    if [[ "$op2" =~ ^[0-9]+$ ]]; then
+    if [[ "$op2" =~ ^-?[0-9]+$ ]]; then
         echo "    mov rbx, $op2"
     else
         echo "    mov rbx, [var_$op2]"
