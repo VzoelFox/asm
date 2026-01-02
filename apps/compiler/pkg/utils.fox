@@ -9,7 +9,7 @@ Daftar "lib/hashmap.fox"      = 330-333
 Daftar "lib/vector.fox"       = 340-344
 Daftar "lib/string_utils.fox" = 380-388
 
-; --- JSON PARSER LOGIC (Restricted/Internal) ---
+; --- JSON PARSER LOGIC (High-Level, No ASM) ---
 
 ### 350
 struktur JsonValue
@@ -38,26 +38,13 @@ tutup_struktur
 ; 366: json_parse_keyword
 
 fungsi json_parse(input)
-  var len = 0
-  asm_mulai
-  mov rsi, [var_input]
-  call sys_strlen
-  mov [var_len], rax
-  tutup_asm
-
+  var len = str_len(input)
   var parser = JsonParser(input, 0, len, 0)
 
   tipe parser JsonParser
   var input_ptr = parser.input
 
-  var ch = 0
-  asm_mulai
-  mov rsi, [var_input_ptr]
-  xor rax, rax
-  mov al, byte [rsi]
-  mov [var_ch], rax
-  tutup_asm
-
+  var ch = str_get(input_ptr, 0)
   parser.current_char = ch
 
   var res = json_parse_value(parser)
@@ -195,13 +182,7 @@ fungsi json_advance(parser)
    var len = parser.len
    jika (pos < len)
        var input = parser.input
-       var ch = 0
-       asm_mulai
-       mov rbx, [var_input]
-       mov rcx, [var_pos]
-       movzx rax, byte [rbx + rcx]
-       mov [var_ch], rax
-       tutup_asm
+       var ch = str_get(input, pos)
        parser.current_char = ch
    lain
        parser.current_char = 0
@@ -214,10 +195,6 @@ fungsi json_parse_value(parser)
 
   tipe parser JsonParser
   var ch = parser.current_char
-
-  ; DEBUG
-  ; panggil format_print("JSON Ch:")
-  ; panggil format_print(format_int(ch))
 
   var res = 0
 
@@ -361,29 +338,12 @@ fungsi json_parse_string(parser)
   var end_pos = parser.pos
   var len = end_pos - start_pos
 
-  var str_ptr = 0
-  var alloc_size = len + 1
-  asm_mulai
-  mov rax, [var_alloc_size]
-  call sys_alloc
-  mov [var_str_ptr], rax
-  tutup_asm
-
-  asm_mulai
-  mov rdi, [var_str_ptr]
-  mov rsi, [var_input]
-  mov rcx, [var_start_pos]
-  add rsi, rcx
-  mov rcx, [var_len]
-  call sys_memcpy
-  mov rdi, [var_str_ptr]
-  add rdi, [var_len]
-  mov byte [rdi], 0
-  tutup_asm
+  ; Use High-Level str_slice (no ASM)
+  var str_val = str_slice(input, start_pos, len)
 
   panggil json_advance(parser)
 
-  var val = JsonValue(1, str_ptr, 0, 0, 0, 0)
+  var val = JsonValue(1, str_val, 0, 0, 0, 0)
   asm_mulai
   mov rax, [var_val]
   tutup_asm
@@ -416,23 +376,26 @@ fungsi json_parse_number(parser)
       tutup_jika
   tutup_selama
 
+  ; Use High-Level Access (str_get) in loop
   var curr = start_pos
   var num = 0
   var input = parser.input
 
+  ; Adjust start_pos if negative to skip '-' char during digit parsing if we were parsing manually
+  ; But here we need to parse digits.
+  ; Re-calculate start position for digits
+  var digit_start = start_pos
+  jika (is_neg == 1)
+      digit_start = digit_start + 1
+  tutup_jika
+
   var p_pos = parser.pos
-  var count = p_pos - start_pos
+  var count = p_pos - digit_start
 
   var i = 0
   selama (i < count)
-     var digit_char = 0
-     asm_mulai
-     mov rsi, [var_input]
-     mov rcx, [var_start_pos]
-     add rcx, [var_i]
-     movzx rax, byte [rsi + rcx]
-     mov [var_digit_char], rax
-     tutup_asm
+     var idx = digit_start + i
+     var digit_char = str_get(input, idx)
 
      var d = digit_char - 48
      var num10 = num * 10
