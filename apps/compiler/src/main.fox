@@ -6,11 +6,13 @@ ambil "apps/compiler/pkg/utils.fox"
 Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
 Ambil 318, 319 ; File IO
 Ambil 320, 321, 322 ; Format
+Ambil 330, 331, 332, 333 ; Hashmap
 Ambil 340, 341, 342, 343, 344 ; Vector
 Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
 
 ; Global Output Buffer
 var output_lines = 0
+var global_vars = 0
 
 fungsi emit(line)
   ; Append line to output_lines vector
@@ -22,6 +24,9 @@ fungsi mulai(arg_unused1, arg_unused2)
   ; Init Output Buffer
   var temp_out = vec_create(1000)
   output_lines = temp_out
+
+  var temp_vars = vec_create(100)
+  global_vars = temp_vars
 
   ; Retrieve Globals (Injected by Kernel)
   var args_count = global_argc
@@ -139,6 +144,43 @@ fungsi mulai(arg_unused1, arg_unused2)
           current_func = ""
        tutup_jika
 
+       var is_var = str_starts_with(line, "var ")
+       jika (is_var == 1)
+          ; Format: var name = value
+          ; Simple parser: assume correct format, no type inference complexity yet
+
+          ; 1. Get name
+          var content_after_var = str_substring_after(line, 4) ; "var " len is 4
+          var parts_eq = str_split_once(content_after_var, 61) ; '=' is 61
+
+          var name_raw = vec_get(parts_eq, 0)
+          var name = str_trim(name_raw)
+
+          ; 2. Get value
+          var val_raw = vec_get(parts_eq, 1)
+          var val_str = str_trim(val_raw)
+
+          ; Emit: variable in BSS (simple approach for now, mirroring bootstrap)
+          ; For local vars, bootstrap uses global labels var_func_name.
+          ; But here we might just use var_name for simplicity in v0.1
+
+          ; Emit assignment logic
+          ; Check if value is number or string or variable
+
+          ; Assuming number literal for MVP
+          var asm_mov = str_concat("    mov rax, ", val_str)
+          panggil emit(asm_mov)
+
+          var var_label = str_concat("var_", name)
+          var asm_store = str_concat("    mov [", var_label)
+          asm_store = str_concat(asm_store, "], rax")
+          panggil emit(asm_store)
+
+          ; Register variable for BSS generation
+          var vars_vec = global_vars
+          panggil vec_push(vars_vec, name)
+       tutup_jika
+
        var is_cetak = str_starts_with(line, "cetak")
        jika (is_cetak == 1)
           ; Dummy implementation for cetak (hardcoded for now)
@@ -158,6 +200,19 @@ fungsi mulai(arg_unused1, arg_unused2)
     tutup_jika
 
     line_idx = line_idx + 1
+  tutup_selama
+
+  ; --- Generate BSS Section (Post-Parsing) ---
+  panggil emit("section .bss")
+  var vars_vec_2 = global_vars
+  var vars_len = vec_len(vars_vec_2)
+  var v_idx = 0
+  selama (v_idx < vars_len)
+     var v_name = vec_get(vars_vec_2, v_idx)
+     var v_decl = str_concat("var_", v_name)
+     v_decl = str_concat(v_decl, ": resq 1")
+     panggil emit(v_decl)
+     v_idx = v_idx + 1
   tutup_selama
 
   ; --- Write Output ---

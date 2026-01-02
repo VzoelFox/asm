@@ -1,0 +1,4 @@
+fungsi mulai()
+  var x = 10
+  cetak(x)
+tutup_fungsi
