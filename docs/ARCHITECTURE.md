@@ -14,34 +14,38 @@ Dokumen ini menjelaskan desain internal dan keputusan arsitektural di balik comp
 *   **Parser (`parser.sh`):** Line-based parsing sederhana. Menggunakan Regex bash untuk tokenizing. Mengelola Symbol Table (`STRUCT_OFFSETS`, `VAR_TYPE_MAP`).
 *   **Codegen (`codegen.sh`):** Menghasilkan string NASM Assembly. Berisi definisi "Kernel" (`init_codegen`).
 
-### 2. Kernel Assembly (Runtime)
+### 2. Self-Hosted Compiler (`apps/compiler/src/main.fox`)
+*   Ditulis dalam **Morph** itu sendiri.
+*   **Struktur:**
+    *   `src/main.fox`: Entry point dan logika Parser utama (Control Flow, Var Parsing, Codegen).
+    *   `pkg/utils.fox`: Paket internal yang berisi **JSON Parser** (High-Level) dan **Tagger Registry**.
+*   **Keamanan:** Logika parser internal (seperti JSON) diimplementasikan menggunakan abstraksi tingkat tinggi (`str_get`, `str_slice`) dan menghindari assembly mentah untuk membatasi akses kernel yang tidak perlu.
+
+### 3. Kernel Assembly (Runtime)
 Setiap binary Morph yang dihasilkan mengandung header assembly (`_start`) yang melakukan:
 *   **Memory Init:** Menginisialisasi Heap V2 menggunakan `sys_mmap` (256MB Chunk).
 *   **Arg Injection:** Mengambil `argc` dan `argv` dari stack OS dan menyimpannya ke variabel global `var_global_argc` dan `var_global_argv` di section `.bss`.
 *   **Syscall Wrappers:** Menyediakan fungsi pembantu seperti `sys_alloc`, `sys_read_fd`, `sys_panic`.
 
-### 3. Memory Model V2
+### 4. Memory Model V2
 *   **Dynamic Heap:** Menggunakan `mmap` (syscall 9) untuk meminta blok memori besar dari OS.
 *   **Bump Allocator:** `sys_alloc` hanya memajukan pointer (`heap_current_ptr`). Sangat cepat, tapi tidak ada `free` individual (hanya reset via `sys_mem_rollback` atau `sys_munmap` seluruh chunk).
 *   **Struct Layout:** Field struct disejajarkan (aligned) 8-byte (64-bit).
 
-### 4. Sistem Granular Import (Tagger)
-*   **Registry (`tagger.fox`):** File sentral yang memetakan Range ID ke Filepath.
-    ```morph
-    Daftar "lib/math.fox" = 100-105
-    ```
+### 5. Sistem Granular Import (Tagger)
+*   **Registry:** Dipusatkan di `apps/compiler/pkg/utils.fox` untuk self-host compiler.
 *   **Proses Import:**
-    1.  `indeks "tagger.fox"`: Parser membaca registry dan mengisi `ID_MAP`.
-    2.  `Ambil 100`: Parser mencari file untuk ID 100, lalu hanya mengekstrak blok kode di antara `### 100` dan marker berikutnya.
+    1.  `ambil "filepath"` (huruf kecil): Include source file lokal.
+    2.  `Ambil ID, ID` (huruf besar): Import granular berdasarkan ID dari registry.
 
-### 5. Tooling Ekosistem
+### 6. Tooling Ekosistem
 *   **Morph Runner (`./morph`)**: Script wrapper yang menangani kompilasi lokal dan eksekusi remote (VPS). Mendukung mode "Run" (seperti Python) dan "Build" (seperti Go build `to <file>`).
 *   **Star Installer (`./star`)**: Package dan Configuration manager sederhana yang membaca file `.fall` (Key-Value) untuk menghasilkan konfigurasi `config.mk`.
 *   **Test Runner (`./tmorph`)**: Otomatisasi pengujian untuk file examples dan tests.
 
 ## Roadmap Self-Hosting
-Tujuan akhir adalah menggantikan `bootstrap/morph.sh` dengan `apps/compiler/morph.fox`.
-Status saat ini:
-*   `morph.fox` dapat membaca file input dan memecahnya menjadi baris-baris (Lexer dasar).
-*   Library pendukung (`File I/O`, `String Utils`) sudah siap.
-*   Langkah selanjutnya: Porting logika parsing (Regex/String matching) ke Morph.
+Tujuan akhir adalah menggantikan `bootstrap/morph.sh` dengan `apps/compiler/src/main.fox`.
+Status saat ini (Fase 3 Self-Host Parser):
+*   `main.fox` mendukung parsing variabel (`var`), kontrol alur (`jika`, `lain`, `selama`), fungsi (`panggil`), dan aritmatika dasar (`+`, `-`, `*`).
+*   JSON Parser telah di-porting ke `apps/compiler/pkg/utils.fox` dengan implementasi yang aman (no-asm).
+*   Langkah selanjutnya: Implementasi parsing `struktur` dan ekspresi kompleks.
