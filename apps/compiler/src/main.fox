@@ -14,6 +14,10 @@ Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
 var output_lines = 0
 var global_vars = 0
 
+; Global Stack for Control Flow (If/Loop)
+var label_stack = 0
+var label_counter = 0
+
 fungsi emit(line)
   ; Append line to output_lines vector
   var vec = output_lines
@@ -27,6 +31,9 @@ fungsi mulai(arg_unused1, arg_unused2)
 
   var temp_vars = vec_create(100)
   global_vars = temp_vars
+
+  var temp_stack = vec_create(50)
+  label_stack = temp_stack
 
   ; Retrieve Globals (Injected by Kernel)
   var args_count = global_argc
@@ -144,6 +151,214 @@ fungsi mulai(arg_unused1, arg_unused2)
           current_func = ""
        tutup_jika
 
+       ; --- Control Flow: jika (If) ---
+       var is_jika = str_starts_with(line, "jika ")
+       jika (is_jika == 1)
+          ; Parse condition: jika (a < b)
+          ; Simplified: assume single condition for now, e.g. jika (x < 10) or jika (x == y)
+
+          ; Generate unique label ID
+          label_counter = label_counter + 1
+          var lbl_id = label_counter
+
+          ; Push label ID to stack
+          var stack = label_stack
+          panggil vec_push(stack, lbl_id)
+
+          ; Extract condition string
+          var cond_raw = str_substring_after(line, 5) ; "jika "
+          var cond_clean = str_trim(cond_raw)
+
+          ; We need to parse "LHS OP RHS"
+          ; For now, let's assume "a == b" format (space separated)
+          ; This is very basic. Real parser needs tokenization.
+          ; We will rely on space splitting for MVP.
+          ; Remove parens
+          ; (a == b) -> a == b
+          var c_len = str_len(cond_clean)
+          var inner_cond = str_slice(cond_clean, 1, c_len - 2) ; skip ( and )
+
+          ; Split by space
+          var cond_parts = vec_create(3)
+          ; Manual split for MVP (assuming "lhs op rhs")
+          ; A robust way: find first space, then next space.
+          ; We don't have split_by_space helper exposed, using raw iteration?
+          ; Or just assume fixed format if possible?
+          ; Let's try str_split_once approach nested.
+
+          var p1 = str_split_once(inner_cond, 32) ; space
+          var lhs = vec_get(p1, 0)
+          var rest = vec_get(p1, 1)
+          var p2 = str_split_once(rest, 32)
+          var op = vec_get(p2, 0)
+          var rhs = vec_get(p2, 1)
+
+          ; Emit Compare
+          ; Load LHS to RAX
+          var lhs_mov = str_concat("    mov rax, [var_", lhs)
+          ; Check if lhs is literal?
+          ; Assume variable for now based on typical usage "jika (x < 10)"
+          ; If lhs is variable, we need brackets. If literal, just mov.
+          ; Reusing logic from var assignment would be good.
+          ; For MVP, assume LHS is variable.
+          lhs_mov = str_concat(lhs_mov, "]")
+          panggil emit(lhs_mov)
+
+          ; Compare with RHS
+          var cmp_asm = str_concat("    cmp rax, ", rhs)
+          ; If RHS is var, need [var_rhs]. Simple check:
+          var rhs_first = str_get(rhs, 0)
+          jika (rhs_first >= 48)
+             jika (rhs_first <= 57)
+                ; Literal, do nothing
+             tutup_jika
+          lain
+             ; Variable
+             cmp_asm = str_concat("    cmp rax, [var_", rhs)
+             cmp_asm = str_concat(cmp_asm, "]")
+          tutup_jika
+
+          panggil emit(cmp_asm)
+
+          ; Jump if FALSE
+          var end_label = str_concat(".L_end_", format_int(lbl_id))
+
+          ; Invert logic: if condition met, continue. If not, jump to end/else.
+          ; == -> jne
+          ; != -> je
+          ; <  -> jge
+          ; >  -> jle
+
+          var jmp_instr = ""
+          var op_char = str_get(op, 0)
+          jika (op_char == 61) ; '='
+             jmp_instr = "    jne "
+          lain_jika (op_char == 60) ; '<'
+             jmp_instr = "    jge "
+          lain_jika (op_char == 62) ; '>'
+             jmp_instr = "    jle "
+          tutup_jika
+
+          var jump_asm = str_concat(jmp_instr, end_label)
+          panggil emit(jump_asm)
+
+       tutup_jika
+
+       ; --- Control Flow: tutup_jika ---
+       var is_tutup_jika = str_starts_with(line, "tutup_jika")
+       jika (is_tutup_jika == 1)
+          ; Pop label ID
+          var stack_j = label_stack
+          var len_s = vec_len(stack_j)
+          var last_idx = len_s - 1
+          var lbl_id_j = vec_get(stack_j, last_idx)
+
+          ; Remove from stack (hacky pop: just don't access it, or resize? Vector has no pop yet exposed properly?)
+          ; Actually vec logic allows overwriting or just ignore.
+          ; Ideally we need vec_pop. For now assume linear nesting and valid code.
+          ; We can just decrement length? No access to internal length.
+          ; Implementation detail: we just read it.
+
+          var end_label_j = str_concat(".L_end_", format_int(lbl_id_j))
+          var lbl_asm = str_concat(end_label_j, ":")
+          panggil emit(lbl_asm)
+
+          ; Pop (simulate)
+          ; We need a real stack or mutable index.
+          ; Hack: Vector lib doesn't support pop. We might run into issues with nested ifs if we don't pop.
+          ; Let's assume user code is correct and we just use the last one?
+          ; Wait, if we don't pop, the next 'tutup_jika' will get the SAME label.
+          ; We MUST pop.
+          ; Workaround: vec.length is struct field?
+          ; tipe stack_j Vector
+          ; stack_j.length = stack_j.length - 1
+          ; Yes, simple access!
+          tipe stack_j Vector
+          stack_j.length = stack_j.length - 1
+       tutup_jika
+
+       ; --- Control Flow: selama (While) ---
+       var is_selama = str_starts_with(line, "selama ")
+       jika (is_selama == 1)
+           ; Generate Labels
+           label_counter = label_counter + 1
+           var loop_id = label_counter
+
+           var stack_l = label_stack
+           panggil vec_push(stack_l, loop_id)
+
+           var start_label = str_concat(".L_loop_start_", format_int(loop_id))
+           var start_asm = str_concat(start_label, ":")
+           panggil emit(start_asm)
+
+           ; Parse condition (Reuse logic from jika? Or duplicate for MVP?)
+           ; Duplicate for MVP clarity
+           var cond_raw_l = str_substring_after(line, 7) ; "selama "
+           var cond_clean_l = str_trim(cond_raw_l)
+
+           var c_len_l = str_len(cond_clean_l)
+           var inner_cond_l = str_slice(cond_clean_l, 1, c_len_l - 2)
+
+           var pl1 = str_split_once(inner_cond_l, 32)
+           var lhs_l = vec_get(pl1, 0)
+           var rest_l = vec_get(pl1, 1)
+           var pl2 = str_split_once(rest_l, 32)
+           var op_l = vec_get(pl2, 0)
+           var rhs_l = vec_get(pl2, 1)
+
+           ; Emit Compare
+           var lhs_mov_l = str_concat("    mov rax, [var_", lhs_l)
+           lhs_mov_l = str_concat(lhs_mov_l, "]")
+           panggil emit(lhs_mov_l)
+
+           var cmp_asm_l = str_concat("    cmp rax, ", rhs_l)
+           ; Check var logic for RHS
+           var rhs_first_l = str_get(rhs_l, 0)
+           jika (rhs_first_l >= 48)
+              jika (rhs_first_l <= 57)
+                 ; ok
+              tutup_jika
+           lain
+              cmp_asm_l = str_concat("    cmp rax, [var_", rhs_l)
+              cmp_asm_l = str_concat(cmp_asm_l, "]")
+           tutup_jika
+           panggil emit(cmp_asm_l)
+
+           ; Jump to END if FALSE
+           var end_label_l = str_concat(".L_loop_end_", format_int(loop_id))
+           var jmp_instr_l = ""
+           var op_char_l = str_get(op_l, 0)
+           jika (op_char_l == 61)
+              jmp_instr_l = "    jne "
+           lain_jika (op_char_l == 60)
+              jmp_instr_l = "    jge "
+           tutup_jika
+
+           var jump_asm_l = str_concat(jmp_instr_l, end_label_l)
+           panggil emit(jump_asm_l)
+       tutup_jika
+
+       var is_tutup_selama = str_starts_with(line, "tutup_selama")
+       jika (is_tutup_selama == 1)
+           var stack_loop = label_stack
+           var len_sl = vec_len(stack_loop)
+           var last_idx_l = len_sl - 1
+           var loop_id_j = vec_get(stack_loop, last_idx_l)
+
+           tipe stack_loop Vector
+           stack_loop.length = stack_loop.length - 1
+
+           ; Jump back to start
+           var start_label_j = str_concat(".L_loop_start_", format_int(loop_id_j))
+           var jmp_back = str_concat("    jmp ", start_label_j)
+           panggil emit(jmp_back)
+
+           ; Emit end label
+           var end_label_j2 = str_concat(".L_loop_end_", format_int(loop_id_j))
+           var lbl_end_asm = str_concat(end_label_j2, ":")
+           panggil emit(lbl_end_asm)
+       tutup_jika
+
        var is_var = str_starts_with(line, "var ")
        jika (is_var == 1)
           ; Format: var name = value
@@ -167,8 +382,31 @@ fungsi mulai(arg_unused1, arg_unused2)
           ; Emit assignment logic
           ; Check if value is number or string or variable
 
-          ; Assuming number literal for MVP
-          var asm_mov = str_concat("    mov rax, ", val_str)
+          ; Check value type: Number literal or Variable?
+          ; Simple check: does it start with digit?
+          var first_char = str_get(val_str, 0)
+          var is_digit = 0
+          jika (first_char >= 48)
+             jika (first_char <= 57)
+                 is_digit = 1
+             tutup_jika
+          tutup_jika
+
+          jika (first_char == 45) ; negative sign '-'
+             is_digit = 1
+          tutup_jika
+
+          var asm_mov = ""
+          jika (is_digit == 1)
+             ; Literal Number
+             asm_mov = str_concat("    mov rax, ", val_str)
+          lain
+             ; Variable (assume existing var label)
+             var src_label = str_concat("var_", val_str)
+             asm_mov = str_concat("    mov rax, [", src_label)
+             asm_mov = str_concat(asm_mov, "]")
+          tutup_jika
+
           panggil emit(asm_mov)
 
           var var_label = str_concat("var_", name)
@@ -197,6 +435,71 @@ fungsi mulai(arg_unused1, arg_unused2)
        jika (is_end_asm == 1)
           ; Just skip line
        tutup_jika
+
+       ; --- Function Call (panggil) ---
+       var is_panggil = str_starts_with(line, "panggil ")
+       jika (is_panggil == 1)
+          var content_after_panggil = str_substring_after(line, 8) ; "panggil " is 8
+          var call_parts = str_split_once(content_after_panggil, 40) ; '('
+
+          var func_name = vec_get(call_parts, 0)
+          var func_name_clean = str_trim(func_name)
+
+          ; Basic args parsing (single arg literal support only for now)
+          var args_raw = vec_get(call_parts, 1) ; "arg)"
+          var args_clean = str_trim(args_raw)
+
+          ; Remove trailing ')'
+          var args_len = str_len(args_clean)
+          jika (args_len > 0)
+             var last_char_idx = args_len - 1
+             var last_char = str_get(args_clean, last_char_idx)
+             jika (last_char == 41) ; ')'
+                 var args_content = str_slice(args_clean, 0, last_char_idx)
+                 var arg1 = str_trim(args_content)
+
+                 ; Move arg to register (convention depends on func, usually rdi, rsi..)
+                 ; Assuming single arg -> RDI
+
+                 ; Check if arg is string literal
+                 var first_c = str_get(arg1, 0)
+                 jika (first_c == 34) ; quote
+                     ; String literal handling is complex without data section management
+                     ; Skipping or basic dummy for now
+                 lain
+                     ; Integer literal or variable
+                     ; Check if number or var
+                     var arg_fc = str_get(arg1, 0)
+                     var is_arg_digit = 0
+                     jika (arg_fc >= 48)
+                        jika (arg_fc <= 57)
+                           is_arg_digit = 1
+                        tutup_jika
+                     tutup_jika
+
+                     jika (arg_fc == 45) ; '-'
+                        is_arg_digit = 1
+                     tutup_jika
+
+                     var asm_arg = ""
+                     jika (is_arg_digit == 1)
+                        asm_arg = str_concat("    mov rdi, ", arg1)
+                     lain
+                        ; Variable
+                        var arg_label = str_concat("var_", arg1)
+                        asm_arg = str_concat("    mov rdi, [", arg_label)
+                        asm_arg = str_concat(asm_arg, "]")
+                     tutup_jika
+
+                     panggil emit(asm_arg)
+                 tutup_jika
+             tutup_jika
+          tutup_jika
+
+          var asm_call = str_concat("    call ", func_name_clean)
+          panggil emit(asm_call)
+       tutup_jika
+
     tutup_jika
 
     line_idx = line_idx + 1
