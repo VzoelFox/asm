@@ -34,6 +34,11 @@ Setiap binary Morph yang dihasilkan mengandung header assembly (`_start`) yang m
     1.  `indeks "tagger.fox"`: Parser membaca registry dan mengisi `ID_MAP`.
     2.  `Ambil 100`: Parser mencari file untuk ID 100, lalu hanya mengekstrak blok kode di antara `### 100` dan marker berikutnya.
 
+### 5. Tooling Ekosistem
+*   **Morph Runner (`./morph`)**: Script wrapper yang menangani kompilasi lokal dan eksekusi remote (VPS). Mendukung mode "Run" (seperti Python) dan "Build" (seperti Go build `to <file>`).
+*   **Star Installer (`./star`)**: Package dan Configuration manager sederhana yang membaca file `.fall` (Key-Value) untuk menghasilkan konfigurasi `config.mk`.
+*   **Test Runner (`./tmorph`)**: Otomatisasi pengujian untuk file examples dan tests.
+
 ## Roadmap Self-Hosting
 Tujuan akhir adalah menggantikan `bootstrap/morph.sh` dengan `apps/compiler/morph.fox`.
 Status saat ini:

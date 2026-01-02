@@ -1,11 +1,11 @@
-; Tagger Index untuk Plugin VC (Dummy)
-; Mendaftarkan fungsi matematika dasar
+; Tagger Index untuk Plugin VC
+; Memetakan ID ke File Library Standard
 
-Daftar "lib/math.fox" = 100-101
-Daftar "lib/buffer.fox" = 310-317
-Daftar "lib/file_io.fox" = 318-319
-Daftar "lib/format.fox" = 320-329
-Daftar "lib/hashmap.fox" = 330-339
-Daftar "lib/vector.fox" = 340-349
-Daftar "lib/json.fox" = 350-369
-Daftar "lib/string_utils.fox" = 380-399
+Daftar "lib/math.fox"         = 100-101
+Daftar "lib/buffer.fox"       = 310-316
+Daftar "lib/file_io.fox"      = 318-319
+Daftar "lib/format.fox"       = 320-324
+Daftar "lib/hashmap.fox"      = 330-333
+Daftar "lib/vector.fox"       = 340-344
+Daftar "lib/json.fox"         = 350-353, 360-366
+Daftar "lib/string_utils.fox" = 380-388

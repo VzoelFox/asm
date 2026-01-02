@@ -753,7 +753,7 @@ emit_variable_assign() {
 
         cat <<EOF
 section .data
-    $label db "$content", 0
+    $label db \`$content\`, 0
 section .text
     mov rax, $label
     mov [var_$name], rax
@@ -777,7 +777,7 @@ load_operand_to_rax() {
 
         cat <<EOF
 section .data
-    $label db "$content", 0
+    $label db \`$content\`, 0
 section .text
     mov rax, $label
 EOF
@@ -858,7 +858,7 @@ emit_print() {
 
         cat <<EOF
 section .data
-    $label db "$content", 0
+    $label db \`$content\`, 0
     len_$label equ $ - $label
 section .text
     mov rsi, $label
@@ -1225,7 +1225,7 @@ emit_store_array_elem() {
 
         cat <<EOF
 section .data
-    $label db "$content", 0
+    $label db \`$content\`, 0
 section .text
     mov rax, $label
 EOF
@@ -1249,7 +1249,7 @@ emit_string_literal_assign() {
     # Define string in data
     cat <<EOF
 section .data
-    $label db "$content", 0
+    $label db \`$content\`, 0
 section .text
     mov rax, $label
     mov [var_$name], rax

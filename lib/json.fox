@@ -201,6 +201,11 @@ fungsi json_parse_value(parser)
 
   tipe parser JsonParser
   var ch = parser.current_char
+
+  ; DEBUG
+  ; panggil format_print("JSON Ch:")
+  ; panggil format_print(format_int(ch))
+
   var res = 0
 
   ; String "
@@ -211,24 +216,23 @@ fungsi json_parse_value(parser)
   ; Object {
   jika (ch == 123)
      res = json_parse_object(parser)
-  tutup_jika
 
   ; Array [
-  jika (ch == 91)
+  lain_jika (ch == 91)
      res = json_parse_array(parser)
-  tutup_jika
 
-  ; Number
-  jika (ch == 45)
+  ; Number -
+  lain_jika (ch == 45)
      res = json_parse_number(parser)
+
+  ; Number Digit
   lain_jika (ch >= 48)
      jika (ch <= 57)
          res = json_parse_number(parser)
      tutup_jika
-  tutup_jika
 
-  ; Keywords
-  jika (ch == 116)
+  ; Keywords (t, f, n)
+  lain_jika (ch == 116)
      res = json_parse_keyword(parser)
   lain_jika (ch == 102)
      res = json_parse_keyword(parser)
