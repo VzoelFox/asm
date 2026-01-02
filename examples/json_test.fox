@@ -16,7 +16,12 @@ fungsi mulai()
   format_print(json_str)
 
   var root = json_parse(json_str)
+  format_print("Parsed Root")
   tipe root JsonValue
+
+  jika (root == 0)
+     format_print("Root is NULL")
+  tutup_jika
 
   jika (root.type == 3)
       format_print("✅ Root Type Object: PASS")
@@ -27,6 +32,7 @@ fungsi mulai()
       format_print(s_debug)
   tutup_jika
 
+  format_print("Check Test 2")
   ; Test 2: Get String
   var val_key = json_get(root, "key")
   tipe val_key JsonValue

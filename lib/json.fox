@@ -47,7 +47,9 @@ fungsi json_parse(input)
 
   parser.current_char = ch
 
+  ; ; panggil format_print("Debug: calling json_parse_value")
   var res = json_parse_value(parser)
+  ; ; panggil format_print("Debug: returned from json_parse_value")
 
   asm_mulai
   mov rax, [var_res]
@@ -135,42 +137,41 @@ fungsi json_arr_get(val, idx)
 tutup_fungsi
 
 
-; --- INTERNAL PARSERS ---
+; --- INTERNAL PARSERS (KERNEL OPTIMIZED) ---
 
 ### 360
 fungsi json_skip_whitespace(parser)
   tipe parser JsonParser
-  var ch = parser.current_char
+  var input = parser.input
+  var pos = parser.pos
 
-  ; 32=space
-  selama (ch == 32)
-     panggil json_advance(parser)
-     ch = parser.current_char
-  tutup_selama
+  ; Call Kernel Helper: sys_json_skip_whitespace(buffer_ptr) -> new_ptr
+  ; Calculate current buffer ptr = input + pos
+  var new_pos = 0
+  var ch = 0
 
-  ; Skip control chars
-  selama (ch < 33)
-      jika (ch == 0)
-         var break = 1
-      lain
-         panggil json_advance(parser)
-         ch = parser.current_char
-      tutup_jika
+  asm_mulai
+  mov rsi, [var_input]
+  mov rcx, [var_pos]
+  add rsi, rcx       ; RSI = current_ptr
+  call sys_json_skip_whitespace
+  ; RSI now points to first non-whitespace
+  ; Calculate new pos = RSI - input
+  mov rbx, [var_input]
+  sub rsi, rbx
+  mov [var_new_pos], rsi
 
-      jika (ch == 0)
-          var break_loop = 1
-      tutup_jika
+  ; Get char at new pos
+  mov rsi, [var_input]
+  mov rcx, [var_new_pos]
+  add rsi, rcx
+  xor rax, rax
+  mov al, byte [rsi]
+  mov [var_ch], rax
+  tutup_asm
 
-      jika (ch != 0)
-         ; continue
-      lain
-         ch = 999
-      tutup_jika
-  tutup_selama
-
-  jika (ch == 999)
-      parser.current_char = 0
-  tutup_jika
+  parser.pos = new_pos
+  parser.current_char = ch
 tutup_fungsi
 
 fungsi json_advance(parser)
@@ -201,12 +202,10 @@ fungsi json_parse_value(parser)
 
   tipe parser JsonParser
   var ch = parser.current_char
-
-  ; DEBUG
-  ; panggil format_print("JSON Ch:")
-  ; panggil format_print(format_int(ch))
-
   var res = 0
+
+  ; ; panggil format_print("Debug: parse_value ch=")
+  ; ; panggil format_print(format_int(ch))
 
   ; String "
   jika (ch == 34)
@@ -252,13 +251,13 @@ fungsi json_parse_object(parser)
   panggil json_skip_whitespace(parser)
 
   var map = map_create(16)
-  var val = JsonValue(3, 0, 0, 0, map, 0)
+  var obj_res = JsonValue(3, 0, 0, 0, map, 0)
 
   var ch = parser.current_char
   jika (ch == 125)
       panggil json_advance(parser)
       asm_mulai
-      mov rax, [var_val]
+      mov rax, [var_obj_res]
       tutup_asm
   tutup_jika
 
@@ -289,7 +288,7 @@ fungsi json_parse_object(parser)
   tutup_selama
 
   asm_mulai
-  mov rax, [var_val]
+  mov rax, [var_obj_res]
   tutup_asm
 tutup_fungsi
 
@@ -300,13 +299,13 @@ fungsi json_parse_array(parser)
   panggil json_skip_whitespace(parser)
 
   var vec = vec_create(4)
-  var val = JsonValue(4, 0, 0, 0, 0, vec)
+  var arr_res = JsonValue(4, 0, 0, 0, 0, vec)
 
   var ch = parser.current_char
   jika (ch == 93)
       panggil json_advance(parser)
       asm_mulai
-      mov rax, [var_val]
+      mov rax, [var_arr_res]
       tutup_asm
   tutup_jika
 
@@ -327,102 +326,94 @@ fungsi json_parse_array(parser)
   tutup_selama
 
   asm_mulai
-  mov rax, [var_val]
+  mov rax, [var_arr_res]
   tutup_asm
 tutup_fungsi
 
 ### 364
 fungsi json_parse_string(parser)
   tipe parser JsonParser
-  panggil json_advance(parser)
-
-  var start_pos = parser.pos
   var input = parser.input
-  var ch = parser.current_char
-
-  selama (ch != 34)
-     panggil json_advance(parser)
-     ch = parser.current_char
-  tutup_selama
-
-  var end_pos = parser.pos
-  var len = end_pos - start_pos
+  var pos = parser.pos
 
   var str_ptr = 0
-  var alloc_size = len + 1
-  asm_mulai
-  mov rax, [var_alloc_size]
-  call sys_alloc
-  mov [var_str_ptr], rax
-  tutup_asm
+  var new_pos = 0
 
+  ; Call Kernel Helper: sys_json_parse_string
   asm_mulai
-  mov rdi, [var_str_ptr]
   mov rsi, [var_input]
-  mov rcx, [var_start_pos]
-  add rsi, rcx
-  mov rcx, [var_len]
-  call sys_memcpy
-  mov rdi, [var_str_ptr]
-  add rdi, [var_len]
-  mov byte [rdi], 0
+  mov rcx, [var_pos]
+  add rsi, rcx       ; RSI points to quote
+  call sys_json_parse_string
+  mov [var_str_ptr], rax   ; New string ptr
+
+  ; Update pos
+  ; RSI points after closing quote
+  mov rbx, [var_input]
+  sub rsi, rbx
+  mov [var_new_pos], rsi
   tutup_asm
 
-  panggil json_advance(parser)
+  parser.pos = new_pos
 
-  var val = JsonValue(1, str_ptr, 0, 0, 0, 0)
+  ; Update char
+  var ch = 0
   asm_mulai
-  mov rax, [var_val]
+  mov rsi, [var_input]
+  mov rcx, [var_new_pos]
+  add rsi, rcx
+  xor rax, rax
+  mov al, byte [rsi]
+  mov [var_ch], rax
+  tutup_asm
+  parser.current_char = ch
+
+  var str_res = JsonValue(1, str_ptr, 0, 0, 0, 0)
+  asm_mulai
+  mov rax, [var_str_res]
   tutup_asm
 tutup_fungsi
 
 ### 365
 fungsi json_parse_number(parser)
   tipe parser JsonParser
-  var start_pos = parser.pos
-  var ch = parser.current_char
-
-  selama (ch >= 48)
-      jika (ch <= 57)
-         panggil json_advance(parser)
-         ch = parser.current_char
-      lain
-         ch = 0
-      tutup_jika
-
-      jika (ch == 0)
-          ch = 40
-      tutup_jika
-  tutup_selama
-
-  var curr = start_pos
-  var num = 0
   var input = parser.input
+  var pos = parser.pos
 
-  var p_pos = parser.pos
-  var count = p_pos - start_pos
+  var num = 0
+  var new_pos = 0
 
-  var i = 0
-  selama (i < count)
-     var digit_char = 0
-     asm_mulai
-     mov rsi, [var_input]
-     mov rcx, [var_start_pos]
-     add rcx, [var_i]
-     movzx rax, byte [rsi + rcx]
-     mov [var_digit_char], rax
-     tutup_asm
-
-     var d = digit_char - 48
-     var num10 = num * 10
-     num = num10 + d
-
-     i = i + 1
-  tutup_selama
-
-  var val = JsonValue(2, 0, num, 0, 0, 0)
+  ; Call Kernel Helper: sys_json_parse_number
   asm_mulai
-  mov rax, [var_val]
+  mov rsi, [var_input]
+  mov rcx, [var_pos]
+  add rsi, rcx       ; RSI points to start of number
+  call sys_json_parse_number
+  mov [var_num], rax       ; Result
+
+  ; Update pos
+  mov rbx, [var_input]
+  sub rsi, rbx
+  mov [var_new_pos], rsi
+  tutup_asm
+
+  parser.pos = new_pos
+
+  ; Update char
+  var ch = 0
+  asm_mulai
+  mov rsi, [var_input]
+  mov rcx, [var_new_pos]
+  add rsi, rcx
+  xor rax, rax
+  mov al, byte [rsi]
+  mov [var_ch], rax
+  tutup_asm
+  parser.current_char = ch
+
+  var num_res = JsonValue(2, 0, num, 0, 0, 0)
+  asm_mulai
+  mov rax, [var_num_res]
   tutup_asm
 tutup_fungsi
 
@@ -457,8 +448,8 @@ fungsi json_parse_keyword(parser)
       type = 6
   tutup_jika
 
-  var val = JsonValue(type, 0, 0, bool_v, 0, 0)
+  var kw_res = JsonValue(type, 0, 0, bool_v, 0, 0)
   asm_mulai
-  mov rax, [var_val]
+  mov rax, [var_kw_res]
   tutup_asm
 tutup_fungsi
