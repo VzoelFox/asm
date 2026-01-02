@@ -1,0 +1,6 @@
+indeks "plugins/vc/tagger.fox"
+Ambil 324 ; format_print
+
+fungsi mulai()
+  format_print("Hello from format_print")
+tutup_fungsi
