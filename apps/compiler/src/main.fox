@@ -1,7 +1,7 @@
 ### 1000
 ; Morph Self-Hosted Compiler Entry Point
 
-indeks "plugins/vc/tagger.fox"
+ambil "apps/compiler/pkg/utils.fox"
 
 Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
 Ambil 318, 319 ; File IO
