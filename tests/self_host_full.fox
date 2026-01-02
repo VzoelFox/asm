@@ -1,0 +1,8 @@
+fungsi test_func(x)
+  var y = x
+tutup_fungsi
+
+fungsi mulai()
+  panggil test_func(10)
+  var z = 20
+tutup_fungsi

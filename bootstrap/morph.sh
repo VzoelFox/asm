@@ -11,6 +11,10 @@ BASE_DIR="$(dirname "$0")"
 source "$BASE_DIR/lib/codegen.sh"
 source "$BASE_DIR/lib/parser.sh"
 
+# Default Compiler Source (Updated for self-host refactor)
+# If we are compiling the compiler itself (self-host)
+COMPILER_SRC="apps/compiler/src/main.fox"
+
 INPUT_FILE="$1"
 
 if [ -z "$INPUT_FILE" ]; then
