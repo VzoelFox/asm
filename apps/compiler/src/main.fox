@@ -5,7 +5,7 @@ ambil "apps/compiler/pkg/utils.fox"
 
 Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
 Ambil 318, 319 ; File IO
-Ambil 320, 321, 322 ; Format
+Ambil 320, 321, 322, 323, 324 ; Format
 Ambil 330, 331, 332, 333 ; Hashmap
 Ambil 340, 341, 342, 343, 344 ; Vector
 Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
