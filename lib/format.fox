@@ -149,7 +149,20 @@ fungsi format_int(value)
                         ; Let's simpler: just return RDI (the start of valid string).
                         ; BUT we need to store it in [var_res_ptr] if we want to return it.
 
-  mov [var_res_ptr], rdx ; RDX was source start (rdi from finalize).
+  ; Correct logic: Move string to start of buffer so we return the malloc'd pointer
+  ; rsi (popped) = allocated start
+  ; rdx (current) = string start
+  ; rcx (calculated) = length + 1
+
+  mov rdi, rsi          ; Dest = allocated start
+  mov rsi, rdx          ; Src = current pos inside buffer
+
+  ; Rep Movsb
+  cld
+  rep movsb
+
+  ; Now string is at allocated start.
+  ; [var_res_ptr] already holds the allocated start address.
 
 .done_fmt:
   tutup_asm
