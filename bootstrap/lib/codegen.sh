@@ -704,6 +704,15 @@ sys_json_parse_number:
     xor rbx, rbx ; Temp digit
 
     ; TODO: Handle negative sign?
+    ; Added negative handling
+    push r8
+    mov r8, 1 ; sign multiplier (1 or -1)
+
+    cmp byte [rsi], '-'
+    jne .num_loop
+
+    mov r8, -1
+    inc rsi
 
 .num_loop:
     mov cl, [rsi]
@@ -722,6 +731,9 @@ sys_json_parse_number:
     jmp .num_loop
 
 .done_num:
+    imul rax, r8 ; Apply sign
+    pop r8
+
     pop rdx
     pop rcx
     pop rbx
