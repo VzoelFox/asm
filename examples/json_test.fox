@@ -3,6 +3,8 @@ indeks "plugins/vc/tagger.fox"
 ; Import Public API + Internal Helpers
 Ambil 350, 351, 352, 353
 Ambil 360, 361, 362, 363, 364, 365, 366
+Ambil 330, 331, 332, 333 ; Hashmap Lib
+Ambil 340, 341, 342, 343, 344 ; Vector Lib
 Ambil 320, 321, 322, 323, 324 ; Format Lib
 
 fungsi mulai()
@@ -19,7 +21,10 @@ fungsi mulai()
   jika (root.type == 3)
       format_print("✅ Root Type Object: PASS")
   lain
-      format_print("❌ Root Type Object: FAIL")
+      format_print("❌ Root Type Object: FAIL. Got:")
+      var type_debug = root.type
+      var s_debug = format_int(type_debug)
+      format_print(s_debug)
   tutup_jika
 
   ; Test 2: Get String

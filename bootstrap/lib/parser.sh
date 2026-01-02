@@ -77,6 +77,29 @@ extract_block_by_id() {
     done < "$file"
 }
 
+resolve_struct_access() {
+    local expr="$1"
+    local ret_var_name="$2"
+
+    if [[ "$expr" =~ ^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)$ ]]; then
+        local s_var="${BASH_REMATCH[1]}"
+        local s_field="${BASH_REMATCH[2]}"
+        local s_type="${VAR_TYPE_MAP[$s_var]}"
+
+        if [[ -n "$s_type" ]]; then
+            local offset="${STRUCT_OFFSETS[${s_type}_${s_field}]}"
+            if [[ -n "$offset" ]]; then
+                local tmp="tmp_s_${LINE_NO}_$RANDOM"
+                emit_variable_decl "$tmp"
+                emit_load_struct_field "$s_var" "$offset"
+                echo "    mov [var_$tmp], rax"
+                eval "$ret_var_name='$tmp'"
+                return 0
+            fi
+        fi
+    fi
+}
+
 parse_file() {
     local input_file="$1"
     local is_entry_point=0
@@ -114,8 +137,8 @@ parse_file() {
              line="${line%%;*}"
         fi
 
-        # Trim whitespace
-        line=$(echo "$line" | sed 's/^[ \t]*//;s/[ \t]*$//')
+        # Trim whitespace (and remove CR for Windows compatibility)
+        line=$(echo "$line" | sed 's/^[ \t]*//;s/[ \t]*$//' | tr -d '\r')
 
         # Replace 'benar' with 1, 'salah' with 0 (Boolean Support)
         if [[ "$line" != *"\""* ]]; then
@@ -158,6 +181,7 @@ parse_file() {
                     local current_size=${STRUCT_SIZES[$current_struct_name]}
                     STRUCT_OFFSETS["${current_struct_name}_${field_name}"]=$current_size
                     STRUCT_SIZES[$current_struct_name]=$((current_size + 8))
+                    echo "; DEBUG: Struct $current_struct_name Field $field_name Offset $current_size"
                 fi
             fi
             continue
@@ -387,7 +411,7 @@ parse_file() {
                                     # String Literal support for panggil
                                     local content="${BASH_REMATCH[1]}"
                                     local label="str_arg_p_${LINE_NO}_${arg_count}"
-                                    emit_raw_data_fixed "$label db \"$content\", 0"
+                                    emit_raw_data_fixed "$label db \`$content\`, 0"
                                     echo "    mov $target_reg, $label"
                                 elif [[ "$val" =~ ^-?[0-9]+$ ]]; then
                                     echo "    mov $target_reg, $val"
@@ -498,7 +522,7 @@ parse_file() {
                                              # String Literal
                                              local content="${BASH_REMATCH[1]}"
                                              local label="str_arg_${LINE_NO}_${arg_count}"
-                                             emit_raw_data_fixed "$label db \"$content\", 0"
+                                             emit_raw_data_fixed "$label db \`$content\`, 0"
                                              echo "    mov $target_reg, $label"
                                          elif [[ "$val" =~ ^-?[0-9]+$ ]]; then
                                              echo "    mov $target_reg, $val"
@@ -571,6 +595,8 @@ parse_file() {
                     local op2="${BASH_REMATCH[3]}"
                     op1=$(echo "$op1" | xargs)
                     op2=$(echo "$op2" | xargs)
+                    resolve_struct_access "$op1" op1
+                    resolve_struct_access "$op2" op2
                     emit_if_start "$op1" "$cond" "$op2"
                     push_block "jika"
                 fi
@@ -590,6 +616,8 @@ parse_file() {
                     local op2="${BASH_REMATCH[3]}"
                     op1=$(echo "$op1" | xargs)
                     op2=$(echo "$op2" | xargs)
+                    resolve_struct_access "$op1" op1
+                    resolve_struct_access "$op2" op2
                     emit_else_if "$op1" "$cond" "$op2"
                 fi
                 ;;
@@ -619,6 +647,8 @@ parse_file() {
                     local op2="${BASH_REMATCH[3]}"
                     op1=$(echo "$op1" | xargs)
                     op2=$(echo "$op2" | xargs)
+                    resolve_struct_access "$op1" op1
+                    resolve_struct_access "$op2" op2
                     emit_loop_start "$op1" "$cond" "$op2"
                     push_block "selama"
                 fi
@@ -669,7 +699,50 @@ parse_file() {
 
             # --- Assignment ke Variabel Ada (tanpa var) ---
             *)
-                 if [[ "$line" =~ ^([a-zA-Z0-9_]+)\[([a-zA-Z0-9_]+)\][[:space:]]*=[[:space:]]*(.*)$ ]]; then
+                 if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)$ ]]; then
+                    # Implicit Function Call (Standalone)
+                    local name="${BASH_REMATCH[1]}"
+                    local args="${BASH_REMATCH[2]}"
+
+                    # Ignore if it's a keyword that wasn't caught (sanity check)
+                    if [[ "$name" != "jika" && "$name" != "selama" && "$name" != "lain_jika" ]]; then
+                        if [[ -n "$args" ]]; then
+                            IFS=',' read -ra VAL_LIST <<< "$args"
+                            local arg_count=0
+                            for val in "${VAL_LIST[@]}"; do
+                                # Use sed to trim spaces while preserving quotes
+                                val=$(echo "$val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+                                local target_reg=""
+                                case "$arg_count" in
+                                    0) target_reg="rdi" ;;
+                                    1) target_reg="rsi" ;;
+                                    2) target_reg="rdx" ;;
+                                    3) target_reg="rcx" ;;
+                                    4) target_reg="r8" ;;
+                                    5) target_reg="r9" ;;
+                                esac
+
+                                if [[ -n "$target_reg" ]]; then
+                                    if [[ "$val" =~ ^\"(.*)\"$ ]]; then
+                                        # String Literal
+                                        local content="${BASH_REMATCH[1]}"
+                                        local label="str_arg_imp_${LINE_NO}_${arg_count}"
+                                        emit_raw_data_fixed "$label db \`$content\`, 0"
+                                        echo "    mov $target_reg, $label"
+                                    elif [[ "$val" =~ ^-?[0-9]+$ ]]; then
+                                        echo "    mov $target_reg, $val"
+                                    else
+                                        echo "    mov $target_reg, [var_$val]"
+                                    fi
+                                fi
+                                ((arg_count++))
+                            done
+                        fi
+                        emit_call "$name"
+                    fi
+
+                 elif [[ "$line" =~ ^([a-zA-Z0-9_]+)\[([a-zA-Z0-9_]+)\][[:space:]]*=[[:space:]]*(.*)$ ]]; then
                      local var_name="${BASH_REMATCH[1]}"
                      local index="${BASH_REMATCH[2]}"
                      local val="${BASH_REMATCH[3]}"
@@ -688,11 +761,108 @@ parse_file() {
                  elif [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
                     local name="${BASH_REMATCH[1]}"
                     local expr="${BASH_REMATCH[2]}"
-                    if [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
+
+                    if [[ "$expr" =~ ^([a-zA-Z0-9_]+)\((.*)\)$ ]]; then
+                         local struct_name="${BASH_REMATCH[1]}"
+                         local args_str="${BASH_REMATCH[2]}"
+
+                         if [[ "$struct_name" == "baca" ]]; then
+                             emit_read "$args_str"
+                             emit_variable_assign "$name" ""
+                         elif [[ "$struct_name" == "str_concat" ]]; then
+                             IFS=',' read -ra ADDR <<< "$args_str"
+                             local arg1=$(echo "${ADDR[0]}" | xargs)
+                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             emit_str_concat "$arg1" "$arg2"
+                             emit_variable_assign "$name" ""
+                         elif [[ "$struct_name" == "str_eq" ]]; then
+                             IFS=',' read -ra ADDR <<< "$args_str"
+                             local arg1=$(echo "${ADDR[0]}" | xargs)
+                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             emit_str_eq "$arg1" "$arg2"
+                             emit_variable_assign "$name" ""
+                         elif [[ "$struct_name" == "str_get" ]]; then
+                             IFS=',' read -ra ADDR <<< "$args_str"
+                             local arg1=$(echo "${ADDR[0]}" | xargs)
+                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             emit_str_get "$arg1" "$arg2"
+                             emit_variable_assign "$name" ""
+                         elif [[ -n "${STRUCT_SIZES[$struct_name]}" ]]; then
+                             local size=${STRUCT_SIZES[$struct_name]}
+                             IFS=',' read -ra ADDR <<< "$args_str"
+                             local offsets_str=""
+                             local values_str=""
+                             local current_offset=0
+                             for val in "${ADDR[@]}"; do
+                                 val=$(echo "$val" | xargs)
+                                 offsets_str="$offsets_str $current_offset"
+                                 values_str="$values_str $val"
+                                 current_offset=$((current_offset + 8))
+                             done
+                             emit_struct_alloc_and_init "$size" "$offsets_str" "$values_str"
+                             emit_variable_assign "$name" ""
+                             VAR_TYPE_MAP["$name"]="$struct_name"
+                         else
+                             # Generic Function Call in Assignment
+                             # Handle Arguments (Same as panggil but with string literal support)
+                             if [[ -n "$args_str" ]]; then
+                                 IFS=',' read -ra VAL_LIST <<< "$args_str"
+                                 local arg_count=0
+                                 for val in "${VAL_LIST[@]}"; do
+                                     # Use sed to trim spaces while preserving quotes
+                                     val=$(echo "$val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+                                     local target_reg=""
+                                     case "$arg_count" in
+                                         0) target_reg="rdi" ;;
+                                         1) target_reg="rsi" ;;
+                                         2) target_reg="rdx" ;;
+                                         3) target_reg="rcx" ;;
+                                         4) target_reg="r8" ;;
+                                         5) target_reg="r9" ;;
+                                     esac
+
+                                     if [[ -n "$target_reg" ]]; then
+                                         if [[ "$val" =~ ^\"(.*)\"$ ]]; then
+                                             # String Literal
+                                             local content="${BASH_REMATCH[1]}"
+                                             local label="str_arg_${LINE_NO}_${arg_count}"
+                                             emit_raw_data_fixed "$label db \`$content\`, 0"
+                                             echo "    mov $target_reg, $label"
+                                         elif [[ "$val" =~ ^-?[0-9]+$ ]]; then
+                                             echo "    mov $target_reg, $val"
+                                         else
+                                             echo "    mov $target_reg, [var_$val]"
+                                         fi
+                                     fi
+                                     ((arg_count++))
+                                 done
+                             fi
+                             emit_call "$struct_name"
+                             emit_variable_assign "$name" ""
+                         fi
+                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
                          local op1="${BASH_REMATCH[1]}"
                          local op="${BASH_REMATCH[2]}"
                          local op2="${BASH_REMATCH[3]}"
                          emit_arithmetic_op "$op1" "$op" "$op2" "$name"
+                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)$ ]]; then
+                         # Struct Field Access (RHS)
+                         local struct_var="${BASH_REMATCH[1]}"
+                         local field="${BASH_REMATCH[2]}"
+                         local struct_type="${VAR_TYPE_MAP[$struct_var]}"
+
+                         if [[ -n "$struct_type" ]]; then
+                             local offset="${STRUCT_OFFSETS[${struct_type}_${field}]}"
+                             if [[ -n "$offset" ]]; then
+                                 emit_load_struct_field "$struct_var" "$offset"
+                                 emit_variable_assign "$name" ""
+                             else
+                                 echo "; Error: Unknown field '$field' in struct '$struct_type'"
+                             fi
+                         else
+                             echo "; Warning: Cannot resolve type for '$struct_var'. Assuming offset lookup fails."
+                         fi
                     else
                         if [[ ! "$expr" =~ ^[0-9]+$ ]]; then
                            load_operand_to_rax "$expr"

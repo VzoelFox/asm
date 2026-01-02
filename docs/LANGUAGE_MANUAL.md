@@ -40,8 +40,14 @@ fungsi tambah(a, b)
   tutup_asm
 tutup_fungsi
 
-; Pemanggilan
+; Pemanggilan (Eksplisit)
 panggil tambah(10, 20)
+
+; Pemanggilan (Implisit - Baru di v1.1)
+tambah(10, 20)
+
+; Assignment dari Fungsi
+var hasil = tambah(5, 5)
 ```
 
 ### Kontrol Alur (Control Flow)
