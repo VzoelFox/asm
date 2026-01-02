@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# tmorph - Test Runner for Morph
+# Usage: tmorph <file.fox> OR tmorph /all
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+MORPH_RUNNER="./morph"
+
+run_test() {
+    local file="$1"
+    echo -n "Testing $file ... "
+
+    # Run morph. Capture output to log, check exit code.
+    OUTPUT=$($MORPH_RUNNER "$file" 2>&1)
+    EXIT_CODE=$?
+
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo -e "${GREEN}PASS${NC}"
+        return 0
+    else
+        echo -e "${RED}FAIL${NC}"
+        echo "--------------------------------"
+        echo "$OUTPUT"
+        echo "--------------------------------"
+        return 1
+    fi
+}
+
+if [ "$1" == "/all" ]; then
+    echo "Running ALL tests..."
+    PASS_COUNT=0
+    FAIL_COUNT=0
+
+    # Find all .fox files in examples/ (Excluding json_test.fox due to hang)
+    FILES=$(find examples -name "*.fox" | grep -v "json_test.fox" | sort)
+
+    for f in $FILES; do
+        run_test "$f"
+        if [ $? -eq 0 ]; then
+            ((PASS_COUNT++))
+        else
+            ((FAIL_COUNT++))
+        fi
+    done
+
+    echo "========================================"
+    echo "Summary: $PASS_COUNT Passed, $FAIL_COUNT Failed."
+    if [ $FAIL_COUNT -eq 0 ]; then
+        exit 0
+    else
+        exit 1
+    fi
+elif [ -f "$1" ]; then
+    run_test "$1"
+    exit $?
+else
+    echo "Usage: tmorph <file.fox> OR tmorph /all"
+    exit 1
+fi
