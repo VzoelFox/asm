@@ -4,12 +4,25 @@
 indeks "plugins/vc/tagger.fox"
 
 Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
-Ambil 318 ; File IO
+Ambil 318, 319 ; File IO
 Ambil 320, 321, 322 ; Format
 Ambil 340, 341, 342, 343, 344 ; Vector
-Ambil 380, 381, 382, 383, 384, 385, 386, 387 ; String Utils
+Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
+
+; Global Output Buffer
+var output_lines = 0
+
+fungsi emit(line)
+  ; Append line to output_lines vector
+  var vec = output_lines
+  panggil vec_push(vec, line)
+tutup_fungsi
 
 fungsi mulai(arg_unused1, arg_unused2)
+  ; Init Output Buffer
+  var temp_out = vec_create(1000)
+  output_lines = temp_out
+
   ; Retrieve Globals (Injected by Kernel)
   var args_count = global_argc
   var args_ptr = global_argv
@@ -56,6 +69,23 @@ fungsi mulai(arg_unused1, arg_unused2)
   panggil str_split_lines(content, lines)
 
   var line_count = vec_len(lines)
+  cetak("Lines parsed:")
+  cetak(line_count)
+
+  ; --- Code Generation Header ---
+  panggil emit("section .text")
+  panggil emit("    global _start")
+  panggil emit("_start:")
+  panggil emit("    call mulai")
+
+  ; Workaround for parser comma split issue
+  var exit_asm_1 = "    mov rax, 60"
+  panggil emit(exit_asm_1)
+
+  var exit_asm_2 = "    xor rdi, rdi"
+  panggil emit(exit_asm_2)
+
+  panggil emit("    syscall")
 
   ; --- Parser State ---
   var current_func = ""
@@ -82,67 +112,113 @@ fungsi mulai(arg_unused1, arg_unused2)
           var func_decl_full = str_substring_after(line, 6) ; after "fungsi"
           var func_decl = str_trim(func_decl_full)
 
-          ; Parse Name vs Args: split by '('
+          ; Parse Name vs Args
           var f_parts = str_split_once(func_decl, 40) ; 40 is '('
           var f_name_raw = vec_get(f_parts, 0)
           var f_name_clean = str_trim(f_name_raw)
 
-          var f_args_raw = vec_get(f_parts, 1) ; "arg1, arg2)"
-          ; Remove ')'
-          var f_args_parts = str_split_once(f_args_raw, 41) ; 41 is ')'
-          var f_args_clean = vec_get(f_args_parts, 0)
-
-          cetak("[PARSER] Function Definition")
-          cetak("         Name: ")
+          cetak("[CODEGEN] Function: ")
           cetak_str(f_name_clean)
-          cetak("         Args: ")
-          cetak_str(f_args_clean)
 
           current_func = f_name_clean
+
+          ; Emit Label
+          var colon = ":"
+          var label = str_concat(f_name_clean, colon)
+          panggil emit(label)
+          panggil emit("    push rbp")
+
+          var func_prologue = "    mov rbp, rsp"
+          panggil emit(func_prologue)
        tutup_jika
 
        var is_end_func = str_starts_with(line, "tutup_fungsi")
        jika (is_end_func == 1)
-          cetak("[PARSER] End Function")
+          panggil emit("    pop rbp")
+          panggil emit("    ret")
           current_func = ""
        tutup_jika
 
        var is_cetak = str_starts_with(line, "cetak")
        jika (is_cetak == 1)
-          cetak("[PARSER] Print Statement")
-       tutup_jika
-
-       var is_var = str_starts_with(line, "var")
-       jika (is_var == 1)
-          var var_decl_full = str_substring_after(line, 3)
-          var var_decl = str_trim(var_decl_full)
-          ; Parse Name vs Value: split by '='
-          var v_parts = str_split_once(var_decl, 61) ; 61 is '='
-          var v_name_raw = vec_get(v_parts, 0)
-          var v_name = str_trim(v_name_raw)
-
-          var v_val_raw = vec_get(v_parts, 1)
-          var v_val = str_trim(v_val_raw)
-
-          cetak("[PARSER] Variable Declaration")
-          cetak("         Name: ")
-          cetak_str(v_name)
-          cetak("         Value: ")
-          cetak_str(v_val)
+          ; Dummy implementation for cetak (hardcoded for now)
+          var asm_cmt = "    ; cetak() placeholder"
+          panggil emit(asm_cmt)
        tutup_jika
 
        var is_asm = str_starts_with(line, "asm_mulai")
        jika (is_asm == 1)
-          cetak("[PARSER] ASM Block Start")
+          ; Just skip line
        tutup_jika
 
        var is_end_asm = str_starts_with(line, "tutup_asm")
        jika (is_end_asm == 1)
-          cetak("[PARSER] ASM Block End")
+          ; Just skip line
        tutup_jika
     tutup_jika
 
     line_idx = line_idx + 1
   tutup_selama
+
+  ; --- Write Output ---
+  var out_file = "output.asm"
+  cetak("Writing output to:")
+  cetak_str(out_file)
+
+  var out_len = vec_len(output_lines)
+  var k = 0
+
+  var newline_str = str_newline()
+  var nl_len = 1
+
+  var write_fd = 0
+  var flags = 577 ; O_WRONLY|CREAT|TRUNC
+  var mode = 420  ; 0644
+
+  asm_mulai
+  mov rsi, [var_out_file]
+  mov rdx, [var_flags]
+  mov rax, 2 ; sys_open
+  mov rdi, rsi
+  mov rsi, rdx
+  mov rdx, [var_mode]
+  syscall
+  mov [var_write_fd], rax
+  tutup_asm
+
+  jika (write_fd < 0)
+     cetak("Error opening output.asm")
+  lain
+     selama (k < out_len)
+        var line_content = vec_get(output_lines, k)
+        var l_len = str_len(line_content)
+
+        ; Write Line
+        asm_mulai
+        mov rdi, [var_write_fd]
+        mov rsi, [var_line_content]
+        mov rdx, [var_l_len]
+        call sys_write_fd
+        tutup_asm
+
+        ; Write Newline
+        asm_mulai
+        mov rdi, [var_write_fd]
+        mov rsi, [var_newline_str]
+        mov rdx, [var_nl_len]
+        call sys_write_fd
+        tutup_asm
+
+        k = k + 1
+     tutup_selama
+
+     ; Close
+     asm_mulai
+     mov rdi, [var_write_fd]
+     call sys_close
+     tutup_asm
+
+     cetak("Success!")
+  tutup_jika
 
 tutup_fungsi

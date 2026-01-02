@@ -225,3 +225,19 @@ fungsi str_substring_after(s, start_index)
   mov rax, [var_res_str]
   tutup_asm
 tutup_fungsi
+
+### 388
+fungsi str_newline()
+  var nl_ptr = 0
+  asm_mulai
+  jmp .nl_end
+.nl_start:
+  db 10, 0
+.nl_end:
+  mov rax, .nl_start
+  mov [var_nl_ptr], rax
+  tutup_asm
+  asm_mulai
+  mov rax, [var_nl_ptr]
+  tutup_asm
+tutup_fungsi

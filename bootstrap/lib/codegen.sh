@@ -303,6 +303,25 @@ sys_free_memory:
     pop rax
     ret
 
+; sys_write_fd: Write buffer to FD
+; Input: RDI = fd, RSI = buffer_ptr, RDX = length
+; Output: RAX = bytes_written
+sys_write_fd:
+    push rdi
+    push rsi
+    push rdx
+
+    mov rax, 1      ; sys_write
+    ; RDI is fd
+    ; RSI is buffer
+    ; RDX is length
+    syscall
+
+    pop rdx
+    pop rsi
+    pop rdi
+    ret
+
 ; sys_strlen: Calculates length of null-terminated string
 ; Input: RSI = string ptr
 ; Output: RAX = length
