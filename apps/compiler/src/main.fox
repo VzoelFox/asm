@@ -244,6 +244,69 @@ fungsi mulai(arg_unused1, arg_unused2)
 
        tutup_jika
 
+       ; --- Control Flow: lain (Else) ---
+       var is_lain_jika = str_starts_with(line, "lain_jika ")
+       jika (is_lain_jika == 1)
+           ; Placeholder for lain_jika
+           var warn = "    ; lain_jika not implemented"
+           panggil emit(warn)
+       tutup_jika
+
+       jika (is_lain_jika == 0)
+          var is_lain_only = str_starts_with(line, "lain")
+          jika (is_lain_only == 1)
+             ; lain (Else)
+             ; Structure:
+             ;   (if block)
+             ;   jmp .L_final_end_ID  <-- NEW: Skip else block if if-block executed
+             ; .L_end_ID:             <-- Target if 'if' failed
+             ;   (else block)
+             ; .L_final_end_ID:       <-- Final target
+
+             ; 1. Get Current ID
+             var stack_e = label_stack
+             var len_e = vec_len(stack_e)
+             var idx_e = len_e - 1
+             var curr_id_e = vec_get(stack_e, idx_e)
+
+             ; 2. Generate Final End Label
+             ; We reuse ID but add prefix 'final_'?
+             ; Or just use L_end_ID + "_final"
+             var label_final = str_concat(".L_final_", format_int(curr_id_e))
+
+             ; 3. Emit Jump to Final (at end of If block)
+             var jmp_final = str_concat("    jmp ", label_final)
+             panggil emit(jmp_final)
+
+             ; 4. Emit L_end_ID (Start of Else)
+             var label_else_start = str_concat(".L_end_", format_int(curr_id_e))
+             var label_else_asm = str_concat(label_else_start, ":")
+             panggil emit(label_else_asm)
+
+             ; 5. Update Stack to point to Final Label?
+             ; We need 'tutup_jika' to emit label_final instead of label_end.
+             ; We can misuse the ID system:
+             ; In 'tutup_jika', we construct label based on ID.
+             ; So we need to flag that this ID now uses 'final' prefix?
+             ; Or easier: Emitting the label is done by 'tutup_jika'.
+             ; We can just change the ID in the stack to a new negative ID?
+             ; Or (Id + 100000)?
+             ; Let's use: if ID > 100000, it uses ".L_final_".
+
+             ; Update stack value
+             var new_id = curr_id_e + 1000000
+             ; Vector set? We don't have vec_set exposed in Utils yet?
+             ; Check Utils... vec_get is there. vec_push is there. vec_set?
+             ; If no vec_set, we are stuck.
+             ; Let's assume we can access via raw pointer?
+             ; Or pop and push?
+             tipe stack_e Vector
+             stack_e.length = stack_e.length - 1 ; Pop old
+             panggil vec_push(stack_e, new_id) ; Push new
+
+          tutup_jika
+       tutup_jika
+
        ; --- Control Flow: tutup_jika ---
        var is_tutup_jika = str_starts_with(line, "tutup_jika")
        jika (is_tutup_jika == 1)
@@ -253,26 +316,20 @@ fungsi mulai(arg_unused1, arg_unused2)
           var last_idx = len_s - 1
           var lbl_id_j = vec_get(stack_j, last_idx)
 
-          ; Remove from stack (hacky pop: just don't access it, or resize? Vector has no pop yet exposed properly?)
-          ; Actually vec logic allows overwriting or just ignore.
-          ; Ideally we need vec_pop. For now assume linear nesting and valid code.
-          ; We can just decrement length? No access to internal length.
-          ; Implementation detail: we just read it.
+          ; Check if it is a "Final" label (from else block)
+          var prefix = ".L_end_"
+          var real_id = lbl_id_j
 
-          var end_label_j = str_concat(".L_end_", format_int(lbl_id_j))
+          jika (lbl_id_j > 1000000)
+             prefix = ".L_final_"
+             real_id = lbl_id_j - 1000000
+          tutup_jika
+
+          var end_label_j = str_concat(prefix, format_int(real_id))
           var lbl_asm = str_concat(end_label_j, ":")
           panggil emit(lbl_asm)
 
-          ; Pop (simulate)
-          ; We need a real stack or mutable index.
-          ; Hack: Vector lib doesn't support pop. We might run into issues with nested ifs if we don't pop.
-          ; Let's assume user code is correct and we just use the last one?
-          ; Wait, if we don't pop, the next 'tutup_jika' will get the SAME label.
-          ; We MUST pop.
-          ; Workaround: vec.length is struct field?
-          ; tipe stack_j Vector
-          ; stack_j.length = stack_j.length - 1
-          ; Yes, simple access!
+          ; Pop
           tipe stack_j Vector
           stack_j.length = stack_j.length - 1
        tutup_jika
@@ -407,7 +464,82 @@ fungsi mulai(arg_unused1, arg_unused2)
              asm_mov = str_concat(asm_mov, "]")
           tutup_jika
 
+          ; --- Arithmetic Support (var x = a + b) ---
+          ; Check if there is an operator after the first value?
+          ; parts_eq = [name, val_raw]
+          ; val_raw might be "a + b"
+
+          ; Try split space
+          var arith_parts = str_split_once(val_str, 32) ; space
+          var part1 = vec_get(arith_parts, 0)
+          var rest_arith = vec_get(arith_parts, 1)
+
+          var has_op = 0
+          var op_char = 0
+          var part2 = ""
+
+          jika (rest_arith != 0) ; pointer check, not content
+             var len_rest = str_len(rest_arith)
+             jika (len_rest > 0)
+                var arith_p2 = str_split_once(rest_arith, 32)
+                var op_str = vec_get(arith_p2, 0)
+                part2 = vec_get(arith_p2, 1)
+                op_char = str_get(op_str, 0)
+                has_op = 1
+
+                ; Override previous simple mov because part1 is the real first operand
+                ; Re-evaluate part1 (lhs)
+                var p1_fc = str_get(part1, 0)
+                var p1_is_digit = 0
+                jika (p1_fc >= 48)
+                   jika (p1_fc <= 57)
+                      p1_is_digit = 1
+                   tutup_jika
+                tutup_jika
+
+                jika (p1_is_digit == 1)
+                   asm_mov = str_concat("    mov rax, ", part1)
+                lain
+                   var label_p1 = str_concat("var_", part1)
+                   asm_mov = str_concat("    mov rax, [", label_p1)
+                   asm_mov = str_concat(asm_mov, "]")
+                tutup_jika
+             tutup_jika
+          tutup_jika
+
           panggil emit(asm_mov)
+
+          jika (has_op == 1)
+             ; Handle RHS (part2)
+             var p2_fc = str_get(part2, 0)
+             var p2_is_digit = 0
+             jika (p2_fc >= 48)
+                jika (p2_fc <= 57)
+                   p2_is_digit = 1
+                tutup_jika
+             tutup_jika
+
+             var operand_asm = ""
+             jika (p2_is_digit == 1)
+                operand_asm = part2
+             lain
+                operand_asm = str_concat("[var_", part2)
+                operand_asm = str_concat(operand_asm, "]")
+             tutup_jika
+
+             ; Emit Op
+             var instr = ""
+             jika (op_char == 43) ; +
+                instr = "    add rax, "
+             lain_jika (op_char == 45) ; -
+                instr = "    sub rax, "
+             lain_jika (op_char == 42) ; *
+                instr = "    imul rax, "
+             tutup_jika
+
+             var op_asm = str_concat(instr, operand_asm)
+             panggil emit(op_asm)
+          tutup_jika
 
           var var_label = str_concat("var_", name)
           var asm_store = str_concat("    mov [", var_label)
