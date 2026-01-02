@@ -1,0 +1,490 @@
+; Tagger & JSON Parser Unified for Compiler Self-Host
+; 350-369 reserved for internal compiler utils
+
+Daftar "lib/math.fox"         = 100-101
+Daftar "lib/buffer.fox"       = 310-316
+Daftar "lib/file_io.fox"      = 318-319
+Daftar "lib/format.fox"       = 320-324
+Daftar "lib/hashmap.fox"      = 330-333
+Daftar "lib/vector.fox"       = 340-344
+Daftar "lib/string_utils.fox" = 380-388
+
+; --- JSON PARSER LOGIC (Restricted/Internal) ---
+
+### 350
+struktur JsonValue
+  type int
+  string_val int
+  number_val int
+  bool_val int
+  obj_val int
+  arr_val int
+tutup_struktur
+
+struktur JsonParser
+  input int
+  pos int
+  len int
+  current_char int
+tutup_struktur
+
+; Forward declarations via ID (implemented below)
+; 360: json_skip_whitespace
+; 361: json_parse_value
+; 362: json_parse_object
+; 363: json_parse_array
+; 364: json_parse_string
+; 365: json_parse_number
+; 366: json_parse_keyword
+
+fungsi json_parse(input)
+  var len = 0
+  asm_mulai
+  mov rsi, [var_input]
+  call sys_strlen
+  mov [var_len], rax
+  tutup_asm
+
+  var parser = JsonParser(input, 0, len, 0)
+
+  tipe parser JsonParser
+  var input_ptr = parser.input
+
+  var ch = 0
+  asm_mulai
+  mov rsi, [var_input_ptr]
+  xor rax, rax
+  mov al, byte [rsi]
+  mov [var_ch], rax
+  tutup_asm
+
+  parser.current_char = ch
+
+  var res = json_parse_value(parser)
+
+  asm_mulai
+  mov rax, [var_res]
+  tutup_asm
+tutup_fungsi
+
+### 351
+fungsi json_stringify(val)
+  tipe val JsonValue
+  var type = val.type
+  var res = ""
+
+  ; 1=String
+  jika (type == 1)
+     var s_val = val.string_val
+     var buf = format_buffer_buat(100)
+     panggil format_append(buf, "\"")
+     panggil format_append(buf, s_val)
+     panggil format_append(buf, "\"")
+     res = buf.data_ptr
+  tutup_jika
+
+  ; 2=Number
+  jika (type == 2)
+     var n_val = val.number_val
+     res = format_int(n_val)
+  tutup_jika
+
+  ; 3=Object
+  jika (type == 3)
+     res = "{object}"
+  tutup_jika
+
+  ; 4=Array
+  jika (type == 4)
+     res = "[array]"
+  tutup_jika
+
+  ; 5=Bool
+  jika (type == 5)
+     var b_val = val.bool_val
+     res = format_bool(b_val)
+  tutup_jika
+
+  ; 6=Null
+  jika (type == 6)
+     res = "null"
+  tutup_jika
+
+  asm_mulai
+  mov rax, [var_res]
+  tutup_asm
+tutup_fungsi
+
+### 352
+fungsi json_get(val, key)
+  tipe val JsonValue
+  var type = val.type
+  var res = 0
+
+  jika (type == 3)
+     var map = val.obj_val
+     res = map_get(map, key)
+  tutup_jika
+
+  asm_mulai
+  mov rax, [var_res]
+  tutup_asm
+tutup_fungsi
+
+### 353
+fungsi json_arr_get(val, idx)
+  tipe val JsonValue
+  var type = val.type
+  var res = 0
+
+  jika (type == 4)
+     var vec = val.arr_val
+     res = vec_get(vec, idx)
+  tutup_jika
+
+  asm_mulai
+  mov rax, [var_res]
+  tutup_asm
+tutup_fungsi
+
+
+; --- INTERNAL PARSERS ---
+
+### 360
+fungsi json_skip_whitespace(parser)
+  tipe parser JsonParser
+  var ch = parser.current_char
+
+  ; 32=space
+  selama (ch == 32)
+     panggil json_advance(parser)
+     ch = parser.current_char
+  tutup_selama
+
+  ; Skip control chars
+  selama (ch < 33)
+      jika (ch == 0)
+         var break = 1
+      lain
+         panggil json_advance(parser)
+         ch = parser.current_char
+      tutup_jika
+
+      jika (ch == 0)
+          var break_loop = 1
+      tutup_jika
+
+      jika (ch != 0)
+         ; continue
+      lain
+         ch = 999
+      tutup_jika
+  tutup_selama
+
+  jika (ch == 999)
+      parser.current_char = 0
+  tutup_jika
+tutup_fungsi
+
+fungsi json_advance(parser)
+   tipe parser JsonParser
+   var pos = parser.pos
+   pos = pos + 1
+   parser.pos = pos
+
+   var len = parser.len
+   jika (pos < len)
+       var input = parser.input
+       var ch = 0
+       asm_mulai
+       mov rbx, [var_input]
+       mov rcx, [var_pos]
+       movzx rax, byte [rbx + rcx]
+       mov [var_ch], rax
+       tutup_asm
+       parser.current_char = ch
+   lain
+       parser.current_char = 0
+   tutup_jika
+tutup_fungsi
+
+### 361
+fungsi json_parse_value(parser)
+  panggil json_skip_whitespace(parser)
+
+  tipe parser JsonParser
+  var ch = parser.current_char
+
+  ; DEBUG
+  ; panggil format_print("JSON Ch:")
+  ; panggil format_print(format_int(ch))
+
+  var res = 0
+
+  ; String "
+  jika (ch == 34)
+     res = json_parse_string(parser)
+  tutup_jika
+
+  ; Object {
+  jika (ch == 123)
+     res = json_parse_object(parser)
+
+  ; Array [
+  lain_jika (ch == 91)
+     res = json_parse_array(parser)
+
+  ; Number -
+  lain_jika (ch == 45)
+     res = json_parse_number(parser)
+
+  ; Number Digit
+  lain_jika (ch >= 48)
+     jika (ch <= 57)
+         res = json_parse_number(parser)
+     tutup_jika
+
+  ; Keywords (t, f, n)
+  lain_jika (ch == 116)
+     res = json_parse_keyword(parser)
+  lain_jika (ch == 102)
+     res = json_parse_keyword(parser)
+  lain_jika (ch == 110)
+     res = json_parse_keyword(parser)
+  tutup_jika
+
+  asm_mulai
+  mov rax, [var_res]
+  tutup_asm
+tutup_fungsi
+
+### 362
+fungsi json_parse_object(parser)
+  tipe parser JsonParser
+  panggil json_advance(parser)
+  panggil json_skip_whitespace(parser)
+
+  var map = map_create(16)
+  var val = JsonValue(3, 0, 0, 0, map, 0)
+
+  var ch = parser.current_char
+  jika (ch == 125)
+      panggil json_advance(parser)
+      asm_mulai
+      mov rax, [var_val]
+      tutup_asm
+  tutup_jika
+
+  var loop = 1
+  selama (loop == 1)
+     panggil json_skip_whitespace(parser)
+
+     var key_val = json_parse_string(parser)
+     tipe key_val JsonValue
+     var key = key_val.string_val
+
+     panggil json_skip_whitespace(parser)
+     panggil json_advance(parser)
+
+     var inner_val = json_parse_value(parser)
+
+     panggil map_put(map, key, inner_val)
+
+     panggil json_skip_whitespace(parser)
+     ch = parser.current_char
+
+     jika (ch == 125)
+        loop = 0
+        panggil json_advance(parser)
+     lain
+        panggil json_advance(parser)
+     tutup_jika
+  tutup_selama
+
+  asm_mulai
+  mov rax, [var_val]
+  tutup_asm
+tutup_fungsi
+
+### 363
+fungsi json_parse_array(parser)
+  tipe parser JsonParser
+  panggil json_advance(parser)
+  panggil json_skip_whitespace(parser)
+
+  var vec = vec_create(4)
+  var val = JsonValue(4, 0, 0, 0, 0, vec)
+
+  var ch = parser.current_char
+  jika (ch == 93)
+      panggil json_advance(parser)
+      asm_mulai
+      mov rax, [var_val]
+      tutup_asm
+  tutup_jika
+
+  var loop = 1
+  selama (loop == 1)
+     var inner_val = json_parse_value(parser)
+     panggil vec_push(vec, inner_val)
+
+     panggil json_skip_whitespace(parser)
+     ch = parser.current_char
+
+     jika (ch == 93)
+         loop = 0
+         panggil json_advance(parser)
+     lain
+         panggil json_advance(parser)
+     tutup_jika
+  tutup_selama
+
+  asm_mulai
+  mov rax, [var_val]
+  tutup_asm
+tutup_fungsi
+
+### 364
+fungsi json_parse_string(parser)
+  tipe parser JsonParser
+  panggil json_advance(parser)
+
+  var start_pos = parser.pos
+  var input = parser.input
+  var ch = parser.current_char
+
+  selama (ch != 34)
+     panggil json_advance(parser)
+     ch = parser.current_char
+  tutup_selama
+
+  var end_pos = parser.pos
+  var len = end_pos - start_pos
+
+  var str_ptr = 0
+  var alloc_size = len + 1
+  asm_mulai
+  mov rax, [var_alloc_size]
+  call sys_alloc
+  mov [var_str_ptr], rax
+  tutup_asm
+
+  asm_mulai
+  mov rdi, [var_str_ptr]
+  mov rsi, [var_input]
+  mov rcx, [var_start_pos]
+  add rsi, rcx
+  mov rcx, [var_len]
+  call sys_memcpy
+  mov rdi, [var_str_ptr]
+  add rdi, [var_len]
+  mov byte [rdi], 0
+  tutup_asm
+
+  panggil json_advance(parser)
+
+  var val = JsonValue(1, str_ptr, 0, 0, 0, 0)
+  asm_mulai
+  mov rax, [var_val]
+  tutup_asm
+tutup_fungsi
+
+### 365
+fungsi json_parse_number(parser)
+  tipe parser JsonParser
+  var start_pos = parser.pos
+  var ch = parser.current_char
+
+  ; Handle Negative
+  var is_neg = 0
+  jika (ch == 45)
+     is_neg = 1
+     panggil json_advance(parser)
+     ch = parser.current_char
+  tutup_jika
+
+  selama (ch >= 48)
+      jika (ch <= 57)
+         panggil json_advance(parser)
+         ch = parser.current_char
+      lain
+         ch = 0
+      tutup_jika
+
+      jika (ch == 0)
+          ch = 40
+      tutup_jika
+  tutup_selama
+
+  var curr = start_pos
+  var num = 0
+  var input = parser.input
+
+  var p_pos = parser.pos
+  var count = p_pos - start_pos
+
+  var i = 0
+  selama (i < count)
+     var digit_char = 0
+     asm_mulai
+     mov rsi, [var_input]
+     mov rcx, [var_start_pos]
+     add rcx, [var_i]
+     movzx rax, byte [rsi + rcx]
+     mov [var_digit_char], rax
+     tutup_asm
+
+     var d = digit_char - 48
+     var num10 = num * 10
+     num = num10 + d
+
+     i = i + 1
+  tutup_selama
+
+  jika (is_neg == 1)
+     var neg_num = 0 - num
+     num = neg_num
+  tutup_jika
+
+  var val = JsonValue(2, 0, num, 0, 0, 0)
+  asm_mulai
+  mov rax, [var_val]
+  tutup_asm
+tutup_fungsi
+
+### 366
+fungsi json_parse_keyword(parser)
+  tipe parser JsonParser
+  var ch = parser.current_char
+
+  var type = 6
+  var bool_v = 0
+
+  jika (ch == 116)
+      panggil json_advance(parser)
+      panggil json_advance(parser)
+      panggil json_advance(parser)
+      panggil json_advance(parser)
+      type = 5
+      bool_v = 1
+  lain_jika (ch == 102)
+      panggil json_advance(parser)
+      panggil json_advance(parser)
+      panggil json_advance(parser)
+      panggil json_advance(parser)
+      panggil json_advance(parser)
+      type = 5
+      bool_v = 0
+  lain
+      panggil json_advance(parser)
+      panggil json_advance(parser)
+      panggil json_advance(parser)
+      panggil json_advance(parser)
+      type = 6
+  tutup_jika
+
+  var val = JsonValue(type, 0, 0, bool_v, 0, 0)
+  asm_mulai
+  mov rax, [var_val]
+  tutup_asm
+tutup_fungsi
