@@ -21,6 +21,8 @@ LINE_NO=0
 # Block Stack for Validation
 declare -a BLOCK_STACK
 declare -a FOR_STEP_STACK # Stack to hold step expressions for 'untuk' loops
+declare -a SWITCH_VAL_STACK   # Stack to hold the variable name being switched on
+declare -a SWITCH_FIRST_STACK # Stack to track if we are at the first case (1=yes, 0=no)
 
 push_block() {
     BLOCK_STACK+=("$1")
@@ -747,6 +749,90 @@ parse_file() {
 
                 emit_for_end
                 pop_block "untuk"
+                ;;
+
+            # --- Switch / Case (Pilih / Kasus) ---
+            # NOTE: pilihan_lain must be checked BEFORE pilih because 'pilih' matches 'pilihan...' prefix
+            pilihan_lain*)
+                if [[ "$line" =~ ^pilihan_lain:$ ]]; then
+                    emit_else
+                fi
+                ;;
+
+            pilih*)
+                if [[ "$line" =~ ^pilih[[:space:]]*\((.*)\)$ ]]; then
+                    local expr="${BASH_REMATCH[1]}"
+                    local temp_var="_sw_tmp_${LINE_NO}_$RANDOM"
+
+                    # Evaluate expr and store in temp variable
+
+                    emit_variable_decl "$temp_var"
+
+                    # Resolve struct access if needed
+                    resolve_struct_access "$expr" expr
+
+                    if [[ "$expr" =~ ^\"(.*)\"$ ]]; then
+                       local content="${BASH_REMATCH[1]}"
+                       emit_string_literal_assign "$temp_var" "$content"
+                    elif [[ ! "$expr" =~ ^-?[0-9]+$ ]]; then
+                       # It's a variable or complex expr?
+                       # If it's a variable:
+                       load_operand_to_rax "$expr"
+                       emit_variable_assign "$temp_var" ""
+                    else
+                       # Literal int
+                       emit_variable_assign "$temp_var" "$expr"
+                    fi
+
+                    push_block "pilih"
+                    SWITCH_VAL_STACK+=("$temp_var")
+                    SWITCH_FIRST_STACK+=("1")
+                fi
+                ;;
+
+            kasus*)
+                if [[ "$line" =~ ^kasus[[:space:]]+(.*):$ ]]; then
+                    local val="${BASH_REMATCH[1]}"
+                    val=$(echo "$val" | xargs) # Trim
+
+                    # Get switch var
+                    local len=${#SWITCH_VAL_STACK[@]}
+                    if [ $len -eq 0 ]; then
+                        echo "Error on line $LINE_NO: 'kasus' outside of 'pilih'." >&2
+                        exit 1
+                    fi
+                    local sw_var="${SWITCH_VAL_STACK[$len-1]}"
+                    local is_first="${SWITCH_FIRST_STACK[$len-1]}"
+
+                    # Resolve struct access for value
+                    resolve_struct_access "$val" val
+
+                    if [ "$is_first" -eq 1 ]; then
+                        # First case -> emit_if_start
+                        emit_if_start "$sw_var" "==" "$val"
+                        SWITCH_FIRST_STACK[$len-1]="0" # Mark as not first anymore
+                    else
+                        # Subsequent case -> emit_else_if
+                        emit_else_if "$sw_var" "==" "$val"
+                    fi
+                fi
+                ;;
+
+            "tutup_pilih")
+                # Close the implicit if-chain
+                # But wait, if NO cases were defined, emit_if_end will fail/crash codegen (empty stack)?
+                # We need to check if we ever opened an IF.
+                # If SWITCH_FIRST_STACK is still 1, it means no cases.
+                local len=${#SWITCH_FIRST_STACK[@]}
+                local is_first="${SWITCH_FIRST_STACK[$len-1]}"
+
+                if [ "$is_first" -eq 0 ]; then
+                    emit_if_end
+                fi
+
+                unset 'SWITCH_VAL_STACK[$len-1]'
+                unset 'SWITCH_FIRST_STACK[$len-1]'
+                pop_block "pilih"
                 ;;
 
             "berhenti")
