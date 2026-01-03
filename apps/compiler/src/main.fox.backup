@@ -18,9 +18,6 @@ var global_vars = 0
 var label_stack = 0
 var label_counter = 0
 
-; String Literal Counter (for cetak)
-var str_counter = 0
-
 fungsi emit(line)
   ; Append line to output_lines vector
   var vec = output_lines
@@ -145,91 +142,6 @@ fungsi mulai(arg_unused1, arg_unused2)
 
           var func_prologue = "    mov rbp, rsp"
           panggil emit(func_prologue)
-
-          ; --- Parse and Handle Parameters ---
-          var f_args_raw = vec_get(f_parts, 1) ; everything after '('
-          jika (f_args_raw != 0)
-             ; Remove trailing ')'
-             var f_args_len = str_len(f_args_raw)
-             jika (f_args_len > 0)
-                var last_idx_f = f_args_len - 1
-                var last_ch_f = str_get(f_args_raw, last_idx_f)
-                jika (last_ch_f == 41) ; ')'
-                   var params_str = str_slice(f_args_raw, 0, last_idx_f)
-                   var params_trim = str_trim(params_str)
-
-                   ; Split parameters by comma
-                   var param_list = vec_create(6)
-                   var current_param = ""
-                   var idx_p = 0
-                   var params_len = str_len(params_trim)
-
-                   selama (idx_p < params_len)
-                      var ch_p = str_get(params_trim, idx_p)
-
-                      jika (ch_p == 44) ; comma
-                         var trim_param = str_trim(current_param)
-                         panggil vec_push(param_list, trim_param)
-                         current_param = ""
-                      lain
-                         var ch_str_p = str_slice(params_trim, idx_p, idx_p + 1)
-                         current_param = str_concat(current_param, ch_str_p)
-                      tutup_jika
-
-                      idx_p = idx_p + 1
-                   tutup_selama
-
-                   ; Add last parameter
-                   jika (params_len > 0)
-                      var last_param = str_trim(current_param)
-                      panggil vec_push(param_list, last_param)
-                   tutup_jika
-
-                   ; Emit parameter save instructions
-                   ; x86_64: rdi, rsi, rdx, rcx, r8, r9
-                   var param_count = vec_len(param_list)
-                   var param_idx = 0
-
-                   selama (param_idx < param_count)
-                      var param_name = vec_get(param_list, param_idx)
-                      var param_trim = str_trim(param_name)
-
-                      ; Determine source register
-                      var src_reg = ""
-                      jika (param_idx == 0)
-                         src_reg = "rdi"
-                      lain_jika (param_idx == 1)
-                         src_reg = "rsi"
-                      lain_jika (param_idx == 2)
-                         src_reg = "rdx"
-                      lain_jika (param_idx == 3)
-                         src_reg = "rcx"
-                      lain_jika (param_idx == 4)
-                         src_reg = "r8"
-                      lain_jika (param_idx == 5)
-                         src_reg = "r9"
-                      tutup_jika
-
-                      ; Emit: push REGISTER (save to stack)
-                      var push_asm = str_concat("    push qword [var_", param_trim)
-                      push_asm = str_concat(push_asm, "]")
-                      panggil emit(push_asm)
-
-                      ; Emit: mov [var_param], REGISTER
-                      var mov_param = str_concat("    mov [var_", param_trim)
-                      mov_param = str_concat(mov_param, "], ")
-                      mov_param = str_concat(mov_param, src_reg)
-                      panggil emit(mov_param)
-
-                      ; Register parameter for BSS generation
-                      var vars_v = global_vars
-                      panggil vec_push(vars_v, param_trim)
-
-                      param_idx = param_idx + 1
-                   tutup_selama
-                tutup_jika
-             tutup_jika
-          tutup_jika
        tutup_jika
 
        var is_end_func = str_starts_with(line, "tutup_fungsi")
@@ -639,131 +551,11 @@ fungsi mulai(arg_unused1, arg_unused2)
           panggil vec_push(vars_vec, name)
        tutup_jika
 
-       ; --- cetak_str(var) - Print String Pointer ---
-       var is_cetak_str = str_starts_with(line, "cetak_str")
-       jika (is_cetak_str == 1)
-          ; Parse: cetak_str(variable)
-          ; Format: cetak_str(var_name)
-          var after_cetak_str = str_substring_after(line, 9) ; skip "cetak_str"
-          var parts_str = str_split_once(after_cetak_str, 40) ; split at '('
-          var args_part = vec_get(parts_str, 1)
-
-          jika (args_part != 0)
-             ; Remove trailing ')'
-             var args_len_s = str_len(args_part)
-             jika (args_len_s > 0)
-                var last_idx = args_len_s - 1
-                var last_ch = str_get(args_part, last_idx)
-                jika (last_ch == 41) ; ')'
-                   var var_name = str_slice(args_part, 0, last_idx)
-                   var var_clean = str_trim(var_name)
-
-                   ; Emit: mov rsi, [var_X]
-                   var asm1 = str_concat("    mov rsi, [var_", var_clean)
-                   asm1 = str_concat(asm1, "]")
-                   panggil emit(asm1)
-
-                   ; Emit: call print_string_ptr
-                   panggil emit("    call print_string_ptr")
-                tutup_jika
-             tutup_jika
-          tutup_jika
-       tutup_jika
-
-       ; --- cetak(...) - Print Integer or String Literal ---
-       jika (is_cetak_str == 0)
-          var is_cetak = str_starts_with(line, "cetak")
-          jika (is_cetak == 1)
-             ; Parse: cetak(content)
-             ; Format: cetak("string") or cetak(var) or cetak(123)
-             var after_cetak = str_substring_after(line, 5) ; skip "cetak"
-             var parts_c = str_split_once(after_cetak, 40) ; split at '('
-             var args_c = vec_get(parts_c, 1)
-
-             jika (args_c != 0)
-                ; Remove trailing ')'
-                var args_len_c = str_len(args_c)
-                jika (args_len_c > 0)
-                   var last_idx_c = args_len_c - 1
-                   var last_ch_c = str_get(args_c, last_idx_c)
-                   jika (last_ch_c == 41) ; ')'
-                      var content_c = str_slice(args_c, 0, last_idx_c)
-                      var content_t = str_trim(content_c)
-
-                      ; Check if string literal (starts with ")
-                      var first_char = str_get(content_t, 0)
-
-                      jika (first_char == 34) ; '"'
-                         ; String Literal: cetak("Hello")
-                         ; Remove quotes
-                         var ct_len = str_len(content_t)
-                         var str_val = str_slice(content_t, 1, ct_len - 1)
-
-                         ; Generate unique label
-                         str_counter = str_counter + 1
-                         var msg_label = str_concat("msg_", format_int(str_counter))
-                         var len_label = str_concat("len_", msg_label)
-
-                         ; Emit .data section
-                         panggil emit("section .data")
-                         var data_line = str_concat("    ", msg_label)
-                         data_line = str_concat(data_line, " db `")
-                         data_line = str_concat(data_line, str_val)
-                         data_line = str_concat(data_line, "`, 0")
-                         panggil emit(data_line)
-
-                         var len_line = str_concat("    ", len_label)
-                         len_line = str_concat(len_line, " equ $ - ")
-                         len_line = str_concat(len_line, msg_label)
-                         panggil emit(len_line)
-
-                         ; Back to .text
-                         panggil emit("section .text")
-
-                         ; Emit: mov rsi, msg_X
-                         var asm_rsi = str_concat("    mov rsi, ", msg_label)
-                         panggil emit(asm_rsi)
-
-                         ; Emit: mov rdx, len_msg_X
-                         var asm_rdx = str_concat("    mov rdx, ", len_label)
-                         panggil emit(asm_rdx)
-
-                         ; Emit: call print_string
-                         panggil emit("    call print_string")
-                         panggil emit("    call print_newline")
-
-                      lain
-                         ; Integer literal or variable
-                         var is_num = 0
-                         jika (first_char >= 48)
-                            jika (first_char <= 57)
-                               is_num = 1
-                            tutup_jika
-                         tutup_jika
-
-                         jika (first_char == 45) ; '-'
-                            is_num = 1
-                         tutup_jika
-
-                         jika (is_num == 1)
-                            ; Integer literal: cetak(123)
-                            var asm_mov = str_concat("    mov rax, ", content_t)
-                            panggil emit(asm_mov)
-                         lain
-                            ; Variable: cetak(x)
-                            var asm_load = str_concat("    mov rax, [var_", content_t)
-                            asm_load = str_concat(asm_load, "]")
-                            panggil emit(asm_load)
-                         tutup_jika
-
-                         ; Emit: call print_int
-                         panggil emit("    call print_int")
-                         panggil emit("    call print_newline")
-                      tutup_jika
-                   tutup_jika
-                tutup_jika
-             tutup_jika
-          tutup_jika
+       var is_cetak = str_starts_with(line, "cetak")
+       jika (is_cetak == 1)
+          ; Dummy implementation for cetak (hardcoded for now)
+          var asm_cmt = "    ; cetak() placeholder"
+          panggil emit(asm_cmt)
        tutup_jika
 
        var is_asm = str_starts_with(line, "asm_mulai")
@@ -776,7 +568,7 @@ fungsi mulai(arg_unused1, arg_unused2)
           ; Just skip line
        tutup_jika
 
-       ; --- Function Call (panggil) - Multi-arg Support ---
+       ; --- Function Call (panggil) ---
        var is_panggil = str_starts_with(line, "panggil ")
        jika (is_panggil == 1)
           var content_after_panggil = str_substring_after(line, 8) ; "panggil " is 8
@@ -785,7 +577,8 @@ fungsi mulai(arg_unused1, arg_unused2)
           var func_name = vec_get(call_parts, 0)
           var func_name_clean = str_trim(func_name)
 
-          var args_raw = vec_get(call_parts, 1) ; "args)"
+          ; Basic args parsing (single arg literal support only for now)
+          var args_raw = vec_get(call_parts, 1) ; "arg)"
           var args_clean = str_trim(args_raw)
 
           ; Remove trailing ')'
@@ -795,92 +588,43 @@ fungsi mulai(arg_unused1, arg_unused2)
              var last_char = str_get(args_clean, last_char_idx)
              jika (last_char == 41) ; ')'
                  var args_content = str_slice(args_clean, 0, last_char_idx)
-                 var args_trimmed = str_trim(args_content)
+                 var arg1 = str_trim(args_content)
 
-                 ; Split arguments by comma
-                 ; Manual comma splitting using loop
-                 var arg_list = vec_create(6)
-                 var current_arg = ""
-                 var idx_char = 0
-                 var args_total_len = str_len(args_trimmed)
+                 ; Move arg to register (convention depends on func, usually rdi, rsi..)
+                 ; Assuming single arg -> RDI
 
-                 selama (idx_char < args_total_len)
-                    var ch = str_get(args_trimmed, idx_char)
+                 ; Check if arg is string literal
+                 var first_c = str_get(arg1, 0)
+                 jika (first_c == 34) ; quote
+                     ; String literal handling is complex without data section management
+                     ; Skipping or basic dummy for now
+                 lain
+                     ; Integer literal or variable
+                     ; Check if number or var
+                     var arg_fc = str_get(arg1, 0)
+                     var is_arg_digit = 0
+                     jika (arg_fc >= 48)
+                        jika (arg_fc <= 57)
+                           is_arg_digit = 1
+                        tutup_jika
+                     tutup_jika
 
-                    jika (ch == 44) ; comma ','
-                       var trimmed_arg = str_trim(current_arg)
-                       panggil vec_push(arg_list, trimmed_arg)
-                       current_arg = ""
-                    lain
-                       ; Append character to current_arg (simulate string append)
-                       ; Since no str_append, use str_concat
-                       var ch_str = str_slice(args_trimmed, idx_char, idx_char + 1)
-                       current_arg = str_concat(current_arg, ch_str)
-                    tutup_jika
+                     jika (arg_fc == 45) ; '-'
+                        is_arg_digit = 1
+                     tutup_jika
 
-                    idx_char = idx_char + 1
-                 tutup_selama
+                     var asm_arg = ""
+                     jika (is_arg_digit == 1)
+                        asm_arg = str_concat("    mov rdi, ", arg1)
+                     lain
+                        ; Variable
+                        var arg_label = str_concat("var_", arg1)
+                        asm_arg = str_concat("    mov rdi, [", arg_label)
+                        asm_arg = str_concat(asm_arg, "]")
+                     tutup_jika
 
-                 ; Add last argument
-                 jika (args_total_len > 0)
-                    var last_arg = str_trim(current_arg)
-                    panggil vec_push(arg_list, last_arg)
+                     panggil emit(asm_arg)
                  tutup_jika
-
-                 ; Emit argument loading (x86_64 calling convention)
-                 ; rdi, rsi, rdx, rcx, r8, r9
-                 var arg_count = vec_len(arg_list)
-                 var arg_idx = 0
-
-                 selama (arg_idx < arg_count)
-                    var arg_val = vec_get(arg_list, arg_idx)
-                    var arg_val_t = str_trim(arg_val)
-
-                    ; Determine register for this argument
-                    var reg_name = ""
-                    jika (arg_idx == 0)
-                       reg_name = "rdi"
-                    lain_jika (arg_idx == 1)
-                       reg_name = "rsi"
-                    lain_jika (arg_idx == 2)
-                       reg_name = "rdx"
-                    lain_jika (arg_idx == 3)
-                       reg_name = "rcx"
-                    lain_jika (arg_idx == 4)
-                       reg_name = "r8"
-                    lain_jika (arg_idx == 5)
-                       reg_name = "r9"
-                    tutup_jika
-
-                    ; Check if argument is literal number or variable
-                    var first_ch_arg = str_get(arg_val_t, 0)
-                    var is_literal = 0
-
-                    jika (first_ch_arg >= 48)
-                       jika (first_ch_arg <= 57)
-                          is_literal = 1
-                       tutup_jika
-                    tutup_jika
-
-                    jika (first_ch_arg == 45) ; negative sign
-                       is_literal = 1
-                    tutup_jika
-
-                    ; Generate mov instruction
-                    var mov_asm = str_concat("    mov ", reg_name)
-                    jika (is_literal == 1)
-                       mov_asm = str_concat(mov_asm, ", ")
-                       mov_asm = str_concat(mov_asm, arg_val_t)
-                    lain
-                       mov_asm = str_concat(mov_asm, ", [var_")
-                       mov_asm = str_concat(mov_asm, arg_val_t)
-                       mov_asm = str_concat(mov_asm, "]")
-                    tutup_jika
-
-                    panggil emit(mov_asm)
-
-                    arg_idx = arg_idx + 1
-                 tutup_selama
              tutup_jika
           tutup_jika
 
