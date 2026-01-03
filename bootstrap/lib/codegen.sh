@@ -1334,6 +1334,9 @@ emit_arithmetic_op() {
              echo "    idiv rbx"
              echo "    mov rax, rdx" # Remainder is in RDX
              ;;
+        "&") echo "    and rax, rbx" ;;
+        "|") echo "    or rax, rbx"  ;;
+        "^") echo "    xor rax, rbx" ;;
     esac
 
     if [[ -n "$store_to" ]]; then
@@ -1553,6 +1556,7 @@ emit_loop_end() {
     unset 'LOOP_STACK_START[${#LOOP_STACK_START[@]}-1]'
     unset 'LOOP_STACK_STEP[${#LOOP_STACK_STEP[@]}-1]'
     unset 'LOOP_STACK_END[${#LOOP_STACK_END[@]}-1]'
+
     echo "    jmp $lbl_start"
     echo "$lbl_end:"
 }
@@ -1800,6 +1804,21 @@ emit_load_array_elem() {
 
     # address = rbx + (rcx * 8)
     echo "    mov rax, [rbx + rcx * 8]"
+}
+
+emit_logical_not() {
+    local op="$1"
+    local store_to="$2"
+
+    load_operand_to_rax "$op"
+
+    echo "    cmp rax, 0"
+    echo "    sete al"
+    echo "    movzx rax, al"
+
+    if [[ -n "$store_to" ]]; then
+        echo "    mov [var_$store_to], rax"
+    fi
 }
 
 emit_store_array_elem() {

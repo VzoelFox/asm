@@ -23,6 +23,7 @@ declare -a BLOCK_STACK
 declare -a FOR_STEP_STACK # Stack to hold step expressions for 'untuk' loops
 declare -a SWITCH_VAL_STACK   # Stack to hold the variable name being switched on
 declare -a SWITCH_FIRST_STACK # Stack to track if we are at the first case (1=yes, 0=no)
+declare -a FUNC_ARGS_STACK    # Stack to hold function arguments for recursion save/restore
 
 push_block() {
     BLOCK_STACK+=("$1")
@@ -342,12 +343,18 @@ parse_file() {
                     emit_function_start "$name"
                     push_block "fungsi"
 
+                    # Store args for restore later
+                    FUNC_ARGS_STACK+=("$args")
+
                     if [[ -n "$args" ]]; then
                         IFS=',' read -ra ARG_LIST <<< "$args"
                         local arg_count=0
                         for arg in "${ARG_LIST[@]}"; do
                             arg=$(echo "$arg" | xargs)
                             emit_variable_decl "$arg"
+
+                            # RECURSION FIX: Save old value of the global var argument to stack
+                            echo "    push qword [var_$arg]"
 
                             case "$arg_count" in
                                 0) echo "    mov [var_$arg], rdi" ;;
@@ -365,8 +372,53 @@ parse_file() {
                 ;;
 
             "tutup_fungsi")
+                # RECURSION FIX: Restore old values of arguments from stack (Reverse Order)
+                local len=${#FUNC_ARGS_STACK[@]}
+                if [ $len -gt 0 ]; then
+                    local args="${FUNC_ARGS_STACK[$len-1]}"
+                    if [[ -n "$args" ]]; then
+                        IFS=',' read -ra ARG_LIST <<< "$args"
+                        # Loop in reverse
+                        for (( i=${#ARG_LIST[@]}-1; i>=0; i-- )); do
+                            local arg=$(echo "${ARG_LIST[$i]}" | xargs)
+                            echo "    pop qword [var_$arg]"
+                        done
+                    fi
+                    unset 'FUNC_ARGS_STACK[$len-1]'
+                fi
+
                 emit_function_end "$CURRENT_FUNC_NAME"
                 pop_block "fungsi"
+                ;;
+
+            return*)
+                if [[ "$line" =~ ^return[[:space:]]+(.*)$ ]]; then
+                    local val="${BASH_REMATCH[1]}"
+
+                    # 1. Load Return Value to RAX
+                    if [[ "$val" =~ ^-?[0-9]+$ ]]; then
+                        echo "    mov rax, $val"
+                    else
+                        echo "    mov rax, [var_$val]"
+                    fi
+
+                    # 2. Restore Arguments (Recursion Fix)
+                    local len=${#FUNC_ARGS_STACK[@]}
+                    if [ $len -gt 0 ]; then
+                        local args="${FUNC_ARGS_STACK[$len-1]}"
+                        if [[ -n "$args" ]]; then
+                            IFS=',' read -ra ARG_LIST <<< "$args"
+                            # Loop in reverse
+                            for (( i=${#ARG_LIST[@]}-1; i>=0; i-- )); do
+                                local arg=$(echo "${ARG_LIST[$i]}" | xargs)
+                                echo "    pop qword [var_$arg]"
+                            done
+                        fi
+                    fi
+
+                    # 3. Return
+                    echo "    ret"
+                fi
                 ;;
 
             "simpan")
@@ -539,11 +591,21 @@ parse_file() {
                              emit_call "$struct_name"
                              emit_variable_assign "$name" ""
                          fi
-                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*/%])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
+                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*/%&|^])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
                          local op1="${BASH_REMATCH[1]}"
                          local op="${BASH_REMATCH[2]}"
                          local op2="${BASH_REMATCH[3]}"
                          emit_arithmetic_op "$op1" "$op" "$op2" "$name"
+                    elif [[ "$expr" =~ ^!([a-zA-Z0-9_]+)$ ]]; then
+                         # Logical NOT
+                         local op="${BASH_REMATCH[1]}"
+                         emit_logical_not "$op" "$name"
+                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)\[([a-zA-Z0-9_]+)\]$ ]]; then
+                         # Array Index Read: var x = arr[i]
+                         local arr_name="${BASH_REMATCH[1]}"
+                         local index="${BASH_REMATCH[2]}"
+                         emit_load_array_elem "$arr_name" "$index"
+                         emit_variable_assign "$name" ""
                     elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)$ ]]; then
                          # Struct Field Access (RHS)
                          local struct_var="${BASH_REMATCH[1]}"
