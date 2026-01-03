@@ -1,0 +1,28 @@
+# Test Morph Architecture Integration
+Ambil "lib/morphroutine.fox" 400
+
+unit process_data
+    shard validate
+        fragment check_input
+            cetak("Validating input...")
+            # Use morphroutine constants
+            var s = STATUS_RUNNING
+            cetak(s)
+        tutup_shard
+    tutup_shard
+
+    shard execute
+        fragment run
+            cetak("Executing...")
+        tutup_shard
+    tutup_shard
+tutup_unit
+
+fungsi mulai()
+    # Create a task using morphroutine
+    var t = init_task(1, 10)
+    cetak(t.status)
+
+    # Run unit
+    panggil process_data()
+tutup_fungsi
