@@ -86,65 +86,7 @@ var s_nl = 0
 var s_print_int = 0
 var s_print_ptr = 0
 
-fungsi init_globals()
-  s_msg_skip = "Skipped already imported: "
-  s_colon = ":"
-  s_push_q = "    push qword [var_"
-  s_close_br = "]"
-  s_mov_mem = "    mov [var_"
-  s_comma_space = "], "
-
-  s_mov_rax_v = "    mov rax, [var_"
-  s_cmp_rax = "    cmp rax, "
-  s_cmp_rax_v = "    cmp rax, [var_"
-
-  s_jne = "    jne "
-  s_jge = "    jge "
-  s_jle = "    jle "
-
-  s_end_lbl = ".L_end_"
-  s_final_lbl = ".L_final_"
-  s_jmp = "    jmp "
-
-  s_loop_start = ".L_loop_start_"
-  s_loop_end = ".L_loop_end_"
-
-  s_mov_rax = "    mov rax, "
-  s_var_pref = "var_"
-
-  s_add = "    add rax, "
-  s_sub = "    sub rax, "
-  s_mul = "    imul rax, "
-  s_op_mem = "[var_"
-
-  s_mov_mem_raw = "    mov ["
-  s_end_mem = "], rax"
-
-  s_mov_rsi_v = "    mov rsi, [var_"
-
-  s_msg = "msg_"
-  s_len = "len_"
-  s_data = "section .data"
-  s_db = " db \""
-  s_db_end = "\", 0"
-  s_equ = " equ $ - "
-  s_text = "section .text"
-
-  s_mov_rsi_lit = "    mov rsi, "
-  s_mov_rdx_lit = "    mov rdx, "
-
-  s_mov_reg = "    mov "
-  s_comma = ", "
-  s_comma_mem = ", [var_"
-  s_call = "    call "
-
-  s_indent = "    "
-
-  s_print = "    call print_string"
-  s_nl = "    call print_newline"
-  s_print_int = "    call print_int"
-  s_print_ptr = "    call print_string_ptr"
-tutup_fungsi
+; init_globals removed, inlined to mulai
 
 fungsi emit(line)
   var vec = output_lines
@@ -171,11 +113,6 @@ fungsi parse_source_lines(lines)
            var after_ambil = str_substring_after(line, 6)
            var path_raw = str_trim(after_ambil)
            var p_len = str_len(path_raw)
-
-           ; Debug info
-           cetak("Path len:")
-           panggil emit("    call print_int")
-           cetak(p_len)
 
            jika (p_len > 2)
                var end_idx = p_len - 1
@@ -779,7 +716,64 @@ tutup_fungsi
 
 ; Main (Same as before)
 fungsi mulai(arg_unused1, arg_unused2)
-  panggil init_globals()
+  ; Inlined Init Globals
+  s_msg_skip = "Skipped already imported: "
+  s_colon = ":"
+  s_push_q = "    push qword [var_"
+  s_close_br = "]"
+  s_mov_mem = "    mov [var_"
+  s_comma_space = "], "
+
+  s_mov_rax_v = "    mov rax, [var_"
+  s_cmp_rax = "    cmp rax, "
+  s_cmp_rax_v = "    cmp rax, [var_"
+
+  s_jne = "    jne "
+  s_jge = "    jge "
+  s_jle = "    jle "
+
+  s_end_lbl = ".L_end_"
+  s_final_lbl = ".L_final_"
+  s_jmp = "    jmp "
+
+  s_loop_start = ".L_loop_start_"
+  s_loop_end = ".L_loop_end_"
+
+  s_mov_rax = "    mov rax, "
+  s_var_pref = "var_"
+
+  s_add = "    add rax, "
+  s_sub = "    sub rax, "
+  s_mul = "    imul rax, "
+  s_op_mem = "[var_"
+
+  s_mov_mem_raw = "    mov ["
+  s_end_mem = "], rax"
+
+  s_mov_rsi_v = "    mov rsi, [var_"
+
+  s_msg = "msg_"
+  s_len = "len_"
+  s_data = "section .data"
+  s_db = " db \""
+  s_db_end = "\", 0"
+  s_equ = " equ $ - "
+  s_text = "section .text"
+
+  s_mov_rsi_lit = "    mov rsi, "
+  s_mov_rdx_lit = "    mov rdx, "
+
+  s_mov_reg = "    mov "
+  s_comma = ", "
+  s_comma_mem = ", [var_"
+  s_call = "    call "
+
+  s_indent = "    "
+
+  s_print = "    call print_string"
+  s_nl = "    call print_newline"
+  s_print_int = "    call print_int"
+  s_print_ptr = "    call print_string_ptr"
 
   var temp_out = vec_create(1000)
   output_lines = temp_out
