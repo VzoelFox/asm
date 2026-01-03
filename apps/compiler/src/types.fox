@@ -1,0 +1,248 @@
+# Type System for Self-Host Compiler
+# Provides compile-time type checking to catch bugs before runtime
+
+# Type Constants
+const TYPE_UNKNOWN = 0
+const TYPE_INT = 1
+const TYPE_FLOAT = 2
+const TYPE_STRING = 3
+const TYPE_STRUCT = 4
+const TYPE_POINTER = 5
+const TYPE_VOID = 6
+
+# Global Type Registry
+# Maps variable names to their types
+var var_type_map = 0
+
+# Maps struct names to field type maps
+var struct_field_types = 0
+
+# Error tracking
+var type_errors = 0
+var type_error_count = 0
+
+fungsi init_type_system()
+   ; Initialize type tracking hashmaps
+   var vtm = map_create(256)
+   var_type_map = vtm
+
+   var sft = map_create(64)
+   struct_field_types = sft
+
+   var errs = vec_create(32)
+   type_errors = errs
+
+   type_error_count = 0
+tutup_fungsi
+
+fungsi register_variable_type(var_name, type_id)
+   ; Register a variable with its type
+   ; type_id: TYPE_INT, TYPE_FLOAT, etc.
+   var vtm = var_type_map
+   panggil map_put(vtm, var_name, type_id)
+tutup_fungsi
+
+fungsi register_struct_variable(var_name, struct_name)
+   ; Register a variable as struct instance
+   ; Store struct name as string for struct type tracking
+   var vtm = var_type_map
+
+   ; We use TYPE_STRUCT as marker, but need struct name separately
+   panggil map_put(vtm, var_name, TYPE_STRUCT)
+
+   ; Store struct name with prefix "struct_"
+   var key = str_concat("struct_", var_name)
+   panggil map_put(vtm, key, struct_name)
+tutup_fungsi
+
+fungsi get_variable_type(var_name)
+   ; Returns type ID for given variable
+   ; Returns TYPE_UNKNOWN if not found
+   var vtm = var_type_map
+   var type_id = map_get(vtm, var_name)
+
+   jika (type_id == 0)
+      asm_mulai
+      mov rax, TYPE_UNKNOWN
+      ret
+      tutup_asm
+   tutup_jika
+
+   asm_mulai
+   mov rax, [var_type_id]
+   ret
+   tutup_asm
+tutup_fungsi
+
+fungsi get_struct_name(var_name)
+   ; For struct variables, return the struct name
+   var vtm = var_type_map
+   var key = str_concat("struct_", var_name)
+   var struct_name = map_get(vtm, key)
+
+   asm_mulai
+   mov rax, [var_struct_name]
+   ret
+   tutup_asm
+tutup_fungsi
+
+fungsi check_arithmetic_types(lhs_var, rhs_var)
+   ; Check if two variables can be used in arithmetic operation
+   ; Returns 1 if valid, 0 if type error
+
+   var lhs_type = get_variable_type(lhs_var)
+   var rhs_type = get_variable_type(rhs_var)
+
+   ; Both must be numeric (INT or FLOAT)
+   jika (lhs_type == TYPE_INT)
+      jika (rhs_type == TYPE_INT)
+         asm_mulai
+         mov rax, 1
+         ret
+         tutup_asm
+      tutup_jika
+      jika (rhs_type == TYPE_FLOAT)
+         asm_mulai
+         mov rax, 1
+         ret
+         tutup_asm
+      tutup_jika
+   tutup_jika
+
+   jika (lhs_type == TYPE_FLOAT)
+      jika (rhs_type == TYPE_INT)
+         asm_mulai
+         mov rax, 1
+         ret
+         tutup_asm
+      tutup_jika
+      jika (rhs_type == TYPE_FLOAT)
+         asm_mulai
+         mov rax, 1
+         ret
+         tutup_asm
+      tutup_jika
+   tutup_jika
+
+   ; Type error detected
+   var err = str_concat("Type Error: Cannot perform arithmetic on ", lhs_var)
+   err = str_concat(err, " and ")
+   err = str_concat(err, rhs_var)
+
+   var errs = type_errors
+   panggil vec_push(errs, err)
+   type_error_count = type_error_count + 1
+
+   asm_mulai
+   mov rax, 0
+   ret
+   tutup_asm
+tutup_fungsi
+
+fungsi check_assignment_types(var_name, value_type)
+   ; Check if value_type can be assigned to var_name
+   ; Returns 1 if valid, 0 if type error
+
+   var var_type = get_variable_type(var_name)
+
+   ; If variable not yet tracked, accept any type (first assignment)
+   jika (var_type == TYPE_UNKNOWN)
+      asm_mulai
+      mov rax, 1
+      ret
+      tutup_asm
+   tutup_jika
+
+   ; Check type compatibility
+   jika (var_type == value_type)
+      asm_mulai
+      mov rax, 1
+      ret
+      tutup_asm
+   tutup_jika
+
+   ; Allow INT -> FLOAT implicit conversion
+   jika (var_type == TYPE_FLOAT)
+      jika (value_type == TYPE_INT)
+         asm_mulai
+         mov rax, 1
+         ret
+         tutup_asm
+      tutup_jika
+   tutup_jika
+
+   ; Type error
+   var err = str_concat("Type Error: Cannot assign to ", var_name)
+   var errs = type_errors
+   panggil vec_push(errs, err)
+   type_error_count = type_error_count + 1
+
+   asm_mulai
+   mov rax, 0
+   ret
+   tutup_asm
+tutup_fungsi
+
+fungsi report_type_errors()
+   ; Print all accumulated type errors to stderr
+   ; This should be called before exiting compilation
+
+   jika (type_error_count > 0)
+      cetak("=== TYPE ERRORS DETECTED ===")
+      cetak(type_error_count)
+
+      var errs = type_errors
+      var count = vec_len(errs)
+      var idx = 0
+
+      selama (idx < count)
+         var err_msg = vec_get(errs, idx)
+         cetak_str(err_msg)
+         idx = idx + 1
+      tutup_selama
+
+      cetak("=== COMPILATION FAILED ===")
+
+      ; Exit with error code
+      asm_mulai
+      mov rax, 60
+      mov rdi, 1
+      syscall
+      tutup_asm
+   tutup_jika
+tutup_fungsi
+
+fungsi infer_literal_type(literal_str)
+   ; Infer type from literal value
+   ; Returns TYPE_INT, TYPE_FLOAT, or TYPE_STRING
+
+   var first_ch = str_get(literal_str, 0)
+
+   ; String literal starts with "
+   jika (first_ch == 34)
+      asm_mulai
+      mov rax, TYPE_STRING
+      ret
+      tutup_asm
+   tutup_jika
+
+   ; Check for float (contains '.')
+   var len = str_len(literal_str)
+   var idx = 0
+   selama (idx < len)
+      var ch = str_get(literal_str, idx)
+      jika (ch == 46)
+         asm_mulai
+         mov rax, TYPE_FLOAT
+         ret
+         tutup_asm
+      tutup_jika
+      idx = idx + 1
+   tutup_selama
+
+   ; Default to INT for numeric literals
+   asm_mulai
+   mov rax, TYPE_INT
+   ret
+   tutup_asm
+tutup_fungsi

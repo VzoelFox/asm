@@ -2,6 +2,8 @@
 ; Morph Self-Hosted Compiler Entry Point
 
 ambil "apps/compiler/pkg/utils.fox"
+ambil "apps/compiler/src/types.fox"
+ambil "apps/compiler/src/supplier.fox"
 
 Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
 Ambil 318, 319 ; File IO
@@ -27,6 +29,13 @@ var current_func = ""
 ; Import Guard
 var processed_files = 0
 
+; Struct Tracking
+var struct_sizes = 0
+var struct_offsets = 0
+var struct_names = 0
+var current_struct_name = ""
+var in_struct_block = 0
+
 ; --- GLOBAL CONSTANTS (Declarations) ---
 var s_msg_skip = 0
 var s_colon = 0
@@ -36,6 +45,7 @@ var s_mov_mem = 0
 var s_comma_space = 0
 
 var s_mov_rax_v = 0
+var s_mov_rbx_v = 0
 var s_cmp_rax = 0
 var s_cmp_rax_v = 0
 
@@ -148,6 +158,150 @@ fungsi parse_source_lines(lines)
                        var imp_lines = vec_create(50)
                        panggil str_split_lines(imp_content, imp_lines)
                        panggil parse_source_lines(imp_lines)
+                   tutup_jika
+               tutup_jika
+           tutup_jika
+       tutup_jika
+
+       ; --- DAFTAR (ID Registry) ---
+       var is_daftar = str_starts_with(line, "Daftar")
+       jika (is_daftar == 1)
+           panggil parse_daftar_line(line)
+       tutup_jika
+
+       ; --- AMBIL (ID-based Import) ---
+       var is_ambil_caps = str_starts_with(line, "Ambil")
+       jika (is_ambil_caps == 1)
+           var after_ambil_caps = str_substring_after(line, 5)
+           var ids_raw = str_trim(after_ambil_caps)
+
+           ; Parse comma-separated IDs
+           var id_list = vec_create(20)
+           var current_num = ""
+           var idx_a = 0
+           var len_a = str_len(ids_raw)
+
+           selama (idx_a < len_a)
+               var ch_a = str_get(ids_raw, idx_a)
+               jika (ch_a == 44)
+                   ; Comma found
+                   var num_trim_a = str_trim(current_num)
+                   var num_len_a = str_len(num_trim_a)
+                   jika (num_len_a > 0)
+                       var id_val_a = str_to_int(num_trim_a)
+                       panggil vec_push(id_list, id_val_a)
+                   tutup_jika
+                   current_num = ""
+               lain
+                   ; Skip comments (semicolon)
+                   jika (ch_a == 59)
+                       idx_a = len_a
+                   lain
+                       var ch_str_a = str_slice(ids_raw, idx_a, idx_a + 1)
+                       current_num = str_concat(current_num, ch_str_a)
+                   tutup_jika
+               tutup_jika
+               idx_a = idx_a + 1
+           tutup_selama
+
+           ; Parse last number
+           var last_trim_a = str_trim(current_num)
+           var last_len_a = str_len(last_trim_a)
+           jika (last_len_a > 0)
+               var last_id_a = str_to_int(last_trim_a)
+               panggil vec_push(id_list, last_id_a)
+           tutup_jika
+
+           ; Process each ID
+           var count_a = vec_len(id_list)
+           var i_a = 0
+           selama (i_a < count_a)
+               var id_a = vec_get(id_list, i_a)
+
+               ; Check if already processed
+               var filepath_a = get_file_for_id(id_a)
+               jika (filepath_a != 0)
+                   var is_processed_a = is_block_processed(filepath_a, id_a)
+                   jika (is_processed_a == 0)
+                       ; Extract and parse block
+                       var extracted_lines = vec_create(50)
+                       var found_a = extract_block_by_id(filepath_a, id_a, extracted_lines)
+
+                       jika (found_a == 1)
+                           panggil mark_block_processed(filepath_a, id_a)
+                           cetak("[SUPPLIER] Loaded block:")
+                           cetak(id_a)
+                           cetak_str(filepath_a)
+                           panggil parse_source_lines(extracted_lines)
+                       tutup_jika
+                   tutup_jika
+               lain
+                   cetak("[SUPPLIER] Warning: ID not registered:")
+                   cetak(id_a)
+               tutup_jika
+
+               i_a = i_a + 1
+           tutup_selama
+       tutup_jika
+
+       ; --- INDEKS (Load Registry) ---
+       var is_indeks = str_starts_with(line, "indeks")
+       jika (is_indeks == 1)
+           panggil handle_indeks_line(line)
+       tutup_jika
+
+       ; --- STRUCT DEFINITION ---
+       var is_struktur = str_starts_with(line, "struktur")
+       jika (is_struktur == 1)
+           var after_struct = str_substring_after(line, 8)
+           var struct_name_raw = str_trim(after_struct)
+           current_struct_name = struct_name_raw
+           in_struct_block = 1
+
+           ; Initialize size to 0
+           var ss = struct_sizes
+           panggil map_put(ss, struct_name_raw, 0)
+
+           ; Add to names list
+           var sn = struct_names
+           panggil vec_push(sn, struct_name_raw)
+
+           cetak("[CODEGEN] Struct: ")
+           cetak_str(struct_name_raw)
+       tutup_jika
+
+       var is_tutup_struktur = str_starts_with(line, "tutup_struktur")
+       jika (is_tutup_struktur == 1)
+           in_struct_block = 0
+           current_struct_name = ""
+       tutup_jika
+
+       ; Process struct fields (inside struct block)
+       jika (in_struct_block == 1)
+           jika (is_struktur == 0)
+               jika (is_tutup_struktur == 0)
+                   ; Parse field: field_name field_type
+                   var parts_field = str_split_once(line, 32)
+                   var field_name = vec_get(parts_field, 0)
+                   var field_name_t = str_trim(field_name)
+
+                   var field_name_len = str_len(field_name_t)
+                   jika (field_name_len > 0)
+                       ; Get current size
+                       var ss_f = struct_sizes
+                       var curr_size = map_get(ss_f, current_struct_name)
+
+                       ; Build offset key: "StructName_fieldname"
+                       var offset_key = str_concat(current_struct_name, "_")
+                       offset_key = str_concat(offset_key, field_name_t)
+
+                       ; Store offset
+                       var so_f = struct_offsets
+                       panggil map_put(so_f, offset_key, curr_size)
+
+                       ; Increment size (8 bytes per field)
+                       var new_size = curr_size + 8
+                       panggil map_put(ss_f, current_struct_name, new_size)
                    tutup_jika
                tutup_jika
            tutup_jika
@@ -434,96 +588,212 @@ fungsi parse_source_lines(lines)
           var val_raw = vec_get(parts_eq, 1)
           var val_str = str_trim(val_raw)
 
-          var first_char = str_get(val_str, 0)
-          var is_digit = 0
-          jika (first_char >= 48)
-             jika (first_char <= 57)
-                 is_digit = 1
+          ; Check for struct instantiation: StructName(args)
+          var struct_paren = str_split_once(val_str, 40)
+          var struct_name_candidate = vec_get(struct_paren, 0)
+          var struct_args = vec_get(struct_paren, 1)
+          var is_struct_inst = 0
+
+          jika (struct_args != 0)
+             var ss_check = struct_sizes
+             var struct_size_val = map_get(ss_check, struct_name_candidate)
+             jika (struct_size_val > 0)
+                is_struct_inst = 1
+
+                ; Allocate struct memory
+                var size_str = format_int(struct_size_val)
+                var mov_size = str_concat("    mov rax, ", size_str)
+                panggil emit(mov_size)
+                panggil emit("    call sys_alloc")
+                panggil emit("    push rax    ; Save struct ptr")
+
+                ; Parse and initialize fields
+                var args_clean_len = str_len(struct_args)
+                var args_inner = str_slice(struct_args, 0, args_clean_len - 1)
+                var arg_list = vec_create(8)
+                var current_arg = ""
+                var arg_idx = 0
+                var args_len = str_len(args_inner)
+
+                selama (arg_idx < args_len)
+                   var arg_ch = str_get(args_inner, arg_idx)
+                   jika (arg_ch == 44)
+                      var arg_trim = str_trim(current_arg)
+                      panggil vec_push(arg_list, arg_trim)
+                      current_arg = ""
+                   lain
+                      var arg_ch_str = str_slice(args_inner, arg_idx, arg_idx + 1)
+                      current_arg = str_concat(current_arg, arg_ch_str)
+                   tutup_jika
+                   arg_idx = arg_idx + 1
+                tutup_selama
+
+                jika (args_len > 0)
+                   var last_arg = str_trim(current_arg)
+                   panggil vec_push(arg_list, last_arg)
+                tutup_jika
+
+                ; Initialize fields with offsets
+                var field_count = vec_len(arg_list)
+                var field_idx = 0
+                var field_offset = 0
+
+                selama (field_idx < field_count)
+                   var field_val = vec_get(arg_list, field_idx)
+                   var field_fc = str_get(field_val, 0)
+
+                   ; Load value to rbx
+                   var is_imm = 0
+                   jika (field_fc >= 48)
+                      jika (field_fc <= 57)
+                         is_imm = 1
+                      tutup_jika
+                   tutup_jika
+                   jika (field_fc == 45)
+                      is_imm = 1
+                   tutup_jika
+
+                   jika (is_imm == 1)
+                      var mov_rbx = str_concat("    mov rbx, ", field_val)
+                      panggil emit(mov_rbx)
+                   lain
+                      var mov_rbx_var = str_concat(s_mov_rbx_v, field_val)
+                      mov_rbx_var = str_concat(mov_rbx_var, s_close_br)
+                      panggil emit(mov_rbx_var)
+                   tutup_jika
+
+                   ; Store to [struct_ptr + offset]
+                   panggil emit("    mov rdx, [rsp]    ; Peek struct ptr")
+                   var off_str = format_int(field_offset)
+                   var store_field = str_concat("    mov [rdx + ", off_str)
+                   store_field = str_concat(store_field, "], rbx")
+                   panggil emit(store_field)
+
+                   field_offset = field_offset + 8
+                   field_idx = field_idx + 1
+                tutup_selama
+
+                ; Pop struct pointer to rax and store to variable
+                panggil emit("    pop rax")
+                var var_label_s = str_concat(s_var_pref, name)
+                var asm_store_s = str_concat(s_mov_mem_raw, var_label_s)
+                asm_store_s = str_concat(asm_store_s, s_end_mem)
+                panggil emit(asm_store_s)
+
+                var vars_vec_s = global_vars
+                panggil vec_push(vars_vec_s, name)
+
+                ; Type tracking: register struct variable
+                panggil register_struct_variable(name, struct_name_candidate)
              tutup_jika
           tutup_jika
-          jika (first_char == 45)
-             is_digit = 1
-          tutup_jika
 
-          var asm_mov = ""
-          jika (is_digit == 1)
-             asm_mov = str_concat(s_mov_rax, val_str)
-          lain
-             asm_mov = str_concat(s_mov_rax_v, val_str)
-             asm_mov = str_concat(asm_mov, s_close_br)
-          tutup_jika
+          jika (is_struct_inst == 0)
+             var first_char = str_get(val_str, 0)
+             var is_digit = 0
+             jika (first_char >= 48)
+                jika (first_char <= 57)
+                    is_digit = 1
+                tutup_jika
+             tutup_jika
+             jika (first_char == 45)
+                is_digit = 1
+             tutup_jika
 
-          ; Arith
-          var arith_parts = str_split_once(val_str, 32)
-          var part1 = vec_get(arith_parts, 0)
-          var rest_arith = vec_get(arith_parts, 1)
-          var has_op = 0
-          var op_char = 0
-          var part2 = ""
+             var asm_mov = ""
+             jika (is_digit == 1)
+                asm_mov = str_concat(s_mov_rax, val_str)
+             lain
+                asm_mov = str_concat(s_mov_rax_v, val_str)
+                asm_mov = str_concat(asm_mov, s_close_br)
+             tutup_jika
 
-          jika (rest_arith != 0)
-             var len_rest = str_len(rest_arith)
-             jika (len_rest > 0)
-                var arith_p2 = str_split_once(rest_arith, 32)
-                var op_str = vec_get(arith_p2, 0)
-                part2 = vec_get(arith_p2, 1)
-                op_char = str_get(op_str, 0)
-                has_op = 1
+             ; Arith
+             var arith_parts = str_split_once(val_str, 32)
+             var part1 = vec_get(arith_parts, 0)
+             var rest_arith = vec_get(arith_parts, 1)
+             var has_op = 0
+             var op_char = 0
+             var part2 = ""
 
-                var p1_fc = str_get(part1, 0)
-                var p1_is_digit = 0
-                jika (p1_fc >= 48)
-                   jika (p1_fc <= 57)
-                      p1_is_digit = 1
+             jika (rest_arith != 0)
+                var len_rest = str_len(rest_arith)
+                jika (len_rest > 0)
+                   var arith_p2 = str_split_once(rest_arith, 32)
+                   var op_str = vec_get(arith_p2, 0)
+                   part2 = vec_get(arith_p2, 1)
+                   op_char = str_get(op_str, 0)
+                   has_op = 1
+
+                   var p1_fc = str_get(part1, 0)
+                   var p1_is_digit = 0
+                   jika (p1_fc >= 48)
+                      jika (p1_fc <= 57)
+                         p1_is_digit = 1
+                      tutup_jika
+                   tutup_jika
+                   jika (p1_is_digit == 1)
+                      asm_mov = str_concat(s_mov_rax, part1)
+                   lain
+                      asm_mov = str_concat(s_mov_rax_v, part1)
+                      asm_mov = str_concat(asm_mov, s_close_br)
                    tutup_jika
                 tutup_jika
-                jika (p1_is_digit == 1)
-                   asm_mov = str_concat(s_mov_rax, part1)
+             tutup_jika
+
+             panggil emit(asm_mov)
+
+             jika (has_op == 1)
+                var p2_fc = str_get(part2, 0)
+                var p2_is_digit = 0
+                jika (p2_fc >= 48)
+                   jika (p2_fc <= 57)
+                      p2_is_digit = 1
+                   tutup_jika
+                tutup_jika
+
+                var operand_asm = ""
+                jika (p2_is_digit == 1)
+                   operand_asm = part2
                 lain
-                   asm_mov = str_concat(s_mov_rax_v, part1)
-                   asm_mov = str_concat(asm_mov, s_close_br)
+                   operand_asm = str_concat(s_op_mem, part2)
+                   operand_asm = str_concat(operand_asm, s_close_br)
                 tutup_jika
-             tutup_jika
-          tutup_jika
 
-          panggil emit(asm_mov)
-
-          jika (has_op == 1)
-             var p2_fc = str_get(part2, 0)
-             var p2_is_digit = 0
-             jika (p2_fc >= 48)
-                jika (p2_fc <= 57)
-                   p2_is_digit = 1
+                var instr = ""
+                jika (op_char == 43)
+                   instr = s_add
+                lain_jika (op_char == 45)
+                   instr = s_sub
+                lain_jika (op_char == 42)
+                   instr = s_mul
                 tutup_jika
+                var op_asm = str_concat(instr, operand_asm)
+                panggil emit(op_asm)
              tutup_jika
 
-             var operand_asm = ""
-             jika (p2_is_digit == 1)
-                operand_asm = part2
+             var var_label = str_concat(s_var_pref, name)
+             var asm_store = str_concat(s_mov_mem_raw, var_label)
+             asm_store = str_concat(asm_store, s_end_mem)
+             panggil emit(asm_store)
+
+             var vars_vec = global_vars
+             panggil vec_push(vars_vec, name)
+
+             ; Type tracking: infer type from literal or variable
+             jika (is_digit == 1)
+                ; Numeric literal - default to TYPE_INT
+                panggil register_variable_type(name, TYPE_INT)
              lain
-                operand_asm = str_concat(s_op_mem, part2)
-                operand_asm = str_concat(operand_asm, s_close_br)
+                ; Variable reference - inherit type or default to INT
+                var src_type = get_variable_type(val_str)
+                jika (src_type == TYPE_UNKNOWN)
+                   panggil register_variable_type(name, TYPE_INT)
+                lain
+                   panggil register_variable_type(name, src_type)
+                tutup_jika
              tutup_jika
-
-             var instr = ""
-             jika (op_char == 43)
-                instr = s_add
-             lain_jika (op_char == 45)
-                instr = s_sub
-             lain_jika (op_char == 42)
-                instr = s_mul
-             tutup_jika
-             var op_asm = str_concat(instr, operand_asm)
-             panggil emit(op_asm)
           tutup_jika
-
-          var var_label = str_concat(s_var_pref, name)
-          var asm_store = str_concat(s_mov_mem_raw, var_label)
-          asm_store = str_concat(asm_store, s_end_mem)
-          panggil emit(asm_store)
-
-          var vars_vec = global_vars
-          panggil vec_push(vars_vec, name)
        tutup_jika
 
        ; --- CETAK STR ---
@@ -725,6 +995,7 @@ fungsi mulai(arg_unused1, arg_unused2)
   s_comma_space = "], "
 
   s_mov_rax_v = "    mov rax, [var_"
+  s_mov_rbx_v = "    mov rbx, [var_"
   s_cmp_rax = "    cmp rax, "
   s_cmp_rax_v = "    cmp rax, [var_"
 
@@ -783,6 +1054,20 @@ fungsi mulai(arg_unused1, arg_unused2)
   label_stack = temp_stack
   var temp_map = map_create(32)
   processed_files = temp_map
+
+  ; Init Struct Tracking
+  var ss_map = map_create(32)
+  struct_sizes = ss_map
+  var so_map = map_create(128)
+  struct_offsets = so_map
+  var sn_vec = vec_create(16)
+  struct_names = sn_vec
+
+  ; Init Type System
+  panggil init_type_system()
+
+  ; Init Supplier System (ID-based imports)
+  panggil init_supplier_system()
 
   var args_count = global_argc
   var args_ptr = global_argv
@@ -904,6 +1189,10 @@ fungsi mulai(arg_unused1, arg_unused2)
      mov rdi, [var_write_fd]
      call sys_close
      tutup_asm
+
+     ; Check for type errors before declaring success
+     panggil report_type_errors()
+
      cetak("Success!")
   tutup_jika
 tutup_fungsi

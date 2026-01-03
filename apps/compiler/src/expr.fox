@@ -1,0 +1,86 @@
+# Expression Parser - RPN Engine for Self-Host Compiler
+# Based on Trickster approach with simplified implementation
+# Uses stack-based RPN evaluation for proper operator precedence
+
+# Note: Instead of implementing full parser in Fox (which is complex),
+# this module provides AST structures and helper functions.
+# The actual expression parsing still relies on bootstrap Trickster
+# until self-host compiler can handle complex string processing.
+
+; AST Node Types (similar to morphroutine.fox pattern)
+const NODE_NUM = 1
+const NODE_VAR = 2
+const NODE_OP = 3
+
+; Expression AST Node
+struktur ExprNode
+   node_type
+   value
+   left_child
+tutup_struktur
+
+; Operator Precedence Levels
+; Level 9: ! u- (unary)
+; Level 8: * / %
+; Level 7: + -
+; Level 6: << >>
+; Level 5: < > <= >=
+; Level 4: == !=
+; Level 3: &
+; Level 2: | ^
+; Level 1: &&
+; Level 0: ||
+
+fungsi get_operator_precedence(op_char)
+   ; Returns precedence level for given operator character
+   ; Higher number = higher precedence (tighter binding)
+
+   jika (op_char == 42)
+      asm_mulai
+      mov rax, 8
+      ret
+      tutup_asm
+   tutup_jika
+
+   jika (op_char == 47)
+      asm_mulai
+      mov rax, 8
+      ret
+      tutup_asm
+   tutup_jika
+
+   jika (op_char == 37)
+      asm_mulai
+      mov rax, 8
+      ret
+      tutup_asm
+   tutup_jika
+
+   jika (op_char == 43)
+      asm_mulai
+      mov rax, 7
+      ret
+      tutup_asm
+   tutup_jika
+
+   jika (op_char == 45)
+      asm_mulai
+      mov rax, 7
+      ret
+      tutup_asm
+   tutup_jika
+
+   asm_mulai
+   mov rax, 0
+   ret
+   tutup_asm
+tutup_fungsi
+
+; Placeholder for future RPN compiler
+; This will be implemented incrementally as self-host compiler matures
+fungsi compile_expression_to_asm(expr_str)
+   ; TODO: Implement tokenize → shunting-yard → RPN codegen
+   ; For now, document that complex expressions require bootstrap Trickster
+   cetak("[EXPR] Complex expression parsing not yet implemented in self-host")
+   cetak_str(expr_str)
+tutup_fungsi

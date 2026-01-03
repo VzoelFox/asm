@@ -1,0 +1,30 @@
+# Morph Standard Library ID Registry
+# Central index mapping IDs to library modules
+# Usage: indeks "indeks.fox" then Ambil <ids>
+
+# Buffer Library (310-316)
+Daftar "lib/buffer.fox" = 310-316
+
+# File I/O Library (318-319)
+Daftar "lib/file_io.fox" = 318-319
+
+# Format Library (320-324)
+Daftar "lib/format.fox" = 320-324
+
+# HashMap Library (330-333)
+Daftar "lib/hashmap.fox" = 330-333
+
+# Vector Library (340-344)
+Daftar "lib/vector.fox" = 340-344
+
+# String Utils Library (380-388)
+Daftar "lib/string_utils.fox" = 380-388
+
+# Morphroutine Library (400-402)
+Daftar "lib/morphroutine.fox" = 400-402
+
+# JSON Library (450-459)
+Daftar "lib/json.fox" = 450-459
+
+# Math Library (100-105)
+Daftar "lib/math.fox" = 100-105

@@ -16,7 +16,7 @@ default rel
 section .data
     newline db 10, 0
     ; --- Memory V2 Constants ---
-    HEAP_CHUNK_SIZE equ 268435456 ; 256MB Chunk Size
+    HEAP_CHUNK_SIZE equ 67108864 ; 64MB Chunk Size
 
     PROT_READ       equ 0x1
     PROT_WRITE      equ 0x2
