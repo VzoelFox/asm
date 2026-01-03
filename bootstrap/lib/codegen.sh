@@ -12,6 +12,7 @@ declare -a LOOP_STACK_END   # Stack for Loop End Labels
 
 init_codegen() {
     cat <<EOF
+default rel
 section .data
     newline db 10, 0
     ; --- Memory V2 Constants ---
