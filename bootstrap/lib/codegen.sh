@@ -1556,6 +1556,7 @@ emit_loop_end() {
     unset 'LOOP_STACK_START[${#LOOP_STACK_START[@]}-1]'
     unset 'LOOP_STACK_STEP[${#LOOP_STACK_STEP[@]}-1]'
     unset 'LOOP_STACK_END[${#LOOP_STACK_END[@]}-1]'
+
     echo "    jmp $lbl_start"
     echo "$lbl_end:"
 }
