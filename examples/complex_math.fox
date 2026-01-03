@@ -1,0 +1,33 @@
+# Test Complex Arithmetic and Edge Cases for Trickster
+
+fungsi mulai()
+    # 1. Negative numbers mixed with operators
+    var a = -5 + 10
+    cetak(a)
+
+    # 2. Complex precedence
+    var b = 10 + 2 * 5 - (4 / 2)
+    cetak(b)
+
+    # 3. Unary operator nesting (NOT)
+    var c = !1
+    cetak(c)
+
+    # 4. Whitespace irregularity
+    var d=10+5*2
+    cetak(d)
+
+    # 5. Associativity check (10 - 5 - 2 should be 3, not 7)
+    var e = 10 - 5 - 2
+    cetak(e)
+
+    # 6. Modulo
+    var f = 10 % 3
+    cetak(f)
+
+    # 7. Bitwise precedence (Shift before And/Or usually, but let's check standard)
+    # Morph: << >> (3), & (2), | ^ (1)
+    # 4 << 1 is 8. 8 & 8 is 8.
+    var g = 4 << 1 & 8
+    cetak(g)
+tutup_fungsi
