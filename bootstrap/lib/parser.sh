@@ -654,7 +654,10 @@ parse_file() {
                     emit_variable_decl "$name"
 
                     # RECURSION FIX (Locals Save)
-                    local current_block="${BLOCK_STACK[-1]}"
+                    local current_block=""
+                    if [ ${#BLOCK_STACK[@]} -gt 0 ]; then
+                        current_block="${BLOCK_STACK[-1]}"
+                    fi
                     local len=${#FUNC_LOCALS_STACK[@]}
                     if [ $len -gt 0 ] && [ "$current_block" == "fungsi" ]; then
                         echo "    push qword [var_$name]"
@@ -681,7 +684,10 @@ parse_file() {
                     emit_variable_decl "$name"
 
                     # RECURSION FIX (Locals Save)
-                    local current_block="${BLOCK_STACK[-1]}"
+                    local current_block=""
+                    if [ ${#BLOCK_STACK[@]} -gt 0 ]; then
+                        current_block="${BLOCK_STACK[-1]}"
+                    fi
                     local len=${#FUNC_LOCALS_STACK[@]}
                     if [ $len -gt 0 ] && [ "$current_block" == "fungsi" ]; then
                         echo "    push qword [var_$name]"
