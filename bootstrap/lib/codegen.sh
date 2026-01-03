@@ -6,6 +6,9 @@ LBL_COUNT=0
 declare -a BSS_VARS
 declare -a IF_STACK         # Stack for End Labels
 declare -a IF_CHECK_STACK   # Stack for Next Check Labels (Else/ElseIf target)
+declare -a LOOP_STACK_START # Stack for Loop Start Labels
+declare -a LOOP_STACK_STEP  # Stack for Loop Step Labels (target for 'lanjut')
+declare -a LOOP_STACK_END   # Stack for Loop End Labels
 
 init_codegen() {
     cat <<EOF
@@ -1326,6 +1329,14 @@ emit_arithmetic_op() {
              echo "    cqo"          ; Sign extend RAX to RDX:RAX
              echo "    idiv rbx"
              ;;
+        "%")
+             echo "    cqo"          # Sign extend RAX to RDX:RAX
+             echo "    idiv rbx"
+             echo "    mov rax, rdx" # Remainder is in RDX
+             ;;
+        "&") echo "    and rax, rbx" ;;
+        "|") echo "    or rax, rbx"  ;;
+        "^") echo "    xor rax, rbx" ;;
     esac
 
     if [[ -n "$store_to" ]]; then
@@ -1513,9 +1524,12 @@ emit_loop_start() {
 
     local lbl_start="loop_start_$LBL_COUNT"
     local lbl_end="loop_end_$LBL_COUNT"
+    # Default step label is start label (for while loops)
+    local lbl_step="$lbl_start"
     ((LBL_COUNT++))
 
     LOOP_STACK_START+=("$lbl_start")
+    LOOP_STACK_STEP+=("$lbl_step")
     LOOP_STACK_END+=("$lbl_end")
 
     echo "$lbl_start:"
@@ -1540,9 +1554,84 @@ emit_loop_end() {
     local lbl_start="${LOOP_STACK_START[-1]}"
     local lbl_end="${LOOP_STACK_END[-1]}"
     unset 'LOOP_STACK_START[${#LOOP_STACK_START[@]}-1]'
+    unset 'LOOP_STACK_STEP[${#LOOP_STACK_STEP[@]}-1]'
     unset 'LOOP_STACK_END[${#LOOP_STACK_END[@]}-1]'
     echo "    jmp $lbl_start"
     echo "$lbl_end:"
+}
+
+# Specialized for 'untuk' loop
+# Usage: emit_for_start op1 op op2
+# Returns: It sets up stacks, but also generates a specific STEP label which parser needs to know about?
+# No, parser just needs to know code generation order.
+# The tricky part: 'emit_loop_end' generates the jump back to start.
+# For 'untuk', we want:
+#   start:
+#   check
+#   body
+#   step_label:  <-- 'lanjut' jumps here
+#   step_code
+#   jmp start
+#   end:
+#
+# So we need a new function 'emit_for_start' and 'emit_for_end'?
+emit_for_start() {
+    local op1="$1"
+    local cond="$2"
+    local op2="$3"
+
+    local lbl_start="loop_start_$LBL_COUNT"
+    local lbl_step="loop_step_$LBL_COUNT"
+    local lbl_end="loop_end_$LBL_COUNT"
+    ((LBL_COUNT++))
+
+    LOOP_STACK_START+=("$lbl_start")
+    LOOP_STACK_STEP+=("$lbl_step")
+    LOOP_STACK_END+=("$lbl_end")
+
+    echo "$lbl_start:"
+    load_operand_to_rax "$op1"
+    if [[ "$op2" =~ ^-?[0-9]+$ ]]; then
+        echo "    mov rbx, $op2"
+    else
+        echo "    mov rbx, [var_$op2]"
+    fi
+    echo "    cmp rax, rbx"
+    case "$cond" in
+        "==") echo "    jne $lbl_end" ;;
+        "!=") echo "    je $lbl_end" ;;
+        "<")  echo "    jge $lbl_end" ;;
+        ">")  echo "    jle $lbl_end" ;;
+        "<=") echo "    jg $lbl_end" ;;
+        ">=") echo "    jl $lbl_end" ;;
+    esac
+}
+
+emit_for_end() {
+    local lbl_start="${LOOP_STACK_START[-1]}"
+    local lbl_step="${LOOP_STACK_STEP[-1]}"
+    local lbl_end="${LOOP_STACK_END[-1]}"
+
+    # Parser must emit step code BEFORE calling this, but AFTER label step
+    # Wait, parser calls this function.
+    # So we should output the label step here?
+    # No, parser needs to output step code.
+    # Correct sequence in parser:
+    # 1. emit_label "$lbl_step" (Helper needed?)
+    # 2. emit step code
+    # 3. emit_for_end (which does jmp start and label end)
+
+    unset 'LOOP_STACK_START[${#LOOP_STACK_START[@]}-1]'
+    unset 'LOOP_STACK_STEP[${#LOOP_STACK_STEP[@]}-1]'
+    unset 'LOOP_STACK_END[${#LOOP_STACK_END[@]}-1]'
+
+    echo "    jmp $lbl_start"
+    echo "$lbl_end:"
+}
+
+emit_label_step() {
+    local lbl_step="${LOOP_STACK_STEP[-1]}"
+    echo "$lbl_step:"
 }
 
 emit_call() {
@@ -1716,6 +1805,21 @@ emit_load_array_elem() {
     echo "    mov rax, [rbx + rcx * 8]"
 }
 
+emit_logical_not() {
+    local op="$1"
+    local store_to="$2"
+
+    load_operand_to_rax "$op"
+
+    echo "    cmp rax, 0"
+    echo "    sete al"
+    echo "    movzx rax, al"
+
+    if [[ -n "$store_to" ]]; then
+        echo "    mov [var_$store_to], rax"
+    fi
+}
+
 emit_store_array_elem() {
     local arr_var="$1"
     local index="$2"
@@ -1828,4 +1932,23 @@ emit_output() {
     echo "    mov rax, 60"
     echo "    xor rdi, rdi"
     echo "    syscall"
+}
+emit_break() {
+    local len=${#LOOP_STACK_END[@]}
+    if [ $len -eq 0 ]; then
+        echo "; Error: 'berhenti' outside of loop"
+        return
+    fi
+    local lbl_end="${LOOP_STACK_END[$len-1]}"
+    echo "    jmp $lbl_end"
+}
+
+emit_continue() {
+    local len=${#LOOP_STACK_STEP[@]}
+    if [ $len -eq 0 ]; then
+        echo "; Error: 'lanjut' outside of loop"
+        return
+    fi
+    local lbl_step="${LOOP_STACK_STEP[$len-1]}"
+    echo "    jmp $lbl_step"
 }
