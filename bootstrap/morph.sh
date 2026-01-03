@@ -8,6 +8,7 @@ BASE_DIR="$(dirname "$0")"
 # Load modules
 # Order matters: codegen must be loaded before parser if parser uses it (though passing vars is better)
 # But here parser calls codegen functions directly.
+source "$BASE_DIR/lib/trickster.sh"
 source "$BASE_DIR/lib/codegen.sh"
 source "$BASE_DIR/lib/parser.sh"
 

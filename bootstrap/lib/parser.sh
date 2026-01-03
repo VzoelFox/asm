@@ -499,6 +499,7 @@ parse_file() {
                 ;;
 
             var*)
+                local trickster_re='[-+*/%&|^!]'
                 if [[ "$line" =~ ^var[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]+\[([0-9]+)\]int$ ]]; then
                     local name="${BASH_REMATCH[1]}"
                     local size="${BASH_REMATCH[2]}"
@@ -591,15 +592,11 @@ parse_file() {
                              emit_call "$struct_name"
                              emit_variable_assign "$name" ""
                          fi
-                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*/%&|^])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
-                         local op1="${BASH_REMATCH[1]}"
-                         local op="${BASH_REMATCH[2]}"
-                         local op2="${BASH_REMATCH[3]}"
-                         emit_arithmetic_op "$op1" "$op" "$op2" "$name"
-                    elif [[ "$expr" =~ ^!([a-zA-Z0-9_]+)$ ]]; then
-                         # Logical NOT
-                         local op="${BASH_REMATCH[1]}"
-                         emit_logical_not "$op" "$name"
+                    elif [[ "$expr" =~ $trickster_re ]]; then
+                         # Complex Expression via Trickster
+                         compile_expression "$expr"
+                         echo "    pop rax"
+                         emit_variable_assign "$name" ""
                     elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)\[([a-zA-Z0-9_]+)\]$ ]]; then
                          # Array Index Read: var x = arr[i]
                          local arr_name="${BASH_REMATCH[1]}"
