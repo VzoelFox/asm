@@ -8,13 +8,11 @@ unit process_data
             # Use morphroutine constants
             var s = STATUS_RUNNING
             cetak(s)
-        tutup_shard
     tutup_shard
 
     shard execute
         fragment run
             cetak("Executing...")
-        tutup_shard
     tutup_shard
 tutup_unit
 

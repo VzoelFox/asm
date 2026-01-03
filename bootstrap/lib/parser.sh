@@ -189,7 +189,6 @@ parse_file() {
                     local current_size=${STRUCT_SIZES[$current_struct_name]}
                     STRUCT_OFFSETS["${current_struct_name}_${field_name}"]=$current_size
                     STRUCT_SIZES[$current_struct_name]=$((current_size + 8))
-                    echo "; DEBUG: Struct $current_struct_name Field $field_name Offset $current_size"
                 fi
             fi
             continue
@@ -206,14 +205,11 @@ parse_file() {
         fi
 
         # --- Handle Normal Statements ---
-        echo "DEBUG CASE CHECK: '$line'"
         case "$line" in
             # --- Absolute AST (Unit / Shard / Fragment) ---
 
             unit*)
-                echo "DEBUG: UNIT CHECK '$line'"
                 if [[ "$line" =~ ^unit[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                    echo "DEBUG: UNIT MATCH"
                     local name="${BASH_REMATCH[1]}"
 
                     # 1. Start Unit Wrapper
@@ -228,9 +224,7 @@ parse_file() {
                 ;;
 
             shard*)
-                echo "DEBUG: SHARD CHECK '$line'"
                 if [[ "$line" =~ ^shard[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                    echo "DEBUG: SHARD MATCH"
                     local name="${BASH_REMATCH[1]}"
                     local unit_name="${UNIT_STACK[-1]}"
 
@@ -966,7 +960,6 @@ parse_file() {
 
                         emit_for_start "$op1" "$op" "$op2"
                     else
-                        echo "; DEBUG: Operator not found in cond: '$cond'" >&2
                         echo "; Error: Invalid condition in 'untuk': $cond"
                     fi
 
@@ -1141,7 +1134,6 @@ parse_file() {
 
             # --- Assignment ke Variabel Ada (tanpa var) ---
             *)
-                 echo "DEBUG: Default handler caught '$line'"
                  if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)$ ]]; then
                     # Implicit Function Call (Standalone)
                     local name="${BASH_REMATCH[1]}"
