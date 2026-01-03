@@ -498,8 +498,43 @@ parse_file() {
                 fi
                 ;;
 
+            # Const (Treat same as var for now)
+            const*)
+                local trickster_re='(<<|>>|[-+*/%&|^!])'
+                if [[ "$line" =~ ^const[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+                    local name="${BASH_REMATCH[1]}"
+                    local expr="${BASH_REMATCH[2]}"
+                    emit_variable_decl "$name"
+
+                    if [[ "$expr" =~ $trickster_re ]]; then
+                         compile_expression "$expr"
+                         echo "    pop rax"
+                         emit_variable_assign "$name" ""
+                    elif [[ "$expr" =~ ^-?[0-9]+$ ]]; then
+                         emit_variable_assign "$name" "$expr"
+                    else
+                         load_operand_to_rax "$expr"
+                         emit_variable_assign "$name" ""
+                    fi
+                fi
+                ;;
+
+            # Increment/Decrement (Statement Level)
+            *[+][+]) # Matches x++
+                if [[ "$line" =~ ^([a-zA-Z0-9_]+)\+\+$ ]]; then
+                    local name="${BASH_REMATCH[1]}"
+                    echo "    inc qword [var_$name]"
+                fi
+                ;;
+            *[-][-]) # Matches x--
+                if [[ "$line" =~ ^([a-zA-Z0-9_]+)--$ ]]; then
+                    local name="${BASH_REMATCH[1]}"
+                    echo "    dec qword [var_$name]"
+                fi
+                ;;
+
             var*)
-                local trickster_re='[-+*/%&|^!]'
+                local trickster_re='(<<|>>|[-+*/%&|^!])'
                 if [[ "$line" =~ ^var[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]+\[([0-9]+)\]int$ ]]; then
                     local name="${BASH_REMATCH[1]}"
                     local size="${BASH_REMATCH[2]}"

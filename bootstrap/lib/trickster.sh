@@ -17,9 +17,12 @@ tokenize_expression() {
     # Note: We need to handle multi-char operators like ==, !=, <=, >= later.
     # For now P1/P2 context, we focus on arithmetic +, -, *, /, %, &, |, ^, ! and ( )
 
-    # 1. Add spaces around single char operators
+    # 1. Add spaces around operators (handle << and >> first)
     local formatted="$input"
-    # Move dash to start to avoid range issues
+
+    # Use sed -E for extended regex to handle multi-char ops
+    # We pad << and >> with spaces, then single char ops
+    formatted=$(echo "$formatted" | sed -E 's/(<<|>>)/ \1 /g')
     formatted=$(echo "$formatted" | sed 's/\([-+*/%&|^!()]\)/ \1 /g')
 
     # 2. Fix potential double spaces or split
@@ -34,15 +37,17 @@ get_precedence() {
     case "$1" in
         "|"|"^") echo 1 ;;
         "&") echo 2 ;;
-        "+"|"-") echo 3 ;;
-        "*"|"/"|"%") echo 4 ;;
-        "!") echo 5 ;; # Unary right associative
+        "<<") echo 3 ;;
+        ">>") echo 3 ;;
+        "+"|"-") echo 4 ;;
+        "*"|"/"|"%") echo 5 ;;
+        "!") echo 6 ;; # Unary right associative
         *) echo 0 ;;
     esac
 }
 
 is_operator() {
-    local op_regex='^[-+*/%&|^!]$'
+    local op_regex='^([-+*/%&|^!]|<<|>>)$'
     [[ "$1" =~ $op_regex ]]
 }
 
@@ -136,6 +141,14 @@ compile_rpn() {
                     "&") echo "    and rax, rbx" ;;
                     "|") echo "    or rax, rbx" ;;
                     "^") echo "    xor rax, rbx" ;;
+                    "<<")
+                        echo "    mov rcx, rbx"
+                        echo "    shl rax, cl"
+                        ;;
+                    ">>")
+                        echo "    mov rcx, rbx"
+                        echo "    shr rax, cl"
+                        ;;
                 esac
 
                 echo "    push rax"
