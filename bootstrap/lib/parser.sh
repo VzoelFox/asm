@@ -20,6 +20,7 @@ LINE_NO=0
 
 # Block Stack for Validation
 declare -a BLOCK_STACK
+declare -a FOR_STEP_STACK # Stack to hold step expressions for 'untuk' loops
 
 push_block() {
     BLOCK_STACK+=("$1")
@@ -123,18 +124,18 @@ parse_file() {
         LINE_NO=$CURRENT_FILE_LINE
 
         # Strip inline comments (e.g., "cmd ; comment" -> "cmd ")
-        # But handle strings correctly! (Simple hack: assume ; outside quotes)
-        # For simplicity in this parser, we assume ; always starts comment unless strictly needed
-        if [[ "$line" != *"\""* ]]; then
-             line="${line%%;*}"
-        else
-             # If line has string, be careful.
-             # Regex to remove comment at end: ;.*
-             # But this is hard with bash regex.
-             # Fallback: Let's assume standard formatting where ; is comment
-             # If string contains ;, this breaks. But our code shouldn't have ; in string literals typically.
-             # Only "Hello"
-             line="${line%%;*}"
+        # EXCEPTION: 'untuk' uses ';' as separator, so we skip comment stripping for 'untuk' lines
+        # Also need to handle indentation
+        if [[ ! "$line" =~ ^[[:space:]]*untuk ]]; then
+            if [[ "$line" != *"\""* ]]; then
+                 line="${line%%;*}"
+            else
+                 # If string exists, naive strip might break string content.
+                 # Assuming no semicolon in string for now unless it's strictly needed.
+                 # Only strip if ; is after the last quote? Too complex for sed/bash here.
+                 # Fallback: maintain naive strip for now, assuming standard code style.
+                 line="${line%%;*}"
+            fi
         fi
 
         # Trim whitespace (and remove CR for Windows compatibility)
@@ -536,7 +537,7 @@ parse_file() {
                              emit_call "$struct_name"
                              emit_variable_assign "$name" ""
                          fi
-                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
+                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*/%])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
                          local op1="${BASH_REMATCH[1]}"
                          local op="${BASH_REMATCH[2]}"
                          local op2="${BASH_REMATCH[3]}"
@@ -659,6 +660,103 @@ parse_file() {
                 pop_block "selama"
                 ;;
 
+            # --- Loop (Untuk) ---
+            untuk*)
+                if [[ "$line" =~ ^untuk[[:space:]]*\((.*)\)$ ]]; then
+                    local content="${BASH_REMATCH[1]}"
+
+                    # Split by semicolon using awk because bash read is tricky with escaped chars, but here logic is simple
+                    # Note: We assume simple expressions without internal semicolons
+                    local init=$(echo "$content" | awk -F';' '{print $1}' | xargs)
+                    local cond=$(echo "$content" | awk -F';' '{print $2}' | xargs)
+                    local step=$(echo "$content" | awk -F';' '{print $3}' | xargs)
+
+                    # 1. Emit Init
+                    # We can reuse the assignment parser logic by calling a helper or recursive parse on the string
+                    # But simpler: just inject it as a "line" processing if it looks like assignment
+                    if [[ -n "$init" ]]; then
+                        # Hack: Process 'init' as if it was a line
+                        # We need to handle 'var i = 0' or 'i = 0'
+                        # Let's verify if it starts with 'var'
+                        if [[ "$init" =~ ^var[[:space:]] ]]; then
+                           # It's a declaration. We need to parse it manually or recurse?
+                           # Recursing is dangerous if not careful.
+                           # Let's duplicate the 'var' logic slightly or use a temp file?
+                           # Temp file is safest for code reuse.
+                           echo "$init" > "_tmp_init_$$.fox"
+                           parse_file "_tmp_init_$$.fox"
+                           rm "_tmp_init_$$.fox"
+                        else
+                           # Assume assignment without var
+                           echo "$init" > "_tmp_init_$$.fox"
+                           parse_file "_tmp_init_$$.fox"
+                           rm "_tmp_init_$$.fox"
+                        fi
+                    fi
+
+                    # 2. Start Loop Label
+                    # We need to manually emit loop start because 'emit_loop_start' assumes a comparison args
+                    # So we split 'cond' into op1, op, op2
+
+                    # Try explicit matching for operators to be safe
+                    local op=""
+                    if [[ "$cond" == *"<="* ]]; then op="<=";
+                    elif [[ "$cond" == *">="* ]]; then op=">=";
+                    elif [[ "$cond" == *"=="* ]]; then op="==";
+                    elif [[ "$cond" == *"!="* ]]; then op="!=";
+                    elif [[ "$cond" == *"<"* ]]; then op="<";
+                    elif [[ "$cond" == *">"* ]]; then op=">";
+                    fi
+
+                    if [[ -n "$op" ]]; then
+                        # Split by operator
+                        # Use awk to split by string is safer than regex in bash sometimes
+                        local op1=$(echo "$cond" | awk -F"$op" '{print $1}' | xargs)
+                        local op2=$(echo "$cond" | awk -F"$op" '{print $2}' | xargs)
+
+                        resolve_struct_access "$op1" op1
+                        resolve_struct_access "$op2" op2
+
+                        emit_for_start "$op1" "$op" "$op2"
+                    else
+                        echo "; DEBUG: Operator not found in cond: '$cond'" >&2
+                        echo "; Error: Invalid condition in 'untuk': $cond"
+                    fi
+
+                    push_block "untuk"
+                    FOR_STEP_STACK+=("$step")
+                fi
+                ;;
+
+            "tutup_untuk")
+                # Emit Step Code
+                local len=${#FOR_STEP_STACK[@]}
+
+                # Emit Label Step (Target for 'lanjut')
+                emit_label_step
+
+                if [ $len -gt 0 ]; then
+                    local step="${FOR_STEP_STACK[$len-1]}"
+                    if [[ -n "$step" ]]; then
+                        echo "$step" > "_tmp_step_$$.fox"
+                        parse_file "_tmp_step_$$.fox"
+                        rm "_tmp_step_$$.fox"
+                    fi
+                    unset 'FOR_STEP_STACK[$len-1]'
+                fi
+
+                emit_for_end
+                pop_block "untuk"
+                ;;
+
+            "berhenti")
+                emit_break
+                ;;
+
+            "lanjut")
+                emit_continue
+                ;;
+
             cetak_str*)
                 if [[ "$line" =~ ^cetak_str\(([a-zA-Z0-9_]+)\)$ ]]; then
                     local content="${BASH_REMATCH[1]}"
@@ -686,7 +784,7 @@ parse_file() {
                              emit_print ""
                         fi
                     fi
-                elif [[ "$line" =~ ^cetak\(([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)\)$ ]]; then
+                elif [[ "$line" =~ ^cetak\(([a-zA-Z0-9_]+)[[:space:]]*([-+*/%])[[:space:]]*([a-zA-Z0-9_]+)\)$ ]]; then
                     local op1="${BASH_REMATCH[1]}"
                     local op="${BASH_REMATCH[2]}"
                     local op2="${BASH_REMATCH[3]}"
@@ -841,7 +939,7 @@ parse_file() {
                              emit_call "$struct_name"
                              emit_variable_assign "$name" ""
                          fi
-                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
+                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*/%])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
                          local op1="${BASH_REMATCH[1]}"
                          local op="${BASH_REMATCH[2]}"
                          local op2="${BASH_REMATCH[3]}"
