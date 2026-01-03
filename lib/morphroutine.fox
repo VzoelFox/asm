@@ -1,0 +1,41 @@
+# Morphroutine: Runtime Library for Morph Execution Architecture
+# Provides structures and constants for Unit/Shard orchestration.
+
+### 400
+
+# Status Constants
+const STATUS_PENDING = 0
+const STATUS_RUNNING = 1
+const STATUS_COMPLETED = 2
+const STATUS_FAILED = 3
+
+# Task Structure (Metadata for Scheduler)
+struktur Task
+    id
+    status
+    priority
+tutup_struktur
+
+# Context Structure (Shared state passed between Shards)
+struktur Context
+    error_code
+    result_ptr
+tutup_struktur
+
+# Helper to initialize a task
+fungsi init_task(id, priority)
+    var t = Task(0, 0, 0)
+    t.id = id
+    t.priority = priority
+    t.status = STATUS_PENDING
+    return t
+tutup_fungsi
+
+# Helper to check context
+fungsi check_context(ctx)
+    jika (ctx.error_code != 0)
+        cetak("Context Error Detected")
+        return 0
+    tutup_jika
+    return 1
+tutup_fungsi

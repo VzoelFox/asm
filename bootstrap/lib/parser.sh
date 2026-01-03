@@ -25,6 +25,10 @@ declare -a SWITCH_VAL_STACK   # Stack to hold the variable name being switched o
 declare -a SWITCH_FIRST_STACK # Stack to track if we are at the first case (1=yes, 0=no)
 declare -a FUNC_ARGS_STACK    # Stack to hold function arguments for recursion save/restore
 
+# Absolute AST Stacks
+declare -a UNIT_STACK
+declare -a SHARD_LIST_STACK   # Stores comma-separated list of shards for current unit
+
 push_block() {
     BLOCK_STACK+=("$1")
 }
@@ -202,7 +206,94 @@ parse_file() {
         fi
 
         # --- Handle Normal Statements ---
+        echo "DEBUG CASE CHECK: '$line'"
         case "$line" in
+            # --- Absolute AST (Unit / Shard / Fragment) ---
+
+            unit*)
+                echo "DEBUG: UNIT CHECK '$line'"
+                if [[ "$line" =~ ^unit[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    echo "DEBUG: UNIT MATCH"
+                    local name="${BASH_REMATCH[1]}"
+
+                    # 1. Start Unit Wrapper
+                    echo "global $name"
+                    echo "$name:"
+                    echo "    jmp ${name}_orchestrator"
+
+                    push_block "unit"
+                    UNIT_STACK+=("$name")
+                    SHARD_LIST_STACK+=("")
+                fi
+                ;;
+
+            shard*)
+                echo "DEBUG: SHARD CHECK '$line'"
+                if [[ "$line" =~ ^shard[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    echo "DEBUG: SHARD MATCH"
+                    local name="${BASH_REMATCH[1]}"
+                    local unit_name="${UNIT_STACK[-1]}"
+
+                    # 1. Register Shard
+                    local len=${#SHARD_LIST_STACK[@]}
+                    local current_list="${SHARD_LIST_STACK[$len-1]}"
+                    if [ -z "$current_list" ]; then
+                        SHARD_LIST_STACK[$len-1]="$name"
+                    else
+                        SHARD_LIST_STACK[$len-1]="$current_list,$name"
+                    fi
+
+                    # 2. Emit Shard Label
+                    echo "${unit_name}_shard_${name}:"
+
+                    push_block "shard"
+                fi
+                ;;
+
+            fragment*)
+                if [[ "$line" =~ ^fragment[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    local name="${BASH_REMATCH[1]}"
+                    echo "; Fragment $name"
+                fi
+                ;;
+
+            "tutup_unit")
+                local unit_name="${UNIT_STACK[-1]}"
+                local len=${#SHARD_LIST_STACK[@]}
+                local shard_list="${SHARD_LIST_STACK[$len-1]}"
+
+                # Emit Orchestrator
+                echo "${unit_name}_orchestrator:"
+
+                if [[ -n "$shard_list" ]]; then
+                    IFS=',' read -ra SHARDS <<< "$shard_list"
+                    for shard in "${SHARDS[@]}"; do
+                        shard=$(echo "$shard" | xargs)
+                        echo "    call ${unit_name}_shard_${shard}"
+                    done
+                fi
+
+                echo "    ret"
+
+                unset 'UNIT_STACK[$len-1]'
+                unset 'SHARD_LIST_STACK[$len-1]'
+                pop_block "unit"
+                ;;
+
+            "tutup_shard")
+                # End of shard definition
+                echo "    ret"
+                pop_block "shard"
+                ;;
+
+            paralel)
+                echo "; Parallel Execution Block Start (Sequential fallback)"
+                ;;
+
+            gabung)
+                echo "; Parallel Join"
+                ;;
+
             # Indeks (Load Tagger Index)
             indeks*)
                 if [[ "$line" =~ ^indeks[[:space:]]+\"(.*)\" ]]; then
@@ -372,7 +463,22 @@ parse_file() {
                 ;;
 
             "tutup_fungsi")
-                # RECURSION FIX: Restore old values of arguments from stack (Reverse Order)
+                # 1. Restore Locals (Reverse Order)
+                local len=${#FUNC_LOCALS_STACK[@]}
+                if [ $len -gt 0 ]; then
+                    local locals="${FUNC_LOCALS_STACK[$len-1]}"
+                    if [[ -n "$locals" ]]; then
+                        IFS=',' read -ra LOC_LIST <<< "$locals"
+                        # Loop in reverse
+                        for (( i=${#LOC_LIST[@]}-1; i>=0; i-- )); do
+                            local loc=$(echo "${LOC_LIST[$i]}" | xargs)
+                            echo "    pop qword [var_$loc]"
+                        done
+                    fi
+                    unset 'FUNC_LOCALS_STACK[$len-1]'
+                fi
+
+                # 2. Restore Arguments
                 local len=${#FUNC_ARGS_STACK[@]}
                 if [ $len -gt 0 ]; then
                     local args="${FUNC_ARGS_STACK[$len-1]}"
@@ -402,7 +508,20 @@ parse_file() {
                         echo "    mov rax, [var_$val]"
                     fi
 
-                    # 2. Restore Arguments (Recursion Fix)
+                    # 2. Restore Locals (Recursion Fix)
+                    local len=${#FUNC_LOCALS_STACK[@]}
+                    if [ $len -gt 0 ]; then
+                        local locals="${FUNC_LOCALS_STACK[$len-1]}"
+                        if [[ -n "$locals" ]]; then
+                            IFS=',' read -ra LOC_LIST <<< "$locals"
+                            for (( i=${#LOC_LIST[@]}-1; i>=0; i-- )); do
+                                local loc=$(echo "${LOC_LIST[$i]}" | xargs)
+                                echo "    pop qword [var_$loc]"
+                            done
+                        fi
+                    fi
+
+                    # 3. Restore Arguments (Recursion Fix)
                     local len=${#FUNC_ARGS_STACK[@]}
                     if [ $len -gt 0 ]; then
                         local args="${FUNC_ARGS_STACK[$len-1]}"
@@ -416,7 +535,7 @@ parse_file() {
                         fi
                     fi
 
-                    # 3. Return
+                    # 4. Return
                     echo "    ret"
                 fi
                 ;;
@@ -539,6 +658,20 @@ parse_file() {
                     local name="${BASH_REMATCH[1]}"
                     local size="${BASH_REMATCH[2]}"
                     emit_variable_decl "$name"
+
+                    # RECURSION FIX (Locals Save)
+                    local current_block="${BLOCK_STACK[-1]}"
+                    local len=${#FUNC_LOCALS_STACK[@]}
+                    if [ $len -gt 0 ] && [ "$current_block" == "fungsi" ]; then
+                        echo "    push qword [var_$name]"
+                        local current="${FUNC_LOCALS_STACK[$len-1]}"
+                        if [ -z "$current" ]; then
+                            FUNC_LOCALS_STACK[$len-1]="$name"
+                        else
+                            FUNC_LOCALS_STACK[$len-1]="$current,$name"
+                        fi
+                    fi
+
                     emit_array_alloc "$size"
                     emit_variable_assign "$name" ""
 
@@ -546,7 +679,25 @@ parse_file() {
                     local name="${BASH_REMATCH[1]}"
                     local expr="${BASH_REMATCH[2]}"
 
+                    # Float Detection
+                    if [[ "$expr" =~ \. ]]; then
+                        VAR_TYPE_MAP["$name"]="float"
+                    fi
+
                     emit_variable_decl "$name"
+
+                    # RECURSION FIX (Locals Save)
+                    local current_block="${BLOCK_STACK[-1]}"
+                    local len=${#FUNC_LOCALS_STACK[@]}
+                    if [ $len -gt 0 ] && [ "$current_block" == "fungsi" ]; then
+                        echo "    push qword [var_$name]"
+                        local current="${FUNC_LOCALS_STACK[$len-1]}"
+                        if [ -z "$current" ]; then
+                            FUNC_LOCALS_STACK[$len-1]="$name"
+                        else
+                            FUNC_LOCALS_STACK[$len-1]="$current,$name"
+                        fi
+                    fi
 
                     if [[ "$expr" =~ ^([a-zA-Z0-9_]+)\((.*)\)$ ]]; then
                          local struct_name="${BASH_REMATCH[1]}"
@@ -937,6 +1088,9 @@ parse_file() {
                 emit_continue
                 ;;
 
+            # --- Absolute AST (Unit / Shard / Fragment) ---
+
+
             cetak_str*)
                 if [[ "$line" =~ ^cetak_str\(([a-zA-Z0-9_]+)\)$ ]]; then
                     local content="${BASH_REMATCH[1]}"
@@ -948,6 +1102,16 @@ parse_file() {
                 if [[ "$line" =~ ^cetak\(\"(.*)\"\) ]]; then
                     local content="${BASH_REMATCH[1]}"
                     emit_print "\"$content\""
+                elif [[ "$line" =~ ^cetak\(([a-zA-Z0-9_]+)\)$ ]]; then
+                    local content="${BASH_REMATCH[1]}"
+                    local type="${VAR_TYPE_MAP[$content]}"
+                    if [ "$type" == "float" ]; then
+                        echo "    movq xmm0, [var_$content]"
+                        echo "    call print_float"
+                        echo "    call print_newline"
+                    else
+                        emit_print "$content"
+                    fi
                 elif [[ "$line" =~ ^cetak\(([a-zA-Z0-9_]+)\[([a-zA-Z0-9_]+)\]\)$ ]]; then
                     local var_name="${BASH_REMATCH[1]}"
                     local index="${BASH_REMATCH[2]}"
@@ -977,6 +1141,7 @@ parse_file() {
 
             # --- Assignment ke Variabel Ada (tanpa var) ---
             *)
+                 echo "DEBUG: Default handler caught '$line'"
                  if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)$ ]]; then
                     # Implicit Function Call (Standalone)
                     local name="${BASH_REMATCH[1]}"
@@ -1119,11 +1284,29 @@ parse_file() {
                              emit_call "$struct_name"
                              emit_variable_assign "$name" ""
                          fi
-                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)[[:space:]]*([-+*/%])[[:space:]]*([a-zA-Z0-9_]+)$ ]]; then
-                         local op1="${BASH_REMATCH[1]}"
-                         local op="${BASH_REMATCH[2]}"
-                         local op2="${BASH_REMATCH[3]}"
-                         emit_arithmetic_op "$op1" "$op" "$op2" "$name"
+                    elif [[ "$expr" =~ $trickster_re ]]; then
+                         # Complex Expression via Trickster
+                         compile_expression "$expr"
+                         echo "    pop rax"
+                         emit_variable_assign "$name" ""
+
+                         if [ "$IS_FLOAT_EXPR" -eq 1 ]; then
+                             VAR_TYPE_MAP["$name"]="float"
+                         fi
+                    elif [[ "$expr" =~ ^[0-9]+\.[0-9]+$ ]]; then
+                         # Float Literal Assignment
+                         echo "    mov rax, __float64__($expr)"
+                         emit_variable_assign "$name" ""
+                    elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)\[([a-zA-Z0-9_]+)\]$ ]]; then
+                         # Array Index Read: var x = arr[i]
+                         local arr_name="${BASH_REMATCH[1]}"
+                         local index="${BASH_REMATCH[2]}"
+                         emit_load_array_elem "$arr_name" "$index"
+                         emit_variable_assign "$name" ""
+                    elif [[ "$expr" =~ ^!([a-zA-Z0-9_]+)$ ]]; then
+                         # Logical NOT
+                         local op="${BASH_REMATCH[1]}"
+                         emit_logical_not "$op" "$name"
                     elif [[ "$expr" =~ ^([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)$ ]]; then
                          # Struct Field Access (RHS)
                          local struct_var="${BASH_REMATCH[1]}"

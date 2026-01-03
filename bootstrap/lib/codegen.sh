@@ -534,6 +534,13 @@ print_newline:
     syscall
     ret
 
+; print_float: Expects float (double) in XMM0
+; For bootstrap simplicity, we convert to int and print
+print_float:
+    cvttsd2si rax, xmm0
+    call print_int
+    ret
+
 ; print_int: Expects integer in RAX
 print_int:
     push rbp
