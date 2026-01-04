@@ -1,0 +1,3 @@
+fungsi mulai()
+  cetak("Hello Minimal")
+tutup_fungsi

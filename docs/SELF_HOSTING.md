@@ -8,6 +8,10 @@ Menciptakan ekosistem di mana compiler Morph dapat mengompilasi dirinya sendiri.
 ## Struktur Direktori Baru
 
 *   `apps/compiler/src/main.fox`: Source code compiler Morph self-hosted. Entry point utama yang menangani parsing dan code generation.
+*   `apps/compiler/src/globals.fox`: Variabel global dan alokasi memori.
+*   `apps/compiler/src/constants.fox`: Inisialisasi string assembler.
+*   `apps/compiler/src/parser.fox`: Logika parser utama.
+*   `apps/compiler/src/codegen.fox`: Utilitas code generation.
 *   `apps/compiler/pkg/utils.fox`: Paket utilitas internal compiler, berisi JSON Parser (High-Level) dan registry library standar.
 *   `bootstrap/`: Compiler lama (Shell Script) yang digunakan untuk mengompilasi `apps/compiler/src/main.fox` sampai compiler tersebut cukup stabil untuk mengambil alih.
 *   `lib/`: Standard Library yang digunakan oleh kedua compiler (dan aplikasi user).
@@ -39,6 +43,7 @@ Untuk mendukung compiler mandiri, Kernel Assembly (`codegen.sh`) telah ditingkat
 - [x] **Arithmetic Parsing**: Dukungan operasi dasar `+`, `-`, `*` dalam assignment.
 - [x] **Control Flow**: Implementasi `jika`, `lain` (Else), dan `selama` (Looping) dengan stack label management.
 - [x] **Function Calls**: Implementasi `panggil func(arg)`.
+- [x] **Modularisasi Compiler**: Pemecahan `main.fox` menjadi `parser.fox`, `codegen.fox`, dll. untuk stabilitas.
 
 ### Fase 3: Menuju Full Self-Hosting (Next Steps)
 - [ ] **Struct Parsing**: Implementasi keyword `struktur` dan akses member (`var.field`).
@@ -46,6 +51,9 @@ Untuk mendukung compiler mandiri, Kernel Assembly (`codegen.sh`) telah ditingkat
 - [ ] **Else If Support**: Implementasi penuh untuk `lain_jika`.
 - [ ] **String Literals**: Dukungan escape character dalam string.
 - [ ] **Optimized Codegen**: Manajemen register yang lebih efisien (bukan hanya stack/rax).
+
+## Laporan Teknis
+Lihat [SESSION_REPORT_JULES.md](SESSION_REPORT_JULES.md) untuk detail perubahan terbaru, perbaikan bug, dan hutang teknis yang tersisa.
 
 ## Catatan Teknis (Sesi Ini)
 *   **Keamanan**: JSON parser self-hosted dibatasi untuk tidak menggunakan instruksi assembler mentah (`asm_mulai`) untuk logika parsing, hanya untuk return value convention. Ini memastikan keamanan dan portabilitas logika.
