@@ -262,7 +262,7 @@ parse_file() {
                 if [[ -n "$shard_list" ]]; then
                     IFS=',' read -ra SHARDS <<< "$shard_list"
                     for shard in "${SHARDS[@]}"; do
-                        shard=$(echo "$shard" | xargs)
+                        shard=$(echo "$shard" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                         echo "    call ${unit_name}_shard_${shard}"
                     done
                 fi
@@ -316,7 +316,7 @@ parse_file() {
                     # Parse Range/List (Comma separated)
                     IFS=',' read -ra RANGES <<< "$range_str"
                     for r in "${RANGES[@]}"; do
-                        r=$(echo "$r" | xargs) # Trim
+                        r=$(echo "$r" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//") # Trim
                         if [[ "$r" =~ ^([0-9]+)-([0-9]+)$ ]]; then
                             # Range: Start-End
                             local start="${BASH_REMATCH[1]}"
@@ -347,7 +347,7 @@ parse_file() {
                     if [ -f "$import_path" ]; then
                         IFS=',' read -ra ID_LIST <<< "$ids"
                         for id in "${ID_LIST[@]}"; do
-                            id=$(echo "$id" | xargs)
+                            id=$(echo "$id" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                             local block_key="${import_path}:${id}"
                             if [ "${PROCESSED_BLOCKS[$block_key]}" == "1" ]; then continue; fi
                             PROCESSED_BLOCKS[$block_key]=1
@@ -365,7 +365,7 @@ parse_file() {
                     local ids="${BASH_REMATCH[1]}"
                     IFS=',' read -ra ID_LIST <<< "$ids"
                     for id in "${ID_LIST[@]}"; do
-                        id=$(echo "$id" | xargs)
+                        id=$(echo "$id" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
 
                         # Lookup in ID_MAP
                         local mapped_file="${ID_MAP[$id]}"
@@ -435,7 +435,7 @@ parse_file() {
                         IFS=',' read -ra ARG_LIST <<< "$args"
                         local arg_count=0
                         for arg in "${ARG_LIST[@]}"; do
-                            arg=$(echo "$arg" | xargs)
+                            arg=$(echo "$arg" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                             emit_variable_decl "$arg"
 
                             # RECURSION FIX: Save old value of the global var argument to stack
@@ -465,7 +465,7 @@ parse_file() {
                         IFS=',' read -ra LOC_LIST <<< "$locals"
                         # Loop in reverse
                         for (( i=${#LOC_LIST[@]}-1; i>=0; i-- )); do
-                            local loc=$(echo "${LOC_LIST[$i]}" | xargs)
+                            local loc=$(echo "${LOC_LIST[$i]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                             echo "    pop qword [var_$loc]"
                         done
                     fi
@@ -480,7 +480,7 @@ parse_file() {
                         IFS=',' read -ra ARG_LIST <<< "$args"
                         # Loop in reverse
                         for (( i=${#ARG_LIST[@]}-1; i>=0; i-- )); do
-                            local arg=$(echo "${ARG_LIST[$i]}" | xargs)
+                            local arg=$(echo "${ARG_LIST[$i]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                             echo "    pop qword [var_$arg]"
                         done
                     fi
@@ -509,7 +509,7 @@ parse_file() {
                         if [[ -n "$locals" ]]; then
                             IFS=',' read -ra LOC_LIST <<< "$locals"
                             for (( i=${#LOC_LIST[@]}-1; i>=0; i-- )); do
-                                local loc=$(echo "${LOC_LIST[$i]}" | xargs)
+                                local loc=$(echo "${LOC_LIST[$i]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                                 echo "    pop qword [var_$loc]"
                             done
                         fi
@@ -523,7 +523,7 @@ parse_file() {
                             IFS=',' read -ra ARG_LIST <<< "$args"
                             # Loop in reverse
                             for (( i=${#ARG_LIST[@]}-1; i>=0; i-- )); do
-                                local arg=$(echo "${ARG_LIST[$i]}" | xargs)
+                                local arg=$(echo "${ARG_LIST[$i]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                                 echo "    pop qword [var_$arg]"
                             done
                         fi
@@ -708,20 +708,20 @@ parse_file() {
                              emit_variable_assign "$name" ""
                          elif [[ "$struct_name" == "str_concat" ]]; then
                              IFS=',' read -ra ADDR <<< "$args_str"
-                             local arg1=$(echo "${ADDR[0]}" | xargs)
-                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             local arg1=$(echo "${ADDR[0]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                             local arg2=$(echo "${ADDR[1]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                              emit_str_concat "$arg1" "$arg2"
                              emit_variable_assign "$name" ""
                          elif [[ "$struct_name" == "str_eq" ]]; then
                              IFS=',' read -ra ADDR <<< "$args_str"
-                             local arg1=$(echo "${ADDR[0]}" | xargs)
-                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             local arg1=$(echo "${ADDR[0]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                             local arg2=$(echo "${ADDR[1]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                              emit_str_eq "$arg1" "$arg2"
                              emit_variable_assign "$name" ""
                          elif [[ "$struct_name" == "str_get" ]]; then
                              IFS=',' read -ra ADDR <<< "$args_str"
-                             local arg1=$(echo "${ADDR[0]}" | xargs)
-                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             local arg1=$(echo "${ADDR[0]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                             local arg2=$(echo "${ADDR[1]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                              emit_str_get "$arg1" "$arg2"
                              emit_variable_assign "$name" ""
                          elif [[ -n "${STRUCT_SIZES[$struct_name]}" ]]; then
@@ -731,7 +731,7 @@ parse_file() {
                              local values_str=""
                              local current_offset=0
                              for val in "${ADDR[@]}"; do
-                                 val=$(echo "$val" | xargs)
+                                 val=$(echo "$val" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                                  offsets_str="$offsets_str $current_offset"
                                  values_str="$values_str $val"
                                  current_offset=$((current_offset + 8))
@@ -841,8 +841,8 @@ parse_file() {
                     local op1="${BASH_REMATCH[1]}"
                     local cond="${BASH_REMATCH[2]}"
                     local op2="${BASH_REMATCH[3]}"
-                    op1=$(echo "$op1" | xargs)
-                    op2=$(echo "$op2" | xargs)
+                    op1=$(echo "$op1" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                    op2=$(echo "$op2" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                     resolve_struct_access "$op1" op1
                     resolve_struct_access "$op2" op2
                     emit_if_start "$op1" "$cond" "$op2"
@@ -862,8 +862,8 @@ parse_file() {
                     local op1="${BASH_REMATCH[1]}"
                     local cond="${BASH_REMATCH[2]}"
                     local op2="${BASH_REMATCH[3]}"
-                    op1=$(echo "$op1" | xargs)
-                    op2=$(echo "$op2" | xargs)
+                    op1=$(echo "$op1" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                    op2=$(echo "$op2" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                     resolve_struct_access "$op1" op1
                     resolve_struct_access "$op2" op2
                     emit_else_if "$op1" "$cond" "$op2"
@@ -893,8 +893,8 @@ parse_file() {
                     local op1="${BASH_REMATCH[1]}"
                     local cond="${BASH_REMATCH[2]}"
                     local op2="${BASH_REMATCH[3]}"
-                    op1=$(echo "$op1" | xargs)
-                    op2=$(echo "$op2" | xargs)
+                    op1=$(echo "$op1" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                    op2=$(echo "$op2" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                     resolve_struct_access "$op1" op1
                     resolve_struct_access "$op2" op2
                     emit_loop_start "$op1" "$cond" "$op2"
@@ -914,9 +914,9 @@ parse_file() {
 
                     # Split by semicolon using awk because bash read is tricky with escaped chars, but here logic is simple
                     # Note: We assume simple expressions without internal semicolons
-                    local init=$(echo "$content" | awk -F';' '{print $1}' | xargs)
-                    local cond=$(echo "$content" | awk -F';' '{print $2}' | xargs)
-                    local step=$(echo "$content" | awk -F';' '{print $3}' | xargs)
+                    local init=$(echo "$content" | awk -F';' '{print $1}' | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                    local cond=$(echo "$content" | awk -F';' '{print $2}' | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                    local step=$(echo "$content" | awk -F';' '{print $3}' | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
 
                     # 1. Emit Init
                     # We can reuse the assignment parser logic by calling a helper or recursive parse on the string
@@ -958,8 +958,8 @@ parse_file() {
                     if [[ -n "$op" ]]; then
                         # Split by operator
                         # Use awk to split by string is safer than regex in bash sometimes
-                        local op1=$(echo "$cond" | awk -F"$op" '{print $1}' | xargs)
-                        local op2=$(echo "$cond" | awk -F"$op" '{print $2}' | xargs)
+                        local op1=$(echo "$cond" | awk -F"$op" '{print $1}' | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                        local op2=$(echo "$cond" | awk -F"$op" '{print $2}' | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
 
                         resolve_struct_access "$op1" op1
                         resolve_struct_access "$op2" op2
@@ -1037,7 +1037,7 @@ parse_file() {
             kasus*)
                 if [[ "$line" =~ ^kasus[[:space:]]+(.*):$ ]]; then
                     local val="${BASH_REMATCH[1]}"
-                    val=$(echo "$val" | xargs) # Trim
+                    val=$(echo "$val" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//") # Trim
 
                     # Get switch var
                     local len=${#SWITCH_VAL_STACK[@]}
@@ -1212,20 +1212,20 @@ parse_file() {
                              emit_variable_assign "$name" ""
                          elif [[ "$struct_name" == "str_concat" ]]; then
                              IFS=',' read -ra ADDR <<< "$args_str"
-                             local arg1=$(echo "${ADDR[0]}" | xargs)
-                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             local arg1=$(echo "${ADDR[0]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                             local arg2=$(echo "${ADDR[1]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                              emit_str_concat "$arg1" "$arg2"
                              emit_variable_assign "$name" ""
                          elif [[ "$struct_name" == "str_eq" ]]; then
                              IFS=',' read -ra ADDR <<< "$args_str"
-                             local arg1=$(echo "${ADDR[0]}" | xargs)
-                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             local arg1=$(echo "${ADDR[0]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                             local arg2=$(echo "${ADDR[1]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                              emit_str_eq "$arg1" "$arg2"
                              emit_variable_assign "$name" ""
                          elif [[ "$struct_name" == "str_get" ]]; then
                              IFS=',' read -ra ADDR <<< "$args_str"
-                             local arg1=$(echo "${ADDR[0]}" | xargs)
-                             local arg2=$(echo "${ADDR[1]}" | xargs)
+                             local arg1=$(echo "${ADDR[0]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                             local arg2=$(echo "${ADDR[1]}" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                              emit_str_get "$arg1" "$arg2"
                              emit_variable_assign "$name" ""
                          elif [[ -n "${STRUCT_SIZES[$struct_name]}" ]]; then
@@ -1235,7 +1235,7 @@ parse_file() {
                              local values_str=""
                              local current_offset=0
                              for val in "${ADDR[@]}"; do
-                                 val=$(echo "$val" | xargs)
+                                 val=$(echo "$val" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
                                  offsets_str="$offsets_str $current_offset"
                                  values_str="$values_str $val"
                                  current_offset=$((current_offset + 8))

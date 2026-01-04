@@ -7,7 +7,7 @@ Daftar "lib/file_io.fox"      = 318-319
 Daftar "lib/format.fox"       = 320-324
 Daftar "lib/hashmap.fox"      = 330-333
 Daftar "lib/vector.fox"       = 340-344
-Daftar "lib/string_utils.fox" = 380-388
+Daftar "lib/string_utils.fox" = 380-388, 390-391
 
 ; --- JSON PARSER LOGIC (High-Level, No ASM) ---
 

@@ -1,0 +1,9 @@
+### 1200
+; Code Generation Utilities
+
+ambil "apps/compiler/src/globals.fox"
+
+fungsi emit(line)
+  var vec = output_lines
+  panggil vec_push(vec, line)
+tutup_fungsi
