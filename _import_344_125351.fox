@@ -1,0 +1,7 @@
+fungsi vec_len(vec)
+  tipe vec Vector
+  var sz = vec.size
+  asm_mulai
+  mov rax, [var_sz]
+  tutup_asm
+tutup_fungsi

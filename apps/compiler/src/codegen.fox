@@ -1,0 +1,9 @@
+; Code Generation Utilities
+; Functions for emitting assembly code to output buffer
+
+Ambil 340, 341, 342, 343, 344 ; Vector
+
+fungsi emit(line)
+  var vec = output_lines
+  panggil vec_push(vec, line)
+tutup_fungsi

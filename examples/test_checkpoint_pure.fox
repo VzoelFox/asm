@@ -1,0 +1,35 @@
+; Test pure asm: checkpoint tanpa stdlib dependencies
+fungsi mulai()
+    cetak("Test 1: Before checkpoint")
+
+    ; Allocate 1KB memory
+    asm_mulai
+    mov rdi, 1024
+    call sys_alloc
+    mov [var_ptr], rax
+    tutup_asm
+
+    cetak("Test 2: After alloc")
+
+    ; Create checkpoint
+    asm_mulai
+    call sys_mem_checkpoint
+    mov [var_checkpoint], rax
+    tutup_asm
+
+    cetak("Test 3: After checkpoint")
+
+    ; Allocate more memory
+    asm_mulai
+    mov rdi, 2048
+    call sys_alloc
+    tutup_asm
+
+    cetak("Test 4: After second alloc")
+
+    ; CRITICAL TEST: Apakah sampai sini?
+    cetak("Success!")
+tutup_fungsi
+
+var ptr = 0
+var checkpoint = 0

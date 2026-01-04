@@ -1,0 +1,7 @@
+; Test sederhana untuk debugging
+fungsi mulai()
+    cetak("Test 1: Init")
+    var x = 10
+    cetak(x)
+    cetak("Test 2: Done")
+tutup_fungsi

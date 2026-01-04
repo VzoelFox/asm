@@ -1,0 +1,123 @@
+; String Constants for Assembly Code Generation
+; These are initialized at runtime to avoid bootstrap parser issues
+
+; --- GLOBAL CONSTANTS (Declarations) ---
+var s_msg_skip = 0
+var s_colon = 0
+var s_push_q = 0
+var s_close_br = 0
+var s_mov_mem = 0
+var s_comma_space = 0
+
+var s_mov_rax_v = 0
+var s_mov_rbx_v = 0
+var s_cmp_rax = 0
+var s_cmp_rax_v = 0
+
+var s_jne = 0
+var s_jge = 0
+var s_jle = 0
+
+var s_end_lbl = 0
+var s_final_lbl = 0
+var s_jmp = 0
+
+var s_loop_start = 0
+var s_loop_end = 0
+
+var s_mov_rax = 0
+var s_var_pref = 0
+
+var s_add = 0
+var s_sub = 0
+var s_mul = 0
+var s_op_mem = 0
+
+var s_mov_mem_raw = 0
+var s_end_mem = 0
+
+var s_mov_rsi_v = 0
+
+var s_msg = 0
+var s_len = 0
+var s_data = 0
+var s_db = 0
+var s_db_end = 0
+var s_equ = 0
+var s_text = 0
+
+var s_mov_rsi_lit = 0
+var s_mov_rdx_lit = 0
+
+var s_mov_reg = 0
+var s_comma = 0
+var s_comma_mem = 0
+var s_call = 0
+
+var s_indent = 0
+
+var s_print = 0
+var s_nl = 0
+var s_print_int = 0
+var s_print_ptr = 0
+
+fungsi init_constants()
+  s_msg_skip = "Skipped already imported: "
+  s_colon = ":"
+  s_push_q = "    push qword [var_"
+  s_close_br = "]"
+  s_mov_mem = "    mov [var_"
+  s_comma_space = "], "
+
+  s_mov_rax_v = "    mov rax, [var_"
+  s_mov_rbx_v = "    mov rbx, [var_"
+  s_cmp_rax = "    cmp rax, "
+  s_cmp_rax_v = "    cmp rax, [var_"
+
+  s_jne = "    jne "
+  s_jge = "    jge "
+  s_jle = "    jle "
+
+  s_end_lbl = ".L_end_"
+  s_final_lbl = ".L_final_"
+  s_jmp = "    jmp "
+
+  s_loop_start = ".L_loop_start_"
+  s_loop_end = ".L_loop_end_"
+
+  s_mov_rax = "    mov rax, "
+  s_var_pref = "var_"
+
+  s_add = "    add rax, "
+  s_sub = "    sub rax, "
+  s_mul = "    imul rax, "
+  s_op_mem = "[var_"
+
+  s_mov_mem_raw = "    mov ["
+  s_end_mem = "], rax"
+
+  s_mov_rsi_v = "    mov rsi, [var_"
+
+  s_msg = "msg_"
+  s_len = "len_"
+  s_data = "section .data"
+  s_db = " db \""
+  s_db_end = "\", 0"
+  s_equ = " equ $ - "
+  s_text = "section .text"
+
+  s_mov_rsi_lit = "    mov rsi, "
+  s_mov_rdx_lit = "    mov rdx, "
+
+  s_mov_reg = "    mov "
+  s_comma = ", "
+  s_comma_mem = ", [var_"
+  s_call = "    call "
+
+  s_indent = "    "
+
+  s_print = "    call print_string"
+  s_nl = "    call print_newline"
+  s_print_int = "    call print_int"
+  s_print_ptr = "    call print_string_ptr"
+tutup_fungsi

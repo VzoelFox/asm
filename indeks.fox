@@ -28,3 +28,9 @@ Daftar "lib/json.fox" = 450-459
 
 # Math Library (100-105)
 Daftar "lib/math.fox" = 100-105
+
+# Compiler Parser Helpers (1100-1199)
+Daftar "apps/compiler/src/parser_helpers_import.fox" = 1100-1103
+Daftar "apps/compiler/src/parser_helpers_struct.fox" = 1110-1112
+Daftar "apps/compiler/src/parser_helpers_flow.fox" = 1120-1127
+Daftar "apps/compiler/src/parser_helpers_stmt.fox" = 1130-1139

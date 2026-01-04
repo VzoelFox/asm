@@ -1,0 +1,221 @@
+; Circuit Breaker Pattern for Fault Tolerance
+; Combines snapshot + crash recovery + state management
+; ID Range: 210-219
+
+### 210
+
+; Circuit Breaker States
+const CB_CLOSED = 0      ; Normal operation
+const CB_OPEN = 1        ; Failing, block calls
+const CB_HALF_OPEN = 2   ; Testing recovery
+
+; Circuit Breaker Structure
+struktur CircuitBreaker
+    state int              ; Current state (CLOSED/OPEN/HALF_OPEN)
+    failure_count int      ; Consecutive failures
+    failure_threshold int  ; Max failures before OPEN
+    success_count int      ; Successes in HALF_OPEN
+    last_snapshot int      ; Pointer to last good checkpoint
+    timeout_ms int         ; Timeout before HALF_OPEN
+    last_failure_time int  ; Timestamp of last failure
+tutup_struktur
+
+### 211
+fungsi cb_create(failure_threshold, timeout_ms)
+   ; Create new circuit breaker with thresholds
+   ; Returns: CircuitBreaker pointer
+
+   var cb = CircuitBreaker(0, 0, 0, 0, 0, 0, 0)
+   cb.state = CB_CLOSED
+   cb.failure_count = 0
+   cb.failure_threshold = failure_threshold
+   cb.success_count = 0
+   cb.last_snapshot = 0
+   cb.timeout_ms = timeout_ms
+   cb.last_failure_time = 0
+
+   asm_mulai
+   mov rax, [var_cb]
+   tutup_asm
+tutup_fungsi
+
+### 212
+fungsi cb_can_execute(cb)
+   ; Check if execution is allowed
+   ; Returns: TRUE if allowed, FALSE if blocked
+
+   tipe cb CircuitBreaker
+
+   ; CLOSED → always allow
+   jika (cb.state == CB_CLOSED)
+      kembalikan TRUE
+   tutup_jika
+
+   ; OPEN → check timeout for HALF_OPEN
+   jika (cb.state == CB_OPEN)
+      asm_mulai
+      call sys_get_timestamp
+      mov [var_now], rax
+      tutup_asm
+
+      var elapsed = now - cb.last_failure_time
+      jika (elapsed > cb.timeout_ms)
+         ; Transition to HALF_OPEN (test recovery)
+         cb.state = CB_HALF_OPEN
+         cb.success_count = 0
+         kembalikan TRUE
+      tutup_jika
+
+      kembalikan FALSE
+   tutup_jika
+
+   ; HALF_OPEN → allow single test
+   kembalikan TRUE
+tutup_fungsi
+
+### 213
+fungsi cb_on_success(cb)
+   ; Record successful execution
+   ; Manages state transitions
+
+   tipe cb CircuitBreaker
+
+   jika (cb.state == CB_CLOSED)
+      ; Reset failure count
+      cb.failure_count = 0
+   tutup_jika
+
+   jika (cb.state == CB_HALF_OPEN)
+      cb.success_count = cb.success_count + 1
+
+      ; After 3 successes, transition to CLOSED
+      jika (cb.success_count >= 3)
+         cb.state = CB_CLOSED
+         cb.failure_count = 0
+         cetak("[CircuitBreaker] State: HALF_OPEN → CLOSED")
+      tutup_jika
+   tutup_jika
+tutup_fungsi
+
+### 214
+fungsi cb_on_failure(cb)
+   ; Record failed execution
+   ; Creates snapshot before transitioning to OPEN
+
+   tipe cb CircuitBreaker
+
+   cb.failure_count = cb.failure_count + 1
+
+   cetak("[CircuitBreaker] Failure count:")
+   cetak(cb.failure_count)
+
+   ; Update last failure timestamp
+   asm_mulai
+   call sys_get_timestamp
+   mov rbx, [var_cb]
+   mov [rbx + 48], rax  ; cb.last_failure_time
+   tutup_asm
+
+   ; Check threshold
+   jika (cb.failure_count >= cb.failure_threshold)
+      cetak("[CircuitBreaker] Threshold reached, creating snapshot...")
+
+      ; Create snapshot before opening circuit
+      asm_mulai
+      call sys_mem_checkpoint
+      mov rbx, [var_cb]
+      mov [rbx + 32], rax  ; cb.last_snapshot
+      tutup_asm
+
+      cb.state = CB_OPEN
+      cetak("[CircuitBreaker] State: CLOSED → OPEN")
+   tutup_jika
+tutup_fungsi
+
+### 215
+fungsi cb_execute_with_recovery(cb, func_ptr)
+   ; Execute function with circuit breaker protection
+   ; If crash → snapshot, reset, resume from checkpoint
+   ; Returns: TRUE if success, FALSE if blocked/failed
+
+   tipe cb CircuitBreaker
+
+   ; Check if execution allowed
+   var can_exec = cb_can_execute(cb)
+   jika (can_exec == FALSE)
+      cetak("[CircuitBreaker] Execution blocked (OPEN state)")
+      kembalikan FALSE
+   tutup_jika
+
+   ; Create checkpoint before execution
+   cetak("[CircuitBreaker] Creating checkpoint before execution...")
+   asm_mulai
+   call sys_mem_checkpoint
+   mov [var_checkpoint_ptr], rax
+   tutup_asm
+
+   ; Execute function (may crash)
+   cetak("[CircuitBreaker] Executing protected function...")
+
+   var result = 0
+   asm_mulai
+   mov rdi, [var_func_ptr]
+   call rdi
+   mov [var_result], rax
+   tutup_asm
+
+   ; If we reached here → success
+   cetak("[CircuitBreaker] Execution succeeded")
+   panggil cb_on_success(cb)
+   kembalikan TRUE
+tutup_fungsi
+
+### 216
+fungsi cb_handle_crash(cb)
+   ; Handle crash: restore checkpoint, freeze processes, recurse
+   ; This is called by signal handler on SIGSEGV/SIGABRT
+
+   tipe cb CircuitBreaker
+
+   cetak("[CircuitBreaker] CRASH DETECTED!")
+
+   ; Record failure
+   panggil cb_on_failure(cb)
+
+   ; Restore to last checkpoint
+   jika (cb.last_snapshot != 0)
+      cetak("[CircuitBreaker] Restoring checkpoint...")
+      asm_mulai
+      mov rax, [var_cb]
+      mov rdi, [rax + 32]  ; cb.last_snapshot
+      call sys_mem_restore
+      tutup_asm
+      cetak("[CircuitBreaker] Checkpoint restored")
+   tutup_jika
+
+   ; Freeze all processes (send SIGSTOP to children)
+   cetak("[CircuitBreaker] Freezing child processes...")
+   ; TODO: Implement process freezing via kill(pid, SIGSTOP)
+
+   ; Recurse to retry (with backoff)
+   cetak("[CircuitBreaker] Retrying with exponential backoff...")
+   ; TODO: Implement retry with delay
+tutup_fungsi
+
+### 217
+fungsi cb_get_state(cb)
+   ; Get current state as string (for debugging)
+
+   tipe cb CircuitBreaker
+
+   jika (cb.state == CB_CLOSED)
+      kembalikan "CLOSED"
+   tutup_jika
+   jika (cb.state == CB_OPEN)
+      kembalikan "OPEN"
+   tutup_jika
+   jika (cb.state == CB_HALF_OPEN)
+      kembalikan "HALF_OPEN"
+   tutup_jika
+   kembalikan "UNKNOWN"
+tutup_fungsi

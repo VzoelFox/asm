@@ -1,0 +1,21 @@
+; Test minimal: apakah sys_mem_checkpoint menyebabkan crash
+Ambil 340, 341, 342 ; Vector create, push, len
+
+fungsi mulai()
+    cetak("Test 1: Init")
+    var vec = vec_create(100)
+    panggil vec_push(vec, 42)
+    cetak("Test 2: Checkpoint")
+
+    ; Create checkpoint
+    asm_mulai
+    call sys_mem_checkpoint
+    tutup_asm
+
+    cetak("Test 3: After checkpoint")
+    panggil vec_push(vec, 99)
+    var count = vec_len(vec)
+    cetak("Count:")
+    cetak(count)
+    cetak("Success!")
+tutup_fungsi

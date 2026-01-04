@@ -1,6 +1,10 @@
 # Type System for Self-Host Compiler
 # Provides compile-time type checking to catch bugs before runtime
 
+Ambil 330, 331, 332, 333 ; Hashmap
+Ambil 340, 341, 342, 343, 344 ; Vector
+Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
+
 # Type Constants
 const TYPE_UNKNOWN = 0
 const TYPE_INT = 1
@@ -63,15 +67,15 @@ fungsi get_variable_type(var_name)
 
    jika (type_id == 0)
       asm_mulai
-      mov rax, TYPE_UNKNOWN
-      ret
+      mov rax, 0
       tutup_asm
+      kembalikan
    tutup_jika
 
    asm_mulai
    mov rax, [var_type_id]
-   ret
    tutup_asm
+   kembalikan
 tutup_fungsi
 
 fungsi get_struct_name(var_name)
@@ -82,8 +86,8 @@ fungsi get_struct_name(var_name)
 
    asm_mulai
    mov rax, [var_struct_name]
-   ret
    tutup_asm
+   kembalikan
 tutup_fungsi
 
 fungsi check_arithmetic_types(lhs_var, rhs_var)
@@ -94,33 +98,33 @@ fungsi check_arithmetic_types(lhs_var, rhs_var)
    var rhs_type = get_variable_type(rhs_var)
 
    ; Both must be numeric (INT or FLOAT)
-   jika (lhs_type == TYPE_INT)
-      jika (rhs_type == TYPE_INT)
+   jika (lhs_type == 1)
+      jika (rhs_type == 1)
          asm_mulai
          mov rax, 1
-         ret
          tutup_asm
+         kembalikan
       tutup_jika
-      jika (rhs_type == TYPE_FLOAT)
+      jika (rhs_type == 2)
          asm_mulai
          mov rax, 1
-         ret
          tutup_asm
+         kembalikan
       tutup_jika
    tutup_jika
 
-   jika (lhs_type == TYPE_FLOAT)
-      jika (rhs_type == TYPE_INT)
+   jika (lhs_type == 2)
+      jika (rhs_type == 1)
          asm_mulai
          mov rax, 1
-         ret
          tutup_asm
+         kembalikan
       tutup_jika
-      jika (rhs_type == TYPE_FLOAT)
+      jika (rhs_type == 2)
          asm_mulai
          mov rax, 1
-         ret
          tutup_asm
+         kembalikan
       tutup_jika
    tutup_jika
 
@@ -135,8 +139,8 @@ fungsi check_arithmetic_types(lhs_var, rhs_var)
 
    asm_mulai
    mov rax, 0
-   ret
    tutup_asm
+   kembalikan
 tutup_fungsi
 
 fungsi check_assignment_types(var_name, value_type)
@@ -146,28 +150,28 @@ fungsi check_assignment_types(var_name, value_type)
    var var_type = get_variable_type(var_name)
 
    ; If variable not yet tracked, accept any type (first assignment)
-   jika (var_type == TYPE_UNKNOWN)
+   jika (var_type == 0)
       asm_mulai
       mov rax, 1
-      ret
       tutup_asm
+      kembalikan
    tutup_jika
 
    ; Check type compatibility
    jika (var_type == value_type)
       asm_mulai
       mov rax, 1
-      ret
       tutup_asm
+      kembalikan
    tutup_jika
 
    ; Allow INT -> FLOAT implicit conversion
-   jika (var_type == TYPE_FLOAT)
-      jika (value_type == TYPE_INT)
+   jika (var_type == 2)
+      jika (value_type == 1)
          asm_mulai
          mov rax, 1
-         ret
          tutup_asm
+         kembalikan
       tutup_jika
    tutup_jika
 
@@ -179,8 +183,8 @@ fungsi check_assignment_types(var_name, value_type)
 
    asm_mulai
    mov rax, 0
-   ret
    tutup_asm
+   kembalikan
 tutup_fungsi
 
 fungsi report_type_errors()
@@ -221,9 +225,9 @@ fungsi infer_literal_type(literal_str)
    ; String literal starts with "
    jika (first_ch == 34)
       asm_mulai
-      mov rax, TYPE_STRING
-      ret
+      mov rax, 3
       tutup_asm
+      kembalikan
    tutup_jika
 
    ; Check for float (contains '.')
@@ -233,16 +237,16 @@ fungsi infer_literal_type(literal_str)
       var ch = str_get(literal_str, idx)
       jika (ch == 46)
          asm_mulai
-         mov rax, TYPE_FLOAT
-         ret
+         mov rax, 2
          tutup_asm
+         kembalikan
       tutup_jika
       idx = idx + 1
    tutup_selama
 
    ; Default to INT for numeric literals
    asm_mulai
-   mov rax, TYPE_INT
-   ret
+   mov rax, 1
    tutup_asm
+   kembalikan
 tutup_fungsi

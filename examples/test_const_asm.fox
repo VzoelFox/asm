@@ -1,0 +1,21 @@
+# Test const and asm blocks
+const TYPE_INT = 1
+
+fungsi test_func(x)
+   jika (x == TYPE_INT)
+      asm_mulai
+      mov rax, 1
+      tutup_asm
+      kembalikan
+   tutup_jika
+
+   asm_mulai
+   mov rax, 0
+   tutup_asm
+   kembalikan
+tutup_fungsi
+
+fungsi mulai()
+    var result = test_func(1)
+    cetak(result)
+tutup_fungsi

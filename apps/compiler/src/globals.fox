@@ -1,0 +1,48 @@
+; Global Variables for Self-Hosted Compiler
+; Shared state across parser, codegen, and type system
+
+Ambil 330, 331, 332, 333 ; Hashmap
+Ambil 340, 341, 342, 343, 344 ; Vector
+
+; Global Output Buffer
+var output_lines = 0
+var global_vars = 0
+
+; Global Stack for Control Flow (If/Loop)
+var label_stack = 0
+var label_counter = 0
+
+; String Literal Counter (for cetak)
+var str_counter = 0
+
+; Parser State
+var current_func = ""
+
+; Import Guard
+var processed_files = 0
+
+; Struct Tracking
+var struct_sizes = 0
+var struct_offsets = 0
+var struct_names = 0
+var current_struct_name = ""
+var in_struct_block = 0
+
+fungsi init_globals()
+  var temp_out = vec_create(1000)
+  output_lines = temp_out
+  var temp_vars = vec_create(100)
+  global_vars = temp_vars
+  var temp_stack = vec_create(50)
+  label_stack = temp_stack
+  var temp_map = map_create(32)
+  processed_files = temp_map
+
+  ; Init Struct Tracking
+  var ss_map = map_create(32)
+  struct_sizes = ss_map
+  var so_map = map_create(128)
+  struct_offsets = so_map
+  var sn_vec = vec_create(16)
+  struct_names = sn_vec
+tutup_fungsi

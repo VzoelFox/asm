@@ -1,0 +1,150 @@
+; Parser Helpers - Import Logic
+; Handles: ambil (file import), Daftar (registry), Ambil (ID import), indeks
+
+Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
+Ambil 318, 319 ; File IO
+Ambil 330, 331, 332, 333 ; Hashmap
+Ambil 340, 341, 342, 343, 344 ; Vector
+Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
+Ambil 390, 391 ; str_to_int, str_index_of
+
+### 1100
+fungsi handle_import_ambil(line)
+   ; Handle: ambil "filepath"
+   ; Recursively parse imported file if not already processed
+
+   var after_ambil = str_substring_after(line, 6)
+   var path_raw = str_trim(after_ambil)
+   var p_len = str_len(path_raw)
+
+   jika (p_len > 2)
+       var end_idx = p_len - 1
+       var last_ch = str_get(path_raw, end_idx)
+
+       ; Check for CR or other junk
+       jika (last_ch != 34)
+           end_idx = end_idx - 1
+       tutup_jika
+
+       var slice_len = end_idx - 1
+       var import_path = str_slice(path_raw, 1, slice_len)
+
+       var map_p = processed_files
+       var is_proc = map_get(map_p, import_path)
+
+       jika (is_proc == 1)
+           var msg_skip = str_concat(s_msg_skip, import_path)
+           panggil emit(msg_skip)
+       lain
+           panggil map_put(map_p, import_path, 1)
+
+           cetak("[CODEGEN] Importing: ")
+           cetak_str(import_path)
+
+           var buf_imp = buffer_dari_file(import_path)
+           jika (buf_imp == 0)
+               cetak("Error: Import file not found: ")
+               cetak_str(import_path)
+           lain
+               tipe buf_imp MemoryBuffer
+               var imp_content = buf_imp.data_ptr
+               var imp_lines = vec_create(50)
+               panggil str_split_lines(imp_content, imp_lines)
+               panggil parse_source_lines(imp_lines)
+           tutup_jika
+       tutup_jika
+   tutup_jika
+tutup_fungsi
+
+### 1101
+fungsi handle_import_Daftar(line)
+   ; Handle: Daftar "filepath" = ID-range
+   ; Delegate to supplier system
+
+   panggil parse_daftar_line(line)
+tutup_fungsi
+
+### 1102
+fungsi handle_import_Ambil(line)
+   ; Handle: Ambil 310, 311, 312 (selective ID-based import)
+   ; Parse IDs, lookup registry, extract blocks, parse recursively
+
+   var after_ambil_caps = str_substring_after(line, 5)
+   var ids_raw = str_trim(after_ambil_caps)
+
+   ; Parse comma-separated IDs
+   var id_list = vec_create(20)
+   var current_num = ""
+   var idx_a = 0
+   var len_a = str_len(ids_raw)
+
+   selama (idx_a < len_a)
+       var ch_a = str_get(ids_raw, idx_a)
+       jika (ch_a == 44)
+           ; Comma found
+           var num_trim_a = str_trim(current_num)
+           var num_len_a = str_len(num_trim_a)
+           jika (num_len_a > 0)
+               var id_val_a = str_to_int(num_trim_a)
+               panggil vec_push(id_list, id_val_a)
+           tutup_jika
+           current_num = ""
+       lain
+           ; Skip comments (semicolon)
+           jika (ch_a == 59)
+               idx_a = len_a
+           lain
+               var ch_str_a = str_slice(ids_raw, idx_a, idx_a + 1)
+               current_num = str_concat(current_num, ch_str_a)
+           tutup_jika
+       tutup_jika
+       idx_a = idx_a + 1
+   tutup_selama
+
+   ; Parse last number
+   var last_trim_a = str_trim(current_num)
+   var last_len_a = str_len(last_trim_a)
+   jika (last_len_a > 0)
+       var last_id_a = str_to_int(last_trim_a)
+       panggil vec_push(id_list, last_id_a)
+   tutup_jika
+
+   ; Process each ID
+   var count_a = vec_len(id_list)
+   var i_a = 0
+   selama (i_a < count_a)
+       var id_a = vec_get(id_list, i_a)
+
+       ; Check if already processed
+       var filepath_a = get_file_for_id(id_a)
+       jika (filepath_a != 0)
+           var is_processed_a = is_block_processed(filepath_a, id_a)
+           jika (is_processed_a == 0)
+               ; Extract and parse block
+               var extracted_lines = vec_create(50)
+               var found_a = extract_block_by_id(filepath_a, id_a, extracted_lines)
+
+               jika (found_a == 1)
+                   panggil mark_block_processed(filepath_a, id_a)
+                   cetak("[SUPPLIER] Loaded block:")
+                   cetak(id_a)
+                   cetak_str(filepath_a)
+                   panggil parse_source_lines(extracted_lines)
+               tutup_jika
+           tutup_jika
+       lain
+           cetak("[SUPPLIER] Warning: ID not registered:")
+           cetak(id_a)
+       tutup_jika
+
+       i_a = i_a + 1
+   tutup_selama
+tutup_fungsi
+
+### 1103
+fungsi handle_import_indeks(line)
+   ; Handle: indeks "filepath" (load ID registry)
+   ; Delegate to supplier system
+
+   panggil handle_indeks_line(line)
+tutup_fungsi

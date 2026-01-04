@@ -1,0 +1,13 @@
+; Test sederhana untuk debugging runtime
+fungsi mulai()
+    cetak("=== TEST RUNTIME ===")
+    var x = 42
+    cetak("Nilai x:")
+    cetak(x)
+
+    var y = x + 10
+    cetak("Nilai y (x+10):")
+    cetak(y)
+
+    cetak("=== TEST SELESAI ===")
+tutup_fungsi

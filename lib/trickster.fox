@@ -1,0 +1,563 @@
+; Trickster Expression Evaluator (Fox Implementation)
+; Shunting-yard algorithm for deterministic expression evaluation
+; Ensures AST consistency through ordered evaluation
+; ID Range: 220-239
+
+Ambil 340, 341, 342, 343, 344 ; Vector
+Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
+
+### 220
+
+; Operator Precedence
+const PREC_NONE = 0
+const PREC_OR = 1        ; ||
+const PREC_AND = 2       ; &&
+const PREC_EQ = 3        ; ==, !=
+const PREC_CMP = 4       ; <, >, <=, >=
+const PREC_BIT_OR = 5    ; |
+const PREC_BIT_XOR = 6   ; ^
+const PREC_BIT_AND = 7   ; &
+const PREC_SHIFT = 8     ; <<, >>
+const PREC_ADD = 9       ; +, -
+const PREC_MUL = 10      ; *, /, %
+const PREC_UNARY = 11    ; !, ~, unary -
+const PREC_CALL = 12     ; function call
+
+; Token Types
+const TOK_NUMBER = 1
+const TOK_IDENT = 2
+const TOK_OPERATOR = 3
+const TOK_LPAREN = 4
+const TOK_RPAREN = 5
+const TOK_EOF = 6
+
+; Token Structure
+struktur Token
+    type int         ; TOK_NUMBER, TOK_IDENT, TOK_OPERATOR, etc
+    value int        ; Number value or string pointer
+    precedence int   ; Operator precedence
+tutup_struktur
+
+### 221
+fungsi trickster_get_precedence(op_str)
+   ; Get operator precedence for ordering
+   ; Returns: Precedence level (higher = binds tighter)
+
+   var first_ch = str_get(op_str, 0)
+   var len = str_len(op_str)
+
+   ; Two-char operators
+   jika (len == 2)
+      var second_ch = str_get(op_str, 1)
+
+      ; Logical operators
+      jika (first_ch == 124)  ; |
+         jika (second_ch == 124)
+            kembalikan PREC_OR
+         tutup_jika
+      tutup_jika
+
+      jika (first_ch == 38)  ; &
+         jika (second_ch == 38)
+            kembalikan PREC_AND
+         tutup_jika
+      tutup_jika
+
+      ; Equality
+      jika (first_ch == 61)  ; =
+         jika (second_ch == 61)
+            kembalikan PREC_EQ
+         tutup_jika
+      tutup_jika
+
+      jika (first_ch == 33)  ; !
+         jika (second_ch == 61)
+            kembalikan PREC_EQ
+         tutup_jika
+      tutup_jika
+
+      ; Comparison
+      jika (first_ch == 60)  ; <
+         jika (second_ch == 61)
+            kembalikan PREC_CMP
+         tutup_jika
+         jika (second_ch == 60)
+            kembalikan PREC_SHIFT
+         tutup_jika
+      tutup_jika
+
+      jika (first_ch == 62)  ; >
+         jika (second_ch == 61)
+            kembalikan PREC_CMP
+         tutup_jika
+         jika (second_ch == 62)
+            kembalikan PREC_SHIFT
+         tutup_jika
+      tutup_jika
+   tutup_jika
+
+   ; Single-char operators
+   jika (first_ch == 124)  ; |
+      kembalikan PREC_BIT_OR
+   tutup_jika
+   jika (first_ch == 94)   ; ^
+      kembalikan PREC_BIT_XOR
+   tutup_jika
+   jika (first_ch == 38)   ; &
+      kembalikan PREC_BIT_AND
+   tutup_jika
+   jika (first_ch == 60)   ; <
+      kembalikan PREC_CMP
+   tutup_jika
+   jika (first_ch == 62)   ; >
+      kembalikan PREC_CMP
+   tutup_jika
+   jika (first_ch == 43)   ; +
+      kembalikan PREC_ADD
+   tutup_jika
+   jika (first_ch == 45)   ; -
+      kembalikan PREC_ADD
+   tutup_jika
+   jika (first_ch == 42)   ; *
+      kembalikan PREC_MUL
+   tutup_jika
+   jika (first_ch == 47)   ; /
+      kembalikan PREC_MUL
+   tutup_jika
+   jika (first_ch == 37)   ; %
+      kembalikan PREC_MUL
+   tutup_jika
+
+   kembalikan PREC_NONE
+tutup_fungsi
+
+### 222
+fungsi trickster_tokenize(expr_str)
+   ; Tokenize expression string into tokens
+   ; Returns: Vector of Token structures (deterministic order!)
+
+   var tokens = vec_create(50)
+   var len = str_len(expr_str)
+   var idx = 0
+
+   selama (idx < len)
+      var ch = str_get(expr_str, idx)
+
+      ; Skip whitespace
+      jika (ch == 32)  ; space
+         idx = idx + 1
+         lanjut
+      tutup_jika
+      jika (ch == 9)   ; tab
+         idx = idx + 1
+         lanjut
+      tutup_jika
+
+      ; Numbers
+      jika (ch >= 48)  ; '0'
+         jika (ch <= 57)  ; '9'
+            var num_start = idx
+            selama (idx < len)
+               var digit_ch = str_get(expr_str, idx)
+               jika (digit_ch >= 48)
+                  jika (digit_ch <= 57)
+                     idx = idx + 1
+                  lain
+                     idx = len  ; break
+                  tutup_jika
+               lain
+                  idx = len  ; break
+               tutup_jika
+            tutup_selama
+
+            var num_str = str_slice(expr_str, num_start, idx)
+            var num_val = str_to_int(num_str)
+
+            var tok = Token(TOK_NUMBER, num_val, 0)
+            panggil vec_push(tokens, tok)
+            lanjut
+         tutup_jika
+      tutup_jika
+
+      ; Identifiers
+      jika (ch >= 97)  ; 'a'
+         jika (ch <= 122)  ; 'z'
+            var id_start = idx
+            selama (idx < len)
+               var id_ch = str_get(expr_str, idx)
+               var is_alnum = 0
+
+               jika (id_ch >= 97)
+                  jika (id_ch <= 122)
+                     is_alnum = 1
+                  tutup_jika
+               tutup_jika
+               jika (id_ch >= 65)
+                  jika (id_ch <= 90)  ; 'A'-'Z'
+                     is_alnum = 1
+                  tutup_jika
+               tutup_jika
+               jika (id_ch >= 48)
+                  jika (id_ch <= 57)
+                     is_alnum = 1
+                  tutup_jika
+               tutup_jika
+               jika (id_ch == 95)  ; '_'
+                  is_alnum = 1
+               tutup_jika
+
+               jika (is_alnum == 1)
+                  idx = idx + 1
+               lain
+                  idx = len  ; break
+               tutup_jika
+            tutup_selama
+
+            var id_str = str_slice(expr_str, id_start, idx)
+            var tok = Token(TOK_IDENT, id_str, 0)
+            panggil vec_push(tokens, tok)
+            lanjut
+         tutup_jika
+      tutup_jika
+
+      ; Parentheses
+      jika (ch == 40)  ; '('
+         var tok = Token(TOK_LPAREN, 0, 0)
+         panggil vec_push(tokens, tok)
+         idx = idx + 1
+         lanjut
+      tutup_jika
+      jika (ch == 41)  ; ')'
+         var tok = Token(TOK_RPAREN, 0, 0)
+         panggil vec_push(tokens, tok)
+         idx = idx + 1
+         lanjut
+      tutup_jika
+
+      ; Operators (deterministic precedence!)
+      var op_str = str_slice(expr_str, idx, idx + 1)
+      var prec = trickster_get_precedence(op_str)
+
+      ; Check for two-char operator
+      jika (idx + 1 < len)
+         var next_ch = str_get(expr_str, idx + 1)
+         var two_ch = str_slice(expr_str, idx, idx + 2)
+         var two_prec = trickster_get_precedence(two_ch)
+
+         jika (two_prec > PREC_NONE)
+            op_str = two_ch
+            prec = two_prec
+            idx = idx + 2
+         lain
+            idx = idx + 1
+         tutup_jika
+      lain
+         idx = idx + 1
+      tutup_jika
+
+      var tok = Token(TOK_OPERATOR, op_str, prec)
+      panggil vec_push(tokens, tok)
+   tutup_selama
+
+   kembalikan tokens
+tutup_fungsi
+
+### 223
+fungsi trickster_eval(expr_str, context_map)
+   ; Evaluate expression with variable context
+   ; expr_str: Expression string (e.g., "a + b * 2")
+   ; context_map: HashMap of variable values
+   ; Returns: Evaluated result (integer)
+
+   cetak("[Trickster] Evaluating expression:")
+   cetak_str(expr_str)
+
+   ; Tokenize
+   var tokens = trickster_tokenize(expr_str)
+   var tok_count = vec_len(tokens)
+
+   cetak("[Trickster] Tokens:")
+   cetak(tok_count)
+
+   ; Shunting-yard algorithm
+   var output_queue = vec_create(50)
+   var operator_stack = vec_create(20)
+
+   var tok_idx = 0
+   selama (tok_idx < tok_count)
+      var tok = vec_get(tokens, tok_idx)
+      tipe tok Token
+
+      jika (tok.type == TOK_NUMBER)
+         panggil vec_push(output_queue, tok)
+      tutup_jika
+
+      jika (tok.type == TOK_IDENT)
+         ; Lookup variable in context
+         var var_name = tok.value
+         var var_val = map_get(context_map, var_name)
+         var num_tok = Token(TOK_NUMBER, var_val, 0)
+         panggil vec_push(output_queue, num_tok)
+      tutup_jika
+
+      jika (tok.type == TOK_OPERATOR)
+         ; Pop operators with higher precedence
+         var stack_len = vec_len(operator_stack)
+         selama (stack_len > 0)
+            var top_idx = stack_len - 1
+            var top_op = vec_get(operator_stack, top_idx)
+            tipe top_op Token
+
+            jika (top_op.type == TOK_OPERATOR)
+               jika (top_op.precedence >= tok.precedence)
+                  panggil vec_push(output_queue, top_op)
+                  ; Pop from stack
+                  tipe operator_stack Vector
+                  operator_stack.length = operator_stack.length - 1
+                  stack_len = stack_len - 1
+               lain
+                  stack_len = 0  ; break
+               tutup_jika
+            lain
+               stack_len = 0  ; break
+            tutup_jika
+         tutup_selama
+
+         panggil vec_push(operator_stack, tok)
+      tutup_jika
+
+      jika (tok.type == TOK_LPAREN)
+         panggil vec_push(operator_stack, tok)
+      tutup_jika
+
+      jika (tok.type == TOK_RPAREN)
+         ; Pop until LPAREN
+         var found_lparen = 0
+         selama (found_lparen == 0)
+            var stack_len_r = vec_len(operator_stack)
+            jika (stack_len_r == 0)
+               cetak("[Trickster] Error: Mismatched parentheses")
+               kembalikan 0
+            tutup_jika
+
+            var top_idx_r = stack_len_r - 1
+            var top_tok = vec_get(operator_stack, top_idx_r)
+            tipe top_tok Token
+
+            jika (top_tok.type == TOK_LPAREN)
+               found_lparen = 1
+               tipe operator_stack Vector
+               operator_stack.length = operator_stack.length - 1
+            lain
+               panggil vec_push(output_queue, top_tok)
+               tipe operator_stack Vector
+               operator_stack.length = operator_stack.length - 1
+            tutup_jika
+         tutup_selama
+      tutup_jika
+
+      tok_idx = tok_idx + 1
+   tutup_selama
+
+   ; Pop remaining operators
+   var remaining = vec_len(operator_stack)
+   selama (remaining > 0)
+      var top_idx_f = remaining - 1
+      var top_op_f = vec_get(operator_stack, top_idx_f)
+      panggil vec_push(output_queue, top_op_f)
+      remaining = remaining - 1
+   tutup_selama
+
+   ; Evaluate RPN
+   var result = trickster_eval_rpn(output_queue)
+
+   cetak("[Trickster] Result:")
+   cetak(result)
+
+   kembalikan result
+tutup_fungsi
+
+### 224
+fungsi trickster_eval_rpn(rpn_queue)
+   ; Evaluate Reverse Polish Notation expression
+   ; Returns: Result (integer)
+
+   var eval_stack = vec_create(20)
+   var queue_len = vec_len(rpn_queue)
+   var idx = 0
+
+   selama (idx < queue_len)
+      var tok = vec_get(rpn_queue, idx)
+      tipe tok Token
+
+      jika (tok.type == TOK_NUMBER)
+         panggil vec_push(eval_stack, tok.value)
+      tutup_jika
+
+      jika (tok.type == TOK_OPERATOR)
+         ; Pop two operands
+         var stack_len = vec_len(eval_stack)
+         var right_idx = stack_len - 1
+         var left_idx = stack_len - 2
+
+         var right = vec_get(eval_stack, right_idx)
+         var left = vec_get(eval_stack, left_idx)
+
+         ; Apply operator (deterministic evaluation!)
+         var result = trickster_apply_op(tok.value, left, right)
+
+         ; Pop two, push one
+         tipe eval_stack Vector
+         eval_stack.length = eval_stack.length - 2
+         panggil vec_push(eval_stack, result)
+      tutup_jika
+
+      idx = idx + 1
+   tutup_selama
+
+   ; Final result
+   var final = vec_get(eval_stack, 0)
+   kembalikan final
+tutup_fungsi
+
+### 225
+fungsi trickster_apply_op(op_str, left, right)
+   ; Apply binary operator
+   ; Returns: Result of left OP right
+
+   var first_ch = str_get(op_str, 0)
+
+   jika (first_ch == 43)  ; +
+      kembalikan left + right
+   tutup_jika
+   jika (first_ch == 45)  ; -
+      kembalikan left - right
+   tutup_jika
+   jika (first_ch == 42)  ; *
+      kembalikan left * right
+   tutup_jika
+   jika (first_ch == 47)  ; /
+      jika (right == 0)
+         cetak("[Trickster] Error: Division by zero")
+         kembalikan 0
+      tutup_jika
+      kembalikan left / right
+   tutup_jika
+   jika (first_ch == 37)  ; %
+      kembalikan left % right
+   tutup_jika
+
+   ; Bitwise
+   jika (first_ch == 38)  ; &
+      kembalikan left & right
+   tutup_jika
+   jika (first_ch == 124)  ; |
+      kembalikan left | right
+   tutup_jika
+   jika (first_ch == 94)  ; ^
+      kembalikan left ^ right
+   tutup_jika
+
+   ; Comparison (return 1 for true, 0 for false)
+   jika (first_ch == 60)  ; <
+      jika (left < right)
+         kembalikan 1
+      tutup_jika
+      kembalikan 0
+   tutup_jika
+   jika (first_ch == 62)  ; >
+      jika (left > right)
+         kembalikan 1
+      tutup_jika
+      kembalikan 0
+   tutup_jika
+
+   ; Two-char operators
+   var len = str_len(op_str)
+   jika (len == 2)
+      var second_ch = str_get(op_str, 1)
+
+      ; ==
+      jika (first_ch == 61)
+         jika (second_ch == 61)
+            jika (left == right)
+               kembalikan 1
+            tutup_jika
+            kembalikan 0
+         tutup_jika
+      tutup_jika
+
+      ; !=
+      jika (first_ch == 33)
+         jika (second_ch == 61)
+            jika (left != right)
+               kembalikan 1
+            tutup_jika
+            kembalikan 0
+         tutup_jika
+      tutup_jika
+
+      ; <=
+      jika (first_ch == 60)
+         jika (second_ch == 61)
+            jika (left <= right)
+               kembalikan 1
+            tutup_jika
+            kembalikan 0
+         tutup_jika
+      tutup_jika
+
+      ; >=
+      jika (first_ch == 62)
+         jika (second_ch == 61)
+            jika (left >= right)
+               kembalikan 1
+            tutup_jika
+            kembalikan 0
+         tutup_jika
+      tutup_jika
+
+      ; << shift left
+      jika (first_ch == 60)
+         jika (second_ch == 60)
+            kembalikan left << right
+         tutup_jika
+      tutup_jika
+
+      ; >> shift right
+      jika (first_ch == 62)
+         jika (second_ch == 62)
+            kembalikan left >> right
+         tutup_jika
+      tutup_jika
+
+      ; && logical and
+      jika (first_ch == 38)
+         jika (second_ch == 38)
+            jika (left != 0)
+               jika (right != 0)
+                  kembalikan 1
+               tutup_jika
+            tutup_jika
+            kembalikan 0
+         tutup_jika
+      tutup_jika
+
+      ; || logical or
+      jika (first_ch == 124)
+         jika (second_ch == 124)
+            jika (left != 0)
+               kembalikan 1
+            tutup_jika
+            jika (right != 0)
+               kembalikan 1
+            tutup_jika
+            kembalikan 0
+         tutup_jika
+      tutup_jika
+   tutup_jika
+
+   cetak("[Trickster] Unknown operator:")
+   cetak_str(op_str)
+   kembalikan 0
+tutup_fungsi
