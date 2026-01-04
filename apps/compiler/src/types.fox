@@ -14,6 +14,59 @@ const TYPE_STRUCT = 4
 const TYPE_POINTER = 5
 const TYPE_VOID = 6
 
+# AST Node Types (for Trickster/Expr)
+const NODE_NUM = 1
+const NODE_VAR = 2
+const NODE_OP = 3
+const NODE_CALL = 4
+const NODE_STRING = 5
+
+# Token Types
+const TOKEN_EOF = 0
+const TOKEN_IDENTIFIER = 1
+const TOKEN_NUMBER = 2
+const TOKEN_STRING = 3
+const TOKEN_OPERATOR = 4
+const TOKEN_KEYWORD = 5
+const TOKEN_LPAREN = 6
+const TOKEN_RPAREN = 7
+const TOKEN_LBRACE = 8
+const TOKEN_RBRACE = 9
+const TOKEN_COMMA = 10
+const TOKEN_SEMICOLON = 11
+
+# --- STRUCTS ---
+
+# Token Structure
+struktur Token
+  type      # TOKEN_* constant
+  value     # String value or int value
+  line      # Line number
+  col       # Column number
+tutup_struktur
+
+# Expression AST Node
+struktur ExprNode
+  node_type     # NODE_* constant
+  value         # Value (int/string) or Operator char
+  left_child    # Pointer to left ExprNode (or 0)
+  right_child   # Pointer to right ExprNode (or 0)
+tutup_struktur
+
+# Absolute AST: Unit
+struktur Unit
+  name          # String name
+  shards        # Vector of Shard pointers
+  entry_point   # Pointer to entry Shard (or 0)
+tutup_struktur
+
+# Absolute AST: Shard
+struktur Shard
+  name          # String name
+  fragments     # Vector of Fragment pointers (or instructions)
+  is_parallel   # Boolean
+tutup_struktur
+
 # Global Type Registry
 # Maps variable names to their types
 var var_type_map = 0
@@ -52,7 +105,7 @@ fungsi register_struct_variable(var_name, struct_name)
    var vtm = var_type_map
 
    ; We use TYPE_STRUCT as marker, but need struct name separately
-   panggil map_put(vtm, var_name, TYPE_STRUCT)
+   panggil map_put(vtm, var_name, 4) ; TYPE_STRUCT
 
    ; Store struct name with prefix "struct_"
    var key = str_concat("struct_", var_name)
@@ -234,8 +287,8 @@ fungsi infer_literal_type(literal_str)
    var len = str_len(literal_str)
    var idx = 0
    selama (idx < len)
-      var ch = str_get(literal_str, idx)
-      jika (ch == 46)
+      var c1 = str_get(literal_str, idx)
+      jika (c1 == 46)
          asm_mulai
          mov rax, 2
          tutup_asm

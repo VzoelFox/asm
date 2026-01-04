@@ -241,3 +241,60 @@ fungsi str_newline()
   mov rax, [var_nl_ptr]
   tutup_asm
 tutup_fungsi
+
+### 390
+fungsi str_index_of(s, char_to_find)
+   var len = str_len(s)
+   var i = 0
+   var found_idx = -1
+
+   selama (i < len)
+      var c = str_get(s, i)
+      jika (c == char_to_find)
+         found_idx = i
+         i = len ; break
+      tutup_jika
+      i = i + 1
+   tutup_selama
+
+   asm_mulai
+   mov rax, [var_found_idx]
+   tutup_asm
+tutup_fungsi
+
+### 391
+fungsi str_to_int(s)
+   var len = str_len(s)
+   var res = 0
+   var i = 0
+   var sign = 1
+
+   jika (len > 0)
+      var first = str_get(s, 0)
+      jika (first == 45) ; '-'
+         sign = -1
+         i = 1
+      tutup_jika
+
+      selama (i < len)
+         var ch = str_get(s, i)
+         ; c - '0'
+         var digit = ch - 48
+         jika (digit >= 0)
+            jika (digit <= 9)
+               res = res * 10
+               res = res + digit
+            tutup_jika
+         tutup_jika
+         i = i + 1
+      tutup_selama
+   tutup_jika
+
+   jika (sign == -1)
+      res = 0 - res
+   tutup_jika
+
+   asm_mulai
+   mov rax, [var_res]
+   tutup_asm
+tutup_fungsi

@@ -1,0 +1,27 @@
+### 1000
+; Test file for Vector and Hashmap
+
+indeks "plugins/vc/tagger.fox"
+
+Ambil 340, 341, 342, 343, 344 ; Vector
+
+fungsi mulai()
+  cetak("Testing Vector Library...")
+
+  var v = vec_create(4)
+  panggil vec_push(v, 10)
+  panggil vec_push(v, 20)
+  panggil vec_push(v, 30)
+
+  var len = vec_len(v)
+  cetak("Vector Length (expect 3):")
+  cetak(len)
+
+  var val1 = vec_get(v, 0)
+  cetak("Value at 0 (expect 10):")
+  cetak(val1)
+
+  var val2 = vec_get(v, 2)
+  cetak("Value at 2 (expect 30):")
+  cetak(val2)
+tutup_fungsi
