@@ -1,0 +1,118 @@
+; Parser Helpers - Conditional Logic (jika/lain/tutup_jika)
+; Handles: jika, lain, lain_jika, tutup_jika
+
+Ambil 320, 321, 322, 323, 324 ; Format
+Ambil 330, 331, 332, 333 ; Hashmap
+Ambil 340, 341, 342, 343, 344 ; Vector
+Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
+
+### 1122
+fungsi handle_jika(line)
+   ; Handle: jika (condition)
+   ; Parse condition, emit conditional jump
+
+   label_counter = label_counter + 1
+   var lbl_id = label_counter
+   var stack = label_stack
+   panggil vec_push(stack, lbl_id)
+
+   var cond_raw = str_substring_after(line, 5)
+   var cond_clean = str_trim(cond_raw)
+   var c_len = str_len(cond_clean)
+   var inner_cond = str_slice(cond_clean, 1, c_len - 2)
+
+   var p1 = str_split_once(inner_cond, 32)
+   var lhs = vec_get(p1, 0)
+   var rest = vec_get(p1, 1)
+   var p2 = str_split_once(rest, 32)
+   var op = vec_get(p2, 0)
+   var rhs = vec_get(p2, 1)
+
+   ; LHS
+   var lhs_mov = str_concat(s_mov_rax_v, lhs)
+   lhs_mov = str_concat(lhs_mov, s_close_br)
+   panggil emit(lhs_mov)
+
+   ; RHS
+   var cmp_asm = str_concat(s_cmp_rax, rhs)
+   var rhs_first = str_get(rhs, 0)
+   jika (rhs_first < 48)
+      cmp_asm = str_concat(s_cmp_rax_v, rhs)
+      cmp_asm = str_concat(cmp_asm, s_close_br)
+   tutup_jika
+   panggil emit(cmp_asm)
+
+   var lbl_id_str = format_int(lbl_id)
+   var end_label = str_concat(s_end_lbl, lbl_id_str)
+   var jmp_instr = ""
+   var op_char = str_get(op, 0)
+   jika (op_char == 61)
+      jmp_instr = s_jne
+   lain_jika (op_char == 60)
+      jmp_instr = s_jge
+   lain_jika (op_char == 62)
+      jmp_instr = s_jle
+   tutup_jika
+   var jump_asm = str_concat(jmp_instr, end_label)
+   panggil emit(jump_asm)
+tutup_fungsi
+
+### 1123
+fungsi handle_lain_jika(line)
+   ; Handle: lain_jika (condition)
+   ; Currently not implemented
+
+   panggil emit("    ; lain_jika not implemented")
+tutup_fungsi
+
+### 1124
+fungsi handle_lain()
+   ; Handle: lain
+   ; Emit else branch jump logic
+
+   var stack_e = label_stack
+   var len_e = vec_len(stack_e)
+   var idx_e = len_e - 1
+   var curr_id_e = vec_get(stack_e, idx_e)
+
+   var curr_id_str = format_int(curr_id_e)
+   var label_final = str_concat(s_final_lbl, curr_id_str)
+
+   var jmp_final = str_concat(s_jmp, label_final)
+   panggil emit(jmp_final)
+
+   var label_else_start = str_concat(s_end_lbl, curr_id_str)
+   var label_else_asm = str_concat(label_else_start, s_colon)
+   panggil emit(label_else_asm)
+
+   var new_id = curr_id_e + 1000000
+   tipe stack_e Vector
+   stack_e.length = stack_e.length - 1
+   panggil vec_push(stack_e, new_id)
+tutup_fungsi
+
+### 1125
+fungsi handle_tutup_jika()
+   ; Handle: tutup_jika
+   ; Emit end label for if/else block
+
+   var stack_j = label_stack
+   var len_s = vec_len(stack_j)
+   var last_idx = len_s - 1
+   var lbl_id_j = vec_get(stack_j, last_idx)
+   var prefix = s_end_lbl
+   var real_id = lbl_id_j
+
+   jika (lbl_id_j > 1000000)
+      prefix = s_final_lbl
+      real_id = lbl_id_j - 1000000
+   tutup_jika
+
+   var real_id_str = format_int(real_id)
+   var end_label_j = str_concat(prefix, real_id_str)
+   var lbl_asm = str_concat(end_label_j, s_colon)
+   panggil emit(lbl_asm)
+
+   tipe stack_j Vector
+   stack_j.length = stack_j.length - 1
+tutup_fungsi

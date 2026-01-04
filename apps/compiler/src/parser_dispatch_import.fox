@@ -1,0 +1,27 @@
+; Parser Dispatcher - Import Handling
+; Handles: ambil, Ambil, Daftar, indeks
+
+### 1140
+fungsi dispatch_import(line)
+   ; Dispatch import-related statements to helpers
+
+   var is_ambil = str_starts_with(line, "ambil ")
+   jika (is_ambil == 1)
+       panggil handle_import_ambil(line)
+   tutup_jika
+
+   var is_daftar = str_starts_with(line, "Daftar")
+   jika (is_daftar == 1)
+       panggil handle_import_Daftar(line)
+   tutup_jika
+
+   var is_ambil_caps = str_starts_with(line, "Ambil")
+   jika (is_ambil_caps == 1)
+       panggil handle_import_Ambil(line)
+   tutup_jika
+
+   var is_indeks = str_starts_with(line, "indeks")
+   jika (is_indeks == 1)
+       panggil handle_import_indeks(line)
+   tutup_jika
+tutup_fungsi

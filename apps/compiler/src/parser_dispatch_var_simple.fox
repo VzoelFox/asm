@@ -1,0 +1,135 @@
+; Parser Dispatcher - Var Simple + Entry Point
+; Handles: var x = value, var y = a + b, var z = StructName(...)
+
+### 1144
+fungsi dispatch_var(line)
+   ; Main dispatcher for var declarations
+
+   var is_var = str_starts_with(line, "var ")
+   jika (is_var == 1)
+      var content_after_var = str_substring_after(line, 4)
+      var parts_eq = str_split_once(content_after_var, 61)
+      var name_raw = vec_get(parts_eq, 0)
+      var name = str_trim(name_raw)
+      var val_raw = vec_get(parts_eq, 1)
+      var val_str = str_trim(val_raw)
+
+      ; Check for struct instantiation: StructName(args)
+      var struct_paren = str_split_once(val_str, 40)
+      var struct_name_candidate = vec_get(struct_paren, 0)
+      var struct_args = vec_get(struct_paren, 1)
+
+      jika (struct_args != 0)
+         var handled = handle_var_struct(name, struct_name_candidate, struct_args)
+         jika (handled == 1)
+            kembalikan 0
+         tutup_jika
+      tutup_jika
+
+      ; Handle simple var declaration + arithmetic
+      var first_char = str_get(val_str, 0)
+      var is_digit = 0
+      jika (first_char >= 48)
+         jika (first_char <= 57)
+             is_digit = 1
+         tutup_jika
+      tutup_jika
+      jika (first_char == 45)
+         is_digit = 1
+      tutup_jika
+
+      var asm_mov = ""
+      jika (is_digit == 1)
+         asm_mov = str_concat(s_mov_rax, val_str)
+      lain
+         asm_mov = str_concat(s_mov_rax_v, val_str)
+         asm_mov = str_concat(asm_mov, s_close_br)
+      tutup_jika
+
+      ; Arith
+      var arith_parts = str_split_once(val_str, 32)
+      var part1 = vec_get(arith_parts, 0)
+      var rest_arith = vec_get(arith_parts, 1)
+      var has_op = 0
+      var op_char = 0
+      var part2 = ""
+
+      jika (rest_arith != 0)
+         var len_rest = str_len(rest_arith)
+         jika (len_rest > 0)
+            var arith_p2 = str_split_once(rest_arith, 32)
+            var op_str = vec_get(arith_p2, 0)
+            part2 = vec_get(arith_p2, 1)
+            op_char = str_get(op_str, 0)
+            has_op = 1
+
+            var p1_fc = str_get(part1, 0)
+            var p1_is_digit = 0
+            jika (p1_fc >= 48)
+               jika (p1_fc <= 57)
+                  p1_is_digit = 1
+               tutup_jika
+            tutup_jika
+            jika (p1_is_digit == 1)
+               asm_mov = str_concat(s_mov_rax, part1)
+            lain
+               asm_mov = str_concat(s_mov_rax_v, part1)
+               asm_mov = str_concat(asm_mov, s_close_br)
+            tutup_jika
+         tutup_jika
+      tutup_jika
+
+      panggil emit(asm_mov)
+
+      jika (has_op == 1)
+         var p2_fc = str_get(part2, 0)
+         var p2_is_digit = 0
+         jika (p2_fc >= 48)
+            jika (p2_fc <= 57)
+               p2_is_digit = 1
+            tutup_jika
+         tutup_jika
+
+         var operand_asm = ""
+         jika (p2_is_digit == 1)
+            operand_asm = part2
+         lain
+            operand_asm = str_concat(s_op_mem, part2)
+            operand_asm = str_concat(operand_asm, s_close_br)
+         tutup_jika
+
+         var instr = ""
+         jika (op_char == 43)
+            instr = s_add
+         lain_jika (op_char == 45)
+            instr = s_sub
+         lain_jika (op_char == 42)
+            instr = s_mul
+         tutup_jika
+         var op_asm = str_concat(instr, operand_asm)
+         panggil emit(op_asm)
+      tutup_jika
+
+      var var_label = str_concat(s_var_pref, name)
+      var asm_store = str_concat(s_mov_mem_raw, var_label)
+      asm_store = str_concat(asm_store, s_end_mem)
+      panggil emit(asm_store)
+
+      var vars_vec = global_vars
+      panggil vec_push(vars_vec, name)
+
+      ; Type tracking: infer type from literal or variable
+      jika (is_digit == 1)
+         ; Numeric literal - default to TYPE_INT (1)
+         panggil register_variable_type(name, 1)
+      lain
+         ; Variable reference - inherit type or default to INT
+         var src_type = get_variable_type(val_str)
+         jika (src_type == 0)
+            panggil register_variable_type(name, 1)
+         lain
+            panggil register_variable_type(name, src_type)
+         tutup_jika
+      tutup_jika
+   tutup_jika
+tutup_fungsi

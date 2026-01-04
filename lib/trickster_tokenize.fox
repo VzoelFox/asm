@@ -1,0 +1,207 @@
+; Trickster Tokenizer - Expression Tokenization
+; ID Range: 220-222
+
+Ambil 340, 341, 342, 343, 344 ; Vector
+Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
+Ambil 390, 391 ; str_to_int
+
+### 220
+
+; Precedence levels
+const PREC_NONE = 0
+const PREC_OR = 1
+const PREC_AND = 2
+const PREC_EQ = 3
+const PREC_CMP = 4
+const PREC_BIT_OR = 5
+const PREC_BIT_XOR = 6
+const PREC_BIT_AND = 7
+const PREC_SHIFT = 8
+const PREC_ADD = 9
+const PREC_MUL = 10
+
+; Token types
+const TOK_NUMBER = 1
+const TOK_IDENT = 2
+const TOK_OPERATOR = 3
+const TOK_LPAREN = 4
+const TOK_RPAREN = 5
+
+struktur Token
+    type int
+    value int
+    precedence int
+tutup_struktur
+
+### 221
+fungsi trickster_get_precedence(op_str)
+   var fc = str_get(op_str, 0)
+   var len = str_len(op_str)
+
+   jika (len == 2)
+      var sc = str_get(op_str, 1)
+      jika (fc == 124)
+         jika (sc == 124)
+            kembalikan PREC_OR
+         tutup_jika
+      tutup_jika
+      jika (fc == 38)
+         jika (sc == 38)
+            kembalikan PREC_AND
+         tutup_jika
+      tutup_jika
+      jika (fc == 61)
+         jika (sc == 61)
+            kembalikan PREC_EQ
+         tutup_jika
+      tutup_jika
+      jika (fc == 33)
+         jika (sc == 61)
+            kembalikan PREC_EQ
+         tutup_jika
+      tutup_jika
+      jika (fc == 60)
+         jika (sc == 61)
+            kembalikan PREC_CMP
+         lain_jika (sc == 60)
+            kembalikan PREC_SHIFT
+         tutup_jika
+      tutup_jika
+      jika (fc == 62)
+         jika (sc == 61)
+            kembalikan PREC_CMP
+         lain_jika (sc == 62)
+            kembalikan PREC_SHIFT
+         tutup_jika
+      tutup_jika
+   tutup_jika
+
+   jika (fc == 124)
+      kembalikan PREC_BIT_OR
+   lain_jika (fc == 94)
+      kembalikan PREC_BIT_XOR
+   lain_jika (fc == 38)
+      kembalikan PREC_BIT_AND
+   lain_jika (fc == 60)
+      kembalikan PREC_CMP
+   lain_jika (fc == 62)
+      kembalikan PREC_CMP
+   lain_jika (fc == 43)
+      kembalikan PREC_ADD
+   lain_jika (fc == 45)
+      kembalikan PREC_ADD
+   lain_jika (fc == 42)
+      kembalikan PREC_MUL
+   lain_jika (fc == 47)
+      kembalikan PREC_MUL
+   lain_jika (fc == 37)
+      kembalikan PREC_MUL
+   tutup_jika
+
+   kembalikan PREC_NONE
+tutup_fungsi
+
+### 222
+fungsi trickster_tokenize(expr_str)
+   var tokens = vec_create(50)
+   var len = str_len(expr_str)
+   var idx = 0
+
+   selama (idx < len)
+      var ch = str_get(expr_str, idx)
+
+      jika (ch == 32)
+         idx = idx + 1
+      lain_jika (ch >= 48)
+         jika (ch <= 57)
+            var start = idx
+            selama (idx < len)
+               var dc = str_get(expr_str, idx)
+               jika (dc >= 48)
+                  jika (dc <= 57)
+                     idx = idx + 1
+                  lain
+                     idx = len + 1
+                  tutup_jika
+               lain
+                  idx = len + 1
+               tutup_jika
+            tutup_selama
+            idx = idx - 1
+            var num_str = str_slice(expr_str, start, idx + 1)
+            var num_val = str_to_int(num_str)
+            var tok = Token(TOK_NUMBER, num_val, 0)
+            panggil vec_push(tokens, tok)
+            idx = idx + 1
+         lain
+            idx = idx + 1
+         tutup_jika
+      lain_jika (ch >= 97)
+         jika (ch <= 122)
+            var start = idx
+            selama (idx < len)
+               var ic = str_get(expr_str, idx)
+               var anum = 0
+               jika (ic >= 97)
+                  jika (ic <= 122)
+                     anum = 1
+                  tutup_jika
+               tutup_jika
+               jika (ic >= 65)
+                  jika (ic <= 90)
+                     anum = 1
+                  tutup_jika
+               tutup_jika
+               jika (ic >= 48)
+                  jika (ic <= 57)
+                     anum = 1
+                  tutup_jika
+               tutup_jika
+               jika (ic == 95)
+                  anum = 1
+               tutup_jika
+               jika (anum == 1)
+                  idx = idx + 1
+               lain
+                  idx = len + 1
+               tutup_jika
+            tutup_selama
+            idx = idx - 1
+            var id_str = str_slice(expr_str, start, idx + 1)
+            var tok = Token(TOK_IDENT, id_str, 0)
+            panggil vec_push(tokens, tok)
+            idx = idx + 1
+         lain
+            idx = idx + 1
+         tutup_jika
+      lain_jika (ch == 40)
+         var tok = Token(TOK_LPAREN, 0, 0)
+         panggil vec_push(tokens, tok)
+         idx = idx + 1
+      lain_jika (ch == 41)
+         var tok = Token(TOK_RPAREN, 0, 0)
+         panggil vec_push(tokens, tok)
+         idx = idx + 1
+      lain
+         var op = str_slice(expr_str, idx, idx + 1)
+         var prec = trickster_get_precedence(op)
+         jika (idx + 1 < len)
+            var two = str_slice(expr_str, idx, idx + 2)
+            var two_prec = trickster_get_precedence(two)
+            jika (two_prec > PREC_NONE)
+               op = two
+               prec = two_prec
+               idx = idx + 2
+            lain
+               idx = idx + 1
+            tutup_jika
+         lain
+            idx = idx + 1
+         tutup_jika
+         var tok = Token(TOK_OPERATOR, op, prec)
+         panggil vec_push(tokens, tok)
+      tutup_jika
+   tutup_selama
+
+   kembalikan tokens
+tutup_fungsi

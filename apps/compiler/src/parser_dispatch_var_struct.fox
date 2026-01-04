@@ -1,0 +1,102 @@
+; Parser Dispatcher - Var Struct Instantiation
+; Handles: var x = StructName(field1, field2, ...)
+
+### 1143
+fungsi handle_var_struct(name, struct_name_candidate, struct_args)
+   ; Handle struct instantiation: var x = MyStruct(a, b, c)
+
+   var ss_check = struct_sizes
+   var struct_size_val = map_get(ss_check, struct_name_candidate)
+
+   jika (struct_size_val > 0)
+      ; Allocate struct memory
+      var size_str = format_int(struct_size_val)
+      var mov_size = str_concat("    mov rax, ", size_str)
+      panggil emit(mov_size)
+      panggil emit("    call sys_alloc")
+      panggil emit("    push rax    ; Save struct ptr")
+
+      ; Parse and initialize fields
+      var args_clean_len = str_len(struct_args)
+      var args_inner = str_slice(struct_args, 0, args_clean_len - 1)
+      var arg_list = vec_create(8)
+      var current_arg = ""
+      var arg_idx = 0
+      var args_len = str_len(args_inner)
+
+      selama (arg_idx < args_len)
+         var arg_ch = str_get(args_inner, arg_idx)
+         jika (arg_ch == 44)
+            var arg_trim = str_trim(current_arg)
+            panggil vec_push(arg_list, arg_trim)
+            current_arg = ""
+         lain
+            var arg_ch_str = str_slice(args_inner, arg_idx, arg_idx + 1)
+            current_arg = str_concat(current_arg, arg_ch_str)
+         tutup_jika
+         arg_idx = arg_idx + 1
+      tutup_selama
+
+      jika (args_len > 0)
+         var last_arg = str_trim(current_arg)
+         panggil vec_push(arg_list, last_arg)
+      tutup_jika
+
+      ; Initialize fields with offsets
+      var field_count = vec_len(arg_list)
+      var field_idx = 0
+      var field_offset = 0
+
+      selama (field_idx < field_count)
+         var field_val = vec_get(arg_list, field_idx)
+         var field_fc = str_get(field_val, 0)
+
+         ; Load value to rbx
+         var is_imm = 0
+         jika (field_fc >= 48)
+            jika (field_fc <= 57)
+               is_imm = 1
+            tutup_jika
+         tutup_jika
+         jika (field_fc == 45)
+            is_imm = 1
+         tutup_jika
+
+         jika (is_imm == 1)
+            var mov_rbx = str_concat("    mov rbx, ", field_val)
+            panggil emit(mov_rbx)
+         lain
+            var mov_rbx_var = str_concat(s_mov_rbx_v, field_val)
+            mov_rbx_var = str_concat(mov_rbx_var, s_close_br)
+            panggil emit(mov_rbx_var)
+         tutup_jika
+
+         ; Store to [struct_ptr + offset]
+         panggil emit("    mov rdx, [rsp]    ; Peek struct ptr")
+         var off_str = format_int(field_offset)
+         var store_field = str_concat("    mov [rdx + ", off_str)
+         store_field = str_concat(store_field, "], rbx")
+         panggil emit(store_field)
+
+         field_offset = field_offset + 8
+         field_idx = field_idx + 1
+      tutup_selama
+
+      ; Pop struct pointer to rax and store to variable
+      panggil emit("    pop rax")
+      var var_label_s = str_concat(s_var_pref, name)
+      var asm_store_s = str_concat(s_mov_mem_raw, var_label_s)
+      asm_store_s = str_concat(asm_store_s, s_end_mem)
+      panggil emit(asm_store_s)
+
+      var vars_vec_s = global_vars
+      panggil vec_push(vars_vec_s, name)
+
+      ; Type tracking: register struct variable
+      panggil register_struct_variable(name, struct_name_candidate)
+
+      kembalikan 1
+   tutup_jika
+
+   kembalikan 0
+tutup_fungsi
