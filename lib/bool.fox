@@ -1,0 +1,239 @@
+; Boolean Utilities and Unit Isolation Testing
+; Provides boolean logic and fault isolation at unit/shard level
+; Key: "menutup unit/shard yang bermasalah bukan membongkar pasang codebase"
+; ID Range: 200-209
+
+### 200
+
+; Boolean Constants
+const FALSE = 0
+const TRUE = 1
+
+; Unit State Constants
+const UNIT_OPEN = 0      ; Unit active, can execute
+const UNIT_CLOSED = 1    ; Unit failed, isolated
+const UNIT_TESTING = 2   ; Unit under test
+
+; Unit Structure - represents compilation/execution unit
+struktur CompilationUnit
+    id int               ; Unit identifier
+    state int            ; UNIT_OPEN, UNIT_CLOSED, UNIT_TESTING
+    error_count int      ; Errors in this unit
+    last_error int       ; Pointer to last error message
+    checkpoint_ptr int   ; Snapshot of this unit
+    dependencies int     ; Vector of dependent unit IDs
+tutup_struktur
+
+; Global unit registry
+var unit_registry = 0
+
+### 201
+fungsi bool_and(a, b)
+   ; Logical AND
+   ; Returns: TRUE if both true, FALSE otherwise
+
+   jika (a == TRUE)
+      jika (b == TRUE)
+         kembalikan TRUE
+      tutup_jika
+   tutup_jika
+   kembalikan FALSE
+tutup_fungsi
+
+### 202
+fungsi bool_or(a, b)
+   ; Logical OR
+   ; Returns: TRUE if at least one true
+
+   jika (a == TRUE)
+      kembalikan TRUE
+   tutup_jika
+   jika (b == TRUE)
+      kembalikan TRUE
+   tutup_jika
+   kembalikan FALSE
+tutup_fungsi
+
+### 203
+fungsi bool_not(a)
+   ; Logical NOT
+   ; Returns: TRUE if false, FALSE if true
+
+   jika (a == TRUE)
+      kembalikan FALSE
+   tutup_jika
+   kembalikan TRUE
+tutup_fungsi
+
+### 204
+fungsi bool_xor(a, b)
+   ; Logical XOR
+   ; Returns: TRUE if exactly one is true
+
+   var both = bool_and(a, b)
+   var either = bool_or(a, b)
+   var neither = bool_and(bool_not(a), bool_not(b))
+
+   jika (either == TRUE)
+      jika (both == FALSE)
+         kembalikan TRUE
+      tutup_jika
+   tutup_jika
+   kembalikan FALSE
+tutup_fungsi
+
+### 205
+fungsi unit_init_registry()
+   ; Initialize global unit registry
+   ; Call this before unit testing
+
+   cetak("[Unit] Initializing unit registry...")
+
+   Ambil 330, 331, 332, 333 ; Hashmap
+   var registry = map_create(128)
+   unit_registry = registry
+
+   cetak("[Unit] Registry ready")
+tutup_fungsi
+
+### 206
+fungsi unit_create(unit_id)
+   ; Create new compilation unit
+   ; Returns: CompilationUnit pointer
+
+   var unit = CompilationUnit(unit_id, UNIT_OPEN, 0, 0, 0, 0)
+
+   ; Create checkpoint for this unit
+   asm_mulai
+   call sys_mem_checkpoint
+   mov rbx, [var_unit]
+   mov [rbx + 32], rax  ; unit.checkpoint_ptr
+   tutup_asm
+
+   ; Create dependencies vector
+   Ambil 340, 341 ; vec_create, vec_push
+   var deps = vec_create(10)
+   unit.dependencies = deps
+
+   ; Register in global registry
+   var reg = unit_registry
+   panggil map_put(reg, unit_id, unit)
+
+   cetak("[Unit] Created unit:")
+   cetak(unit_id)
+
+   kembalikan unit
+tutup_fungsi
+
+### 207
+fungsi unit_close(unit_id)
+   ; Close/isolate failed unit
+   ; Key function: "menutup unit yang bermasalah bukan membongkar codebase"
+
+   cetak("[Unit] CLOSING failed unit:")
+   cetak(unit_id)
+
+   var reg = unit_registry
+   var unit = map_get(reg, unit_id)
+
+   jika (unit == 0)
+      cetak("[Unit] Error: Unit not found")
+      kembalikan FALSE
+   tutup_jika
+
+   tipe unit CompilationUnit
+
+   ; Mark as closed
+   unit.state = UNIT_CLOSED
+
+   cetak("[Unit] Unit isolated. Other units continue execution.")
+
+   kembalikan TRUE
+tutup_fungsi
+
+### 208
+fungsi unit_can_execute(unit_id)
+   ; Test: "jika 1 ditutup, apakah crash atau bisa lanjut?"
+   ; Returns: TRUE if unit can execute, FALSE if closed/isolated
+
+   var reg = unit_registry
+   var unit = map_get(reg, unit_id)
+
+   jika (unit == 0)
+      cetak("[Unit] Warning: Unknown unit")
+      kembalikan FALSE
+   tutup_jika
+
+   tipe unit CompilationUnit
+
+   jika (unit.state == UNIT_CLOSED)
+      cetak("[Unit] Unit is CLOSED, skipping execution")
+      kembalikan FALSE
+   tutup_jika
+
+   kembalikan TRUE
+tutup_fungsi
+
+### 209
+fungsi unit_test_isolation()
+   ; Test unit isolation: Close unit 1, verify unit 2 continues
+   ; This validates: "menutup unit/shard yang bermasalah bukan membongkar codebase"
+
+   cetak("===========================================")
+   cetak("[Test] Unit Isolation Test")
+   cetak("===========================================")
+
+   ; Initialize registry
+   panggil unit_init_registry()
+
+   ; Create units
+   var unit1 = unit_create(1)
+   var unit2 = unit_create(2)
+   var unit3 = unit_create(3)
+
+   cetak("[Test] Created 3 units")
+
+   ; Simulate: Unit 1 has error (type unknown, etc.)
+   cetak("[Test] Simulating error in Unit 1...")
+   panggil unit_close(1)
+
+   ; Test: Can Unit 2 and 3 still execute?
+   cetak("[Test] Testing if Unit 2 can execute...")
+   var can_exec_2 = unit_can_execute(2)
+
+   jika (can_exec_2 == TRUE)
+      cetak("[Test] ✓ Unit 2 CAN execute (isolated from Unit 1 failure)")
+   lain
+      cetak("[Test] ✗ Unit 2 CANNOT execute (isolation FAILED)")
+   tutup_jika
+
+   cetak("[Test] Testing if Unit 3 can execute...")
+   var can_exec_3 = unit_can_execute(3)
+
+   jika (can_exec_3 == TRUE)
+      cetak("[Test] ✓ Unit 3 CAN execute (isolated from Unit 1 failure)")
+   lain
+      cetak("[Test] ✗ Unit 3 CANNOT execute (isolation FAILED)")
+   tutup_jika
+
+   ; Test: Can Unit 1 execute? (should be FALSE)
+   cetak("[Test] Testing if Unit 1 can execute...")
+   var can_exec_1 = unit_can_execute(1)
+
+   jika (can_exec_1 == FALSE)
+      cetak("[Test] ✓ Unit 1 CANNOT execute (correctly isolated)")
+   lain
+      cetak("[Test] ✗ Unit 1 CAN execute (isolation FAILED)")
+   tutup_jika
+
+   cetak("===========================================")
+   cetak("[Test] Unit Isolation Test Complete")
+   cetak("===========================================")
+
+   ; Result
+   var all_pass = bool_and(can_exec_2, can_exec_3)
+   var unit1_blocked = bool_not(can_exec_1)
+   var final_result = bool_and(all_pass, unit1_blocked)
+
+   kembalikan final_result
+tutup_fungsi

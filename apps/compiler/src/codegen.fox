@@ -1,7 +1,7 @@
-### 1200
 ; Code Generation Utilities
+; Functions for emitting assembly code to output buffer
 
-ambil "apps/compiler/src/globals.fox"
+Ambil 340, 341, 342, 343, 344 ; Vector
 
 fungsi emit(line)
   var vec = output_lines

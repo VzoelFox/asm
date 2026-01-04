@@ -1,7 +1,7 @@
-### 1150
-; Assembler String Constants
+; String Constants for Assembly Code Generation
+; These are initialized at runtime to avoid bootstrap parser issues
 
-; --- ASSEMBLER STRING CONSTANTS ---
+; --- GLOBAL CONSTANTS (Declarations) ---
 var s_msg_skip = 0
 var s_colon = 0
 var s_push_q = 0

@@ -1,0 +1,346 @@
+; Signal Handling for Crash Detection and Recovery
+; Provides fault tolerance infrastructure for Morph runtime
+; ID Range: 500-519
+
+### 500
+
+; Signal Constants (Linux x86_64)
+const SIGHUP = 1
+const SIGINT = 2
+const SIGQUIT = 3
+const SIGILL = 4
+const SIGTRAP = 5
+const SIGABRT = 6
+const SIGBUS = 7
+const SIGFPE = 8
+const SIGKILL = 9
+const SIGSEGV = 11
+const SIGPIPE = 13
+const SIGALRM = 14
+const SIGTERM = 15
+const SIGUSR1 = 10
+const SIGUSR2 = 12
+const SIGCHLD = 17
+const SIGCONT = 18
+const SIGSTOP = 19
+
+; Signal Actions
+const SA_RESTART = 0x10000000
+const SA_SIGINFO = 4
+
+; Crash State Structure
+struktur CrashState
+    signal_num int        ; Signal number (SIGSEGV, SIGABRT, etc)
+    error_addr int        ; Faulting address (for SIGSEGV)
+    instruction_ptr int   ; RIP at crash
+    stack_ptr int         ; RSP at crash
+    crash_count int       ; Number of crashes
+    last_crash_time int   ; Timestamp
+    recovery_depth int    ; Recursion depth
+tutup_struktur
+
+; Global crash state (shared across handlers)
+var global_crash_state = 0
+
+### 501
+fungsi signal_init()
+   ; Initialize signal handling system
+   ; Set up handlers for crash signals
+
+   cetak("[Signal] Initializing crash detection...")
+
+   ; Allocate crash state
+   var cs = CrashState(0, 0, 0, 0, 0, 0, 0)
+   global_crash_state = cs
+
+   ; Register signal handlers
+   panggil signal_register(SIGSEGV, signal_handler_segfault)
+   panggil signal_register(SIGABRT, signal_handler_abort)
+   panggil signal_register(SIGFPE, signal_handler_fpe)
+   panggil signal_register(SIGBUS, signal_handler_bus)
+   panggil signal_register(SIGUSR1, signal_handler_checkpoint)
+   panggil signal_register(SIGUSR2, signal_handler_cleanup)
+
+   cetak("[Signal] Crash detection active")
+tutup_fungsi
+
+### 502
+fungsi signal_register(signal_num, handler_func)
+   ; Register signal handler using rt_sigaction syscall
+   ; signal_num: Signal to catch
+   ; handler_func: Function pointer to handler
+
+   cetak("[Signal] Registering handler for signal:")
+   cetak(signal_num)
+
+   ; sigaction structure layout (x86_64):
+   ; struct sigaction {
+   ;     void (*sa_handler)(int);           // offset 0
+   ;     unsigned long sa_flags;            // offset 8
+   ;     void (*sa_restorer)(void);         // offset 16
+   ;     sigset_t sa_mask;                  // offset 24 (128 bytes)
+   ; }
+
+   ; Allocate sigaction struct (152 bytes total)
+   asm_mulai
+   mov rdi, 152
+   call sys_alloc
+   mov [var_sa_struct], rax
+
+   ; Set handler function pointer
+   mov rbx, [var_handler_func]
+   mov rcx, [var_sa_struct]
+   mov [rcx], rbx               ; sa_handler = handler_func
+
+   ; Set flags (SA_SIGINFO | SA_RESTART)
+   mov qword [rcx + 8], 0x10000004
+
+   ; Zero out sa_mask (no blocked signals)
+   mov rdi, rcx
+   add rdi, 24
+   mov rsi, 128
+   xor rax, rax
+   rep stosb
+
+   ; Call rt_sigaction(signal, &new_sa, &old_sa)
+   mov rax, 13                  ; SYS_rt_sigaction
+   mov rdi, [var_signal_num]    ; signal number
+   mov rsi, [var_sa_struct]     ; new action
+   mov rdx, 0                   ; old action (NULL, we don't care)
+   mov r10, 8                   ; sigsetsize
+   syscall
+   tutup_asm
+
+   cetak("[Signal] Handler registered")
+tutup_fungsi
+
+### 503
+fungsi signal_handler_segfault(sig, info, context)
+   ; Handle SIGSEGV (segmentation fault)
+   ; This is called by kernel on crash
+
+   cetak("")
+   cetak("=======================================")
+   cetak("[CRASH] SIGSEGV - Segmentation Fault")
+   cetak("=======================================")
+
+   ; Save crash state
+   var cs = global_crash_state
+   tipe cs CrashState
+
+   cs.signal_num = sig
+   cs.crash_count = cs.crash_count + 1
+
+   ; Get timestamp
+   asm_mulai
+   call sys_get_timestamp
+   mov rbx, [var_cs]
+   mov [rbx + 40], rax  ; cs.last_crash_time
+   tutup_asm
+
+   cetak("[CRASH] Crash count:")
+   cetak(cs.crash_count)
+
+   ; Extract fault address from siginfo
+   ; siginfo_t layout: si_signo (0), si_errno (4), si_code (8), si_addr (16)
+   asm_mulai
+   mov rbx, [var_info]
+   mov rax, [rbx + 16]  ; si_addr (faulting address)
+   mov rcx, [var_cs]
+   mov [rcx + 8], rax   ; cs.error_addr
+   tutup_asm
+
+   cetak("[CRASH] Fault address:")
+   cetak(cs.error_addr)
+
+   ; Extract RIP from ucontext
+   ; ucontext layout: uc_mcontext.gregs[REG_RIP] at offset 168
+   asm_mulai
+   mov rbx, [var_context]
+   mov rax, [rbx + 168]  ; RIP
+   mov rcx, [var_cs]
+   mov [rcx + 16], rax   ; cs.instruction_ptr
+   tutup_asm
+
+   cetak("[CRASH] Instruction pointer:")
+   cetak(cs.instruction_ptr)
+
+   ; Trigger recovery via circuit breaker
+   cetak("[CRASH] Initiating recovery...")
+   panggil signal_trigger_recovery(cs)
+tutup_fungsi
+
+### 504
+fungsi signal_handler_abort(sig, info, context)
+   ; Handle SIGABRT (abort)
+
+   cetak("")
+   cetak("=======================================")
+   cetak("[CRASH] SIGABRT - Abort Signal")
+   cetak("=======================================")
+
+   var cs = global_crash_state
+   tipe cs CrashState
+
+   cs.signal_num = sig
+   cs.crash_count = cs.crash_count + 1
+
+   panggil signal_trigger_recovery(cs)
+tutup_fungsi
+
+### 505
+fungsi signal_handler_fpe(sig, info, context)
+   ; Handle SIGFPE (floating point exception / divide by zero)
+
+   cetak("")
+   cetak("=======================================")
+   cetak("[CRASH] SIGFPE - Arithmetic Exception")
+   cetak("=======================================")
+
+   var cs = global_crash_state
+   tipe cs CrashState
+
+   cs.signal_num = sig
+   cs.crash_count = cs.crash_count + 1
+
+   panggil signal_trigger_recovery(cs)
+tutup_fungsi
+
+### 506
+fungsi signal_handler_bus(sig, info, context)
+   ; Handle SIGBUS (bus error / alignment fault)
+
+   cetak("")
+   cetak("=======================================")
+   cetak("[CRASH] SIGBUS - Bus Error")
+   cetak("=======================================")
+
+   var cs = global_crash_state
+   tipe cs CrashState
+
+   cs.signal_num = sig
+   cs.crash_count = cs.crash_count + 1
+
+   panggil signal_trigger_recovery(cs)
+tutup_fungsi
+
+### 507
+fungsi signal_handler_checkpoint(sig, info, context)
+   ; Handle SIGUSR1 - Create checkpoint
+   ; Used by morph_cleaner daemon
+
+   cetak("[Signal] SIGUSR1 - Creating checkpoint...")
+
+   asm_mulai
+   call sys_mem_checkpoint
+   mov [var_checkpoint_id], rax
+   tutup_asm
+
+   cetak("[Signal] Checkpoint created:")
+   cetak(checkpoint_id)
+tutup_fungsi
+
+### 508
+fungsi signal_handler_cleanup(sig, info, context)
+   ; Handle SIGUSR2 - Cleanup old snapshots
+   ; Used by morph_cleaner daemon
+
+   cetak("[Signal] SIGUSR2 - Cleaning snapshots...")
+
+   ; TODO: Iterate snapshots, munmap old ones
+   cetak("[Signal] Cleanup complete")
+tutup_fungsi
+
+### 509
+fungsi signal_trigger_recovery(crash_state)
+   ; Trigger crash recovery mechanism
+   ; Called by signal handlers to initiate rollback
+
+   tipe crash_state CrashState
+
+   cetak("[Recovery] Analyzing crash...")
+
+   ; Check recursion depth
+   jika (crash_state.recovery_depth > 10)
+      cetak("[Recovery] MAX RECURSION DEPTH EXCEEDED")
+      cetak("[Recovery] Halting to prevent infinite loop")
+
+      ; Exit with error code
+      asm_mulai
+      mov rax, 60
+      mov rdi, 1
+      syscall
+      tutup_asm
+   tutup_jika
+
+   crash_state.recovery_depth = crash_state.recovery_depth + 1
+
+   cetak("[Recovery] Depth:")
+   cetak(crash_state.recovery_depth)
+
+   ; Restore to last checkpoint
+   cetak("[Recovery] Restoring checkpoint...")
+
+   ; Call circuit breaker recovery
+   ; This will be implemented after circuit_breaker.fox is ready
+   cetak("[Recovery] TODO: Call cb_handle_crash()")
+tutup_fungsi
+
+### 510
+fungsi signal_get_crash_count()
+   ; Get total crash count
+   ; Returns: Number of crashes since init
+
+   var cs = global_crash_state
+   tipe cs CrashState
+
+   asm_mulai
+   mov rbx, [var_cs]
+   mov rax, [rbx + 32]  ; cs.crash_count
+   tutup_asm
+tutup_fungsi
+
+### 511
+fungsi signal_reset_crash_count()
+   ; Reset crash counter (for testing)
+
+   var cs = global_crash_state
+   tipe cs CrashState
+
+   cs.crash_count = 0
+   cs.recovery_depth = 0
+
+   cetak("[Signal] Crash counters reset")
+tutup_fungsi
+
+### 512
+fungsi signal_freeze_all_children()
+   ; Freeze all child processes (SIGSTOP)
+   ; Used during crash recovery to prevent concurrent modification
+
+   cetak("[Signal] Freezing child processes...")
+
+   ; Read /proc/self/task to find all threads
+   ; Send SIGSTOP to each
+
+   ; For now, simple implementation:
+   ; Get all PIDs from parent's children
+
+   ; TODO: Implement process enumeration via /proc
+
+   cetak("[Signal] TODO: Implement child process freezing")
+tutup_fungsi
+
+### 513
+fungsi signal_unfreeze_all_children()
+   ; Unfreeze all child processes (SIGCONT)
+   ; Used after successful recovery
+
+   cetak("[Signal] Unfreezing child processes...")
+
+   ; Send SIGCONT to all previously stopped processes
+
+   ; TODO: Track stopped PIDs and send SIGCONT
+
+   cetak("[Signal] TODO: Implement child process unfreezing")
+tutup_fungsi

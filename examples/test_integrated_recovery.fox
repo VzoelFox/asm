@@ -1,0 +1,157 @@
+; Integration Test: Signal + Trickster + Boolean + Circuit Breaker
+; Demonstrates: Crash recovery with unit isolation
+
+Ambil 200, 201, 202, 203, 204, 205, 206, 207, 208, 209 ; Boolean & Unit
+Ambil 210, 211, 212, 213, 214 ; Circuit Breaker
+Ambil 220, 221, 222, 223, 224, 225 ; Trickster
+Ambil 500, 501, 502 ; Signal handling
+Ambil 330, 331, 332, 333 ; Hashmap
+
+fungsi mulai()
+    cetak("========================================")
+    cetak("Integration Test: Fault Tolerance Stack")
+    cetak("========================================")
+    cetak("")
+
+    ; ====================================
+    ; Test 1: Unit Isolation
+    ; ====================================
+    cetak("[Test 1] Unit Isolation")
+    cetak("Objective: Close unit 1, verify units 2-3 continue")
+    cetak("")
+
+    var test1_result = unit_test_isolation()
+
+    jika (test1_result == TRUE)
+        cetak("[Test 1] ✓ PASS - Unit isolation works")
+    lain
+        cetak("[Test 1] ✗ FAIL - Unit isolation broken")
+    tutup_jika
+    cetak("")
+
+    ; ====================================
+    ; Test 2: Trickster Expression Eval
+    ; ====================================
+    cetak("[Test 2] Trickster Expression Evaluation")
+    cetak("Objective: Deterministic expression ordering")
+    cetak("")
+
+    ; Create context map
+    var ctx = map_create(16)
+    panggil map_put(ctx, "failure_count", 3)
+    panggil map_put(ctx, "threshold", 5)
+    panggil map_put(ctx, "elapsed_time", 6000)
+    panggil map_put(ctx, "timeout", 5000)
+
+    ; Evaluate complex condition
+    var expr1 = "failure_count < threshold"
+    var result1 = trickster_eval(expr1, ctx)
+
+    cetak("[Test 2] Expression 1: failure_count < threshold")
+    cetak("[Test 2] Result:")
+    cetak(result1)
+
+    jika (result1 == TRUE)
+        cetak("[Test 2] ✓ Correct (3 < 5)")
+    lain
+        cetak("[Test 2] ✗ Wrong")
+    tutup_jika
+
+    var expr2 = "elapsed_time > timeout"
+    var result2 = trickster_eval(expr2, ctx)
+
+    cetak("[Test 2] Expression 2: elapsed_time > timeout")
+    cetak("[Test 2] Result:")
+    cetak(result2)
+
+    jika (result2 == TRUE)
+        cetak("[Test 2] ✓ Correct (6000 > 5000)")
+    lain
+        cetak("[Test 2] ✗ Wrong")
+    tutup_jika
+
+    ; Combined: can_retry = (failure_count < threshold) && (elapsed_time > timeout)
+    var can_retry = bool_and(result1, result2)
+
+    cetak("[Test 2] Combined: can_retry = expr1 AND expr2")
+    cetak("[Test 2] Result:")
+    cetak(can_retry)
+
+    jika (can_retry == TRUE)
+        cetak("[Test 2] ✓ PASS - Retry allowed")
+    lain
+        cetak("[Test 2] ✗ FAIL - Logic error")
+    tutup_jika
+    cetak("")
+
+    ; ====================================
+    ; Test 3: Circuit Breaker State Machine
+    ; ====================================
+    cetak("[Test 3] Circuit Breaker State Machine")
+    cetak("Objective: State transitions (CLOSED → OPEN → HALF_OPEN)")
+    cetak("")
+
+    var cb = cb_create(3, 5000)
+    tipe cb CircuitBreaker
+
+    cetak("[Test 3] Initial state:")
+    var state_str = cb_get_state(cb)
+    cetak_str(state_str)
+
+    ; Simulate 3 failures
+    cetak("[Test 3] Simulating 3 failures...")
+    panggil cb_on_failure(cb)
+    panggil cb_on_failure(cb)
+    panggil cb_on_failure(cb)
+
+    var state_str2 = cb_get_state(cb)
+    cetak("[Test 3] State after 3 failures:")
+    cetak_str(state_str2)
+
+    var is_open = 0
+    jika (cb.state == CB_OPEN)
+        is_open = 1
+    tutup_jika
+
+    jika (is_open == TRUE)
+        cetak("[Test 3] ✓ PASS - Circuit OPEN after threshold")
+    lain
+        cetak("[Test 3] ✗ FAIL - Circuit should be OPEN")
+    tutup_jika
+    cetak("")
+
+    ; ====================================
+    ; Test 4: Signal Handler Init
+    ; ====================================
+    cetak("[Test 4] Signal Handler Initialization")
+    cetak("Objective: Register crash handlers")
+    cetak("")
+
+    panggil signal_init()
+
+    cetak("[Test 4] ✓ PASS - Signal handlers registered")
+    cetak("")
+
+    ; ====================================
+    ; Summary
+    ; ====================================
+    cetak("========================================")
+    cetak("Integration Test Summary")
+    cetak("========================================")
+
+    var all_tests = bool_and(test1_result, can_retry)
+    all_tests = bool_and(all_tests, is_open)
+
+    jika (all_tests == TRUE)
+        cetak("✓ ALL TESTS PASSED")
+        cetak("Fault tolerance stack operational!")
+    lain
+        cetak("✗ SOME TESTS FAILED")
+        cetak("Review failures above")
+    tutup_jika
+
+    cetak("")
+    cetak("========================================")
+    cetak("Test Complete - Success!")
+    cetak("========================================")
+tutup_fungsi

@@ -1,0 +1,13 @@
+; Test dengan ambil (full file import)
+ambil "lib/vector.fox"
+
+fungsi mulai()
+    cetak("Test 1: Creating vector")
+    var vec = vec_create(10)
+    cetak("Test 2: Pushing value")
+    panggil vec_push(vec, 42)
+    var count = vec_len(vec)
+    cetak("Count:")
+    cetak(count)
+    cetak("Success!")
+tutup_fungsi

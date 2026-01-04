@@ -1,0 +1,124 @@
+; Parser Helpers - Statement Logic
+; Handles: var, const, cetak, cetak_str, panggil, assignment, asm blocks, tipe, kembalikan
+;
+; NOTE: This file contains simplified statement handlers.
+; Full implementation details are still in original parser.fox
+; For Phase 1 refactoring, we keep main logic inline and extract to helpers progressively.
+
+Ambil 320, 321, 322, 323, 324 ; Format
+Ambil 330, 331, 332, 333 ; Hashmap
+Ambil 340, 341, 342, 343, 344 ; Vector
+Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
+Ambil 390, 391 ; str_to_int, str_index_of
+
+### 1130
+fungsi is_var_line(line)
+   ; Check if line is var declaration
+   var result = str_starts_with(line, "var ")
+   asm_mulai
+   mov rax, [var_result]
+   tutup_asm
+tutup_fungsi
+
+### 1131
+fungsi is_const_line(line)
+   ; Check if line is const declaration
+   var result = str_starts_with(line, "const ")
+   asm_mulai
+   mov rax, [var_result]
+   tutup_asm
+tutup_fungsi
+
+### 1132
+fungsi is_cetak_str_line(line)
+   ; Check if line is cetak_str call
+   var result = str_starts_with(line, "cetak_str(")
+   asm_mulai
+   mov rax, [var_result]
+   tutup_asm
+tutup_fungsi
+
+### 1133
+fungsi is_cetak_line(line)
+   ; Check if line is cetak call
+   var result = str_starts_with(line, "cetak(")
+   asm_mulai
+   mov rax, [var_result]
+   tutup_asm
+tutup_fungsi
+
+### 1134
+fungsi is_panggil_line(line)
+   ; Check if line is panggil (function call)
+   var result = str_starts_with(line, "panggil ")
+   asm_mulai
+   mov rax, [var_result]
+   tutup_asm
+tutup_fungsi
+
+### 1135
+fungsi is_asm_mulai(line)
+   ; Check if line is asm block start
+   var result = str_starts_with(line, "asm_mulai")
+   asm_mulai
+   mov rax, [var_result]
+   tutup_asm
+tutup_fungsi
+
+### 1136
+fungsi is_tutup_asm(line)
+   ; Check if line is asm block end
+   var result = str_starts_with(line, "tutup_asm")
+   asm_mulai
+   mov rax, [var_result]
+   tutup_asm
+tutup_fungsi
+
+### 1137
+fungsi is_kembalikan(line)
+   ; Check if line is return statement
+   var result = str_starts_with(line, "kembalikan")
+   asm_mulai
+   mov rax, [var_result]
+   tutup_asm
+tutup_fungsi
+
+### 1138
+fungsi is_tipe_assertion(line)
+   ; Check if line is type assertion
+   var result = str_starts_with(line, "tipe ")
+   asm_mulai
+   mov rax, [var_result]
+   tutup_asm
+tutup_fungsi
+
+### 1139
+fungsi is_assignment(line)
+   ; Check if line is assignment (contains "=")
+   var eq_idx = str_index_of(line, "=")
+   var result = 0
+   jika (eq_idx > 0)
+      result = 1
+   tutup_jika
+   asm_mulai
+   mov rax, [var_result]
+   tutup_asm
+tutup_fungsi
+
+; ================================================================
+; NOTE: Full implementation of statement handlers (var, cetak, panggil, etc.)
+; are kept inline in parser.fox for now due to complexity (~350 lines total).
+;
+; These include:
+; - handle_var_declaration() - var with struct instantiation, assignments
+; - handle_cetak_str() - string printing
+; - handle_cetak() - integer printing
+; - handle_panggil() - function calls with arguments
+; - handle_assignment() - variable assignments with operators
+; - handle_asm_block() - inline assembly
+; - handle_kembalikan() - return statements
+; - handle_tipe_assertion() - type assertions for struct field access
+; - handle_const() - constant declarations
+;
+; Phase 2 TODO: Extract these handlers once Phase 1 modular compile is working.
+; ================================================================

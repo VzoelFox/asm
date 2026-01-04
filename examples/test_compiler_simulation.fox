@@ -1,0 +1,71 @@
+; Simulasi self-hosted compiler untuk test runtime crash
+; Test: memory allocation, snapshot, dan cetak "Success!" di akhir
+
+Ambil 340, 341, 342, 343, 344 ; Vector
+Ambil 330, 331, 332, 333 ; Hashmap
+
+fungsi mulai()
+    cetak("=== MORPH COMPILER SIMULATION ===")
+
+    ; Simulate global vars initialization
+    cetak("Init: Creating global data structures...")
+    var output_lines = vec_create(1000)
+    var global_vars = vec_create(100)
+    var label_stack = vec_create(50)
+    var processed_files = map_create(32)
+
+    cetak("Init: Data structures created")
+
+    ; Simulate parsing loop dengan heavy memory usage
+    cetak("Parse: Processing source lines...")
+    var line_count = 100
+    var i = 0
+
+    selama (i < line_count)
+        ; Simulate parsing yang allocate memory
+        var temp_str = vec_create(10)
+        panggil vec_push(temp_str, i)
+        panggil vec_push(output_lines, temp_str)
+
+        ; Create snapshot every 25 iterations (simulate checkpoint)
+        jika (i == 25)
+            cetak("Checkpoint: Creating snapshot at line 25")
+            asm_mulai
+            call sys_mem_checkpoint
+            tutup_asm
+        tutup_jika
+
+        jika (i == 50)
+            cetak("Checkpoint: Creating snapshot at line 50")
+            asm_mulai
+            call sys_mem_checkpoint
+            tutup_asm
+        tutup_jika
+
+        jika (i == 75)
+            cetak("Checkpoint: Creating snapshot at line 75")
+            asm_mulai
+            call sys_mem_checkpoint
+            tutup_asm
+        tutup_jika
+
+        i = i + 1
+    tutup_selama
+
+    cetak("Parse: Completed")
+
+    ; Simulate code generation
+    cetak("Codegen: Generating assembly...")
+    var asm_lines = vec_len(output_lines)
+    cetak("Codegen: Generated lines:")
+    cetak(asm_lines)
+
+    ; Simulate final output
+    cetak("Output: Writing to file...")
+    var final_count = vec_len(global_vars)
+    cetak("Output: Global vars count:")
+    cetak(final_count)
+
+    ; CRITICAL: Test apakah sampai sini
+    cetak("Success!")
+tutup_fungsi

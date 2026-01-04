@@ -1,38 +1,30 @@
 ### 1000
-; Morph Self-Hosted Compiler Entry Point
+; Morph Self-Hosted Compiler Entry Point (Refactored)
 
-; 1. Utilities (Must be first to register IDs via 'Daftar')
+; === IMPORTS ===
 ambil "apps/compiler/pkg/utils.fox"
-
-; 2. Globals (Imports Libraries via 'Ambil' - requires IDs registered)
-ambil "apps/compiler/src/globals.fox"
-
-; 2b. Constants (String Init)
-ambil "apps/compiler/src/constants.fox"
-
-; 3. Codegen (Depends on Globals)
-ambil "apps/compiler/src/codegen.fox"
-
-; 4. Types (Independent, used by Parser/Main)
 ambil "apps/compiler/src/types.fox"
-
-; 5. Supplier (Depends on Utils/Globals)
 ambil "apps/compiler/src/supplier.fox"
-
-; 6. Parser (The Beast - Depends on everything)
+ambil "apps/compiler/src/globals.fox"
+ambil "apps/compiler/src/constants.fox"
+ambil "apps/compiler/src/codegen.fox"
 ambil "apps/compiler/src/parser.fox"
 
+Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
+Ambil 318, 319 ; File IO
+Ambil 320, 321, 322, 323, 324 ; Format
+Ambil 330, 331, 332, 333 ; Hashmap
+Ambil 340, 341, 342, 343, 344 ; Vector
+Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
+
 fungsi mulai(arg_unused1, arg_unused2)
-  ; Initialize Global Constants and Variables
+  ; === INITIALIZATION ===
   panggil init_globals()
   panggil init_constants()
-
-  ; Init Type System
   panggil init_type_system()
-
-  ; Init Supplier System (ID-based imports)
   panggil init_supplier_system()
 
+  ; === READ INPUT FILE ===
   var args_count = global_argc
   var args_ptr = global_argv
 
@@ -52,7 +44,7 @@ fungsi mulai(arg_unused1, arg_unused2)
   mov [var_filename_ptr], rax
   tutup_asm
 
-  cetak("Morph Self-Hosted Compiler v0.1")
+  cetak("Morph Self-Hosted Compiler v0.2 (Modular)")
   cetak("Compiling:")
   cetak_str(filename_ptr)
 
@@ -75,6 +67,7 @@ fungsi mulai(arg_unused1, arg_unused2)
   cetak("Lines parsed:")
   cetak(line_count)
 
+  ; === GENERATE ENTRY POINT ===
   panggil emit("section .text")
   panggil emit("    global _start")
   panggil emit("_start:")
@@ -88,8 +81,10 @@ fungsi mulai(arg_unused1, arg_unused2)
 
   panggil emit("    syscall")
 
+  ; === PARSE SOURCE CODE ===
   panggil parse_source_lines(lines)
 
+  ; === GENERATE BSS SECTION ===
   panggil emit("section .bss")
   var vars_vec_2 = global_vars
   var vars_len = vec_len(vars_vec_2)
@@ -106,6 +101,7 @@ fungsi mulai(arg_unused1, arg_unused2)
      v_idx = v_idx + 1
   tutup_selama
 
+  ; === WRITE OUTPUT FILE ===
   var out_file = "output.asm"
   cetak("Writing output to:")
   cetak_str(out_file)
