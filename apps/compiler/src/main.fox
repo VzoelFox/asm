@@ -30,6 +30,9 @@
 ; Morph Self-Hosted Compiler Entry Point (Refactored)
 ; NOTE: Uses ID-based imports to avoid recursive file parsing
 
+; === LOAD ID REGISTRY ===
+indeks "indeks.fox"
+
 ; === STANDARD LIBRARY ===
 Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
 Ambil 318, 319 ; File IO
