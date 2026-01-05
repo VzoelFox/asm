@@ -64,7 +64,10 @@ var s_nl = 0
 var s_print_int = 0
 var s_print_ptr = 0
 
-fungsi init_constants()
+; Splitting init_constants to prevent stack overflow in bootstrap compiler
+; when processing large single blocks of assignments.
+
+fungsi init_constants_1()
   s_msg_skip = "Skipped already imported: "
   s_colon = ":"
   s_push_q = "    push qword [var_"
@@ -80,7 +83,9 @@ fungsi init_constants()
   s_jne = "    jne "
   s_jge = "    jge "
   s_jle = "    jle "
+tutup_fungsi
 
+fungsi init_constants_2()
   s_end_lbl = ".L_end_"
   s_final_lbl = ".L_final_"
   s_jmp = "    jmp "
@@ -100,7 +105,9 @@ fungsi init_constants()
   s_end_mem = "], rax"
 
   s_mov_rsi_v = "    mov rsi, [var_"
+tutup_fungsi
 
+fungsi init_constants_3()
   s_msg = "msg_"
   s_len = "len_"
   s_data = "section .data"
@@ -123,4 +130,10 @@ fungsi init_constants()
   s_nl = "    call print_newline"
   s_print_int = "    call print_int"
   s_print_ptr = "    call print_string_ptr"
+tutup_fungsi
+
+fungsi init_constants()
+    panggil init_constants_1()
+    panggil init_constants_2()
+    panggil init_constants_3()
 tutup_fungsi

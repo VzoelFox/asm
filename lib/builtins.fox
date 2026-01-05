@@ -14,6 +14,7 @@
 ; ============================================================================
 
 ; === CORE SYSTEM FUNCTIONS (BUILTIN) ===
+### 10
 fungsi sys_write(fd, buf, len)
     asm_mulai
     mov rax, 1
@@ -24,6 +25,7 @@ fungsi sys_write(fd, buf, len)
     tutup_asm
 tutup_fungsi
 
+### 11
 fungsi _override_sys_read(fd, buf, len)
     asm_mulai
     mov rax, 0
@@ -34,6 +36,7 @@ fungsi _override_sys_read(fd, buf, len)
     tutup_asm
 tutup_fungsi
 
+### 12
 fungsi _override_sys_open(path, flags, mode)
     asm_mulai
     mov rax, 2
@@ -44,6 +47,7 @@ fungsi _override_sys_open(path, flags, mode)
     tutup_asm
 tutup_fungsi
 
+### 13
 fungsi _override_sys_close(fd)
     asm_mulai
     mov rax, 3
@@ -53,6 +57,7 @@ fungsi _override_sys_close(fd)
 tutup_fungsi
 
 ; === MEMORY MANAGEMENT (BUILTIN) ===
+### 14
 fungsi sys_mmap(addr, length, prot, flags, fd, offset)
     asm_mulai
     mov rax, 9
@@ -66,6 +71,7 @@ fungsi sys_mmap(addr, length, prot, flags, fd, offset)
     tutup_asm
 tutup_fungsi
 
+### 15
 fungsi sys_munmap(addr, length)
     asm_mulai
     mov rax, 11
@@ -76,6 +82,7 @@ fungsi sys_munmap(addr, length)
 tutup_fungsi
 
 ; === STRING OPERATIONS (BUILTIN) ===
+### 16
 fungsi _override_str_len(s)
     var len = 0
     var ptr = s
@@ -94,6 +101,7 @@ fungsi _override_str_len(s)
     tutup_selama
 tutup_fungsi
 
+### 17
 fungsi str_copy(dest, src, max_len)
     var i = 0
     selama (i < max_len)
@@ -125,6 +133,7 @@ struktur Vector
     capacity int
 tutup_struktur
 
+### 18
 fungsi _override_vec_create(initial_capacity)
     var vec_size = 24  ; sizeof(Vector)
     var vec_ptr = sys_mmap(0, vec_size, 3, 34, -1, 0)
@@ -144,6 +153,7 @@ fungsi _override_vec_create(initial_capacity)
     kembalikan vec_ptr
 tutup_fungsi
 
+### 19
 fungsi _override_vec_push(vec, value)
     tipe vec Vector
     jika (vec.size >= vec.capacity)
@@ -189,6 +199,7 @@ fungsi _override_vec_push(vec, value)
 tutup_fungsi
 
 ; === SECURITY VALIDATION (BUILTIN) ===
+### 20
 fungsi validate_syscall_params(syscall_num, param1, param2, param3)
     ; Whitelist allowed syscalls
     jika (syscall_num == 0)   ; read - OK
@@ -218,6 +229,7 @@ fungsi validate_syscall_params(syscall_num, param1, param2, param3)
 tutup_fungsi
 
 ; === SECURE PRINT FUNCTIONS (BUILTIN) ===
+### 21
 fungsi cetak(message)
     var len = _override_str_len(message)
     sys_write(1, message, len)
@@ -225,12 +237,14 @@ fungsi cetak(message)
     sys_write(1, newline, 1)
 tutup_fungsi
 
+### 22
 fungsi cetak_str(str_ptr)
     var len = str_len(str_ptr)
     sys_write(1, str_ptr, len)
 tutup_fungsi
 
 ; === SECURE FILE OPERATIONS (BUILTIN) ===
+### 23
 fungsi file_read_secure(filepath)
     ; SECURITY: Validate filepath
     var len = str_len(filepath)
@@ -261,6 +275,7 @@ fungsi file_read_secure(filepath)
 tutup_fungsi
 
 ; === INITIALIZATION (BUILTIN) ===
+### 24
 fungsi init_builtins()
     ; Initialize builtin security systems
     ; Set up syscall validation

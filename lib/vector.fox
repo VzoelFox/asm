@@ -4,6 +4,7 @@ struktur Vector
   capacity int
 tutup_struktur
 
+### 200
 fungsi vec_create(capacity)
   var vec = Vector(0, 0, capacity)
 
@@ -26,6 +27,7 @@ fungsi vec_create(capacity)
   tutup_asm
 tutup_fungsi
 
+### 201
 fungsi vec_push(vec, value)
   tipe vec Vector
 
@@ -92,6 +94,7 @@ fungsi vec_push(vec, value)
   tutup_asm
 tutup_fungsi
 
+### 202
 fungsi vec_get(vec, index)
   tipe vec Vector
 
@@ -120,6 +123,7 @@ fungsi vec_get(vec, index)
   tutup_asm
 tutup_fungsi
 
+### 203
 fungsi vec_set(vec, index, value)
   tipe vec Vector
   var arr = vec.data_ptr
@@ -128,6 +132,7 @@ fungsi vec_set(vec, index, value)
   arr[index] = value
 tutup_fungsi
 
+### 204
 fungsi vec_len(vec)
   tipe vec Vector
   var sz = vec.size
