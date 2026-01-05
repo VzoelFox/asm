@@ -771,23 +771,23 @@ section .data
     msg_sandbox_full db "Error: Sandbox swap full (max 8)", 10, 0
     len_sandbox_full equ $ - msg_sandbox_full
 
-; DISABLED BSS - Moved to emit_output
+; DISABLED BSS - Moved to emit_output (FIX: Commented orphaned labels to prevent duplication)
 ; section .bss
     ; Snapshot Swap Slots (4 × 128MB)
     ; snapshot_swap_ptrs  resq 4      ; Pointers to mmap regions
-    snapshot_swap_sizes resq 4      ; Used sizes
-    snapshot_swap_active resb 4     ; Active flags (1=used, 0=free)
-    snapshot_count      resq 1      ; Current snapshot count
+    ; snapshot_swap_sizes resq 4      ; Used sizes
+    ; snapshot_swap_active resb 4     ; Active flags (1=used, 0=free)
+    ; snapshot_count      resq 1      ; Current snapshot count
 
     ; Sandbox Swap Slots (8 × 64MB)
-    sandbox_swap_ptrs   resq 8      ; Pointers to mmap regions
-    sandbox_swap_sizes  resq 8      ; Used sizes
-    sandbox_swap_active resb 8      ; Active flags
-    sandbox_count       resq 1      ; Current sandbox count
+    ; sandbox_swap_ptrs   resq 8      ; Pointers to mmap regions
+    ; sandbox_swap_sizes  resq 8      ; Used sizes
+    ; sandbox_swap_active resb 8      ; Active flags
+    ; sandbox_count       resq 1      ; Current sandbox count
 
     ; Timestamp tracking (for daemon cleaner)
-    snapshot_timestamps resq 4      ; Last access time
-    sandbox_timestamps  resq 8      ; Last access time
+    ; snapshot_timestamps resq 4      ; Last access time
+    ; sandbox_timestamps  resq 8      ; Last access time
 
 section .text
 

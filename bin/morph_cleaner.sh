@@ -95,6 +95,39 @@ clean_page_cache() {
     fi
 }
 
+clean_zombie_logs() {
+    # FIX: Cleanup old zombie logs to prevent disk leak
+    local cleaned=0
+    local MAX_LOG_SIZE=$((10 * 1024 * 1024))  # 10MB
+
+    # Find all .morph.vz/.z files
+    while IFS= read -r log_file; do
+        if [ -f "$log_file" ]; then
+            local size=$(stat -f%z "$log_file" 2>/dev/null || stat -c%s "$log_file" 2>/dev/null)
+
+            if [ "$size" -gt "$MAX_LOG_SIZE" ]; then
+                log "Rotating large zombie log: $log_file (${size} bytes)"
+
+                # Archive old log
+                mv "$log_file" "${log_file}.old" 2>/dev/null
+
+                # If .old exists and is too big, truncate it
+                if [ -f "${log_file}.old" ]; then
+                    local old_size=$(stat -f%z "${log_file}.old" 2>/dev/null || stat -c%s "${log_file}.old" 2>/dev/null)
+                    if [ "$old_size" -gt "$((50 * 1024 * 1024))" ]; then
+                        log "Truncating ancient zombie log: ${log_file}.old"
+                        > "${log_file}.old"
+                    fi
+                fi
+
+                ((cleaned++))
+            fi
+        fi
+    done < <(find /root -name ".z" -path "*/.morph.vz/.z" 2>/dev/null)
+
+    [ $cleaned -gt 0 ] && log "Rotated $cleaned zombie logs"
+}
+
 monitor_memory() {
     local mem_info=$(free -m | grep Mem)
     local total=$(echo "$mem_info" | awk '{print $2}')
@@ -107,6 +140,7 @@ monitor_memory() {
         log "⚠️  High memory usage detected! Starting aggressive cleanup..."
         clean_snapshots
         clean_sandboxes
+        clean_zombie_logs
         clean_page_cache
     fi
 }
@@ -132,9 +166,10 @@ main() {
     while true; do
         clean_snapshots
         clean_sandboxes
+        clean_zombie_logs
         monitor_memory
         track_floodwait
-        
+
         sleep $CHECK_INTERVAL
     done
 }

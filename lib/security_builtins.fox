@@ -8,17 +8,78 @@
 
 ### 500
 ; === SECURE SYSCALL WRAPPER ===
+; FIX: Added missing syscalls (read, open, close, mmap, munmap)
 fungsi secure_syscall(num, p1, p2, p3)
+    var result = 0
+
     ; Whitelist validation
+    jika (num == 0)   ; read
+        asm_mulai
+        mov rax, 0
+        mov rdi, [var_p1]
+        mov rsi, [var_p2]
+        mov rdx, [var_p3]
+        syscall
+        mov [var_result], rax
+        tutup_asm
+    tutup_jika
+
     jika (num == 1)   ; write
         asm_mulai
         mov rax, 1
         mov rdi, [var_p1]
-        mov rsi, [var_p2] 
+        mov rsi, [var_p2]
         mov rdx, [var_p3]
         syscall
+        mov [var_result], rax
         tutup_asm
     tutup_jika
+
+    jika (num == 2)   ; open
+        asm_mulai
+        mov rax, 2
+        mov rdi, [var_p1]
+        mov rsi, [var_p2]
+        mov rdx, [var_p3]
+        syscall
+        mov [var_result], rax
+        tutup_asm
+    tutup_jika
+
+    jika (num == 3)   ; close
+        asm_mulai
+        mov rax, 3
+        mov rdi, [var_p1]
+        syscall
+        mov [var_result], rax
+        tutup_asm
+    tutup_jika
+
+    jika (num == 9)   ; mmap (requires 6 args via registers)
+        asm_mulai
+        mov rax, 9
+        mov rdi, [var_p1]  ; addr
+        mov rsi, [var_p2]  ; length
+        mov rdx, [var_p3]  ; prot
+        ; Note: flags, fd, offset would need additional params
+        mov r10, 0x22      ; MAP_PRIVATE | MAP_ANONYMOUS
+        mov r8, -1         ; fd = -1
+        mov r9, 0          ; offset = 0
+        syscall
+        mov [var_result], rax
+        tutup_asm
+    tutup_jika
+
+    jika (num == 11)  ; munmap
+        asm_mulai
+        mov rax, 11
+        mov rdi, [var_p1]
+        mov rsi, [var_p2]
+        syscall
+        mov [var_result], rax
+        tutup_asm
+    tutup_jika
+
     jika (num == 60)  ; exit
         asm_mulai
         mov rax, 60
@@ -26,7 +87,9 @@ fungsi secure_syscall(num, p1, p2, p3)
         syscall
         tutup_asm
     tutup_jika
+
     ; Block all other syscalls for security
+    kembalikan result
 tutup_fungsi
 
 ### 501
