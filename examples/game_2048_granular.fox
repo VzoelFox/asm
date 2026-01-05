@@ -4,10 +4,17 @@
 indeks "indeks.fox"
 
 ; Import Builtins (cetak, sys_write, etc)
-Ambil 21, 24
+; 21: cetak, 24: init_builtins
+; Dependencies: 10: sys_write, 16: str_len
+Ambil 10, 16, 21, 24
+
+; Import Memory Pool (Required by Vector)
+; 100: Struct, 102: Acquire, 103: Release
+Ambil 100, 102, 103
 
 ; Import Vector (create, push, get, set)
-Ambil 200, 201, 202, 203, 204
+; 199: Struct Vector (NEW!)
+Ambil 199, 200, 201, 202, 203, 204
 
 ; Import Utils (str_to_int if needed, random?)
 Ambil 300-305 ; string utils just in case
@@ -44,9 +51,9 @@ fungsi print_grid(grid)
             jika (val == 0)
                 row_str = str_concat(row_str, " . |")
             lain
-                ; TODO: Need int_to_str helper or just print raw
-                ; For now, we print line by line differently
-                :
+                ; We need int to string conversion for display
+                ; For this test, just marking non-zero
+                row_str = str_concat(row_str, " X |")
             tutup_jika
 
             j = j + 1

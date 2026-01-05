@@ -101,6 +101,12 @@ fungsi _override_str_len(s)
     tutup_selama
 tutup_fungsi
 
+; Alias for compatibility
+fungsi str_len(s)
+    var len = _override_str_len(s)
+    kembalikan len
+tutup_fungsi
+
 ### 17
 fungsi str_copy(dest, src, max_len)
     var i = 0
@@ -239,7 +245,7 @@ tutup_fungsi
 
 ### 22
 fungsi cetak_str(str_ptr)
-    var len = str_len(str_ptr)
+    var len = _override_str_len(str_ptr)
     sys_write(1, str_ptr, len)
 tutup_fungsi
 
@@ -247,7 +253,7 @@ tutup_fungsi
 ### 23
 fungsi file_read_secure(filepath)
     ; SECURITY: Validate filepath
-    var len = str_len(filepath)
+    var len = _override_str_len(filepath)
     jika (len > 255)  ; Prevent buffer overflow
         kembalikan 0
     tutup_jika
