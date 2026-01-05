@@ -1,0 +1,603 @@
+fungsi test_large()
+    var x1 = 1
+    cetak(x1)
+    var x2 = 2
+    cetak(x2)
+    var x3 = 3
+    cetak(x3)
+    var x4 = 4
+    cetak(x4)
+    var x5 = 5
+    cetak(x5)
+    var x6 = 6
+    cetak(x6)
+    var x7 = 7
+    cetak(x7)
+    var x8 = 8
+    cetak(x8)
+    var x9 = 9
+    cetak(x9)
+    var x10 = 10
+    cetak(x10)
+    var x11 = 11
+    cetak(x11)
+    var x12 = 12
+    cetak(x12)
+    var x13 = 13
+    cetak(x13)
+    var x14 = 14
+    cetak(x14)
+    var x15 = 15
+    cetak(x15)
+    var x16 = 16
+    cetak(x16)
+    var x17 = 17
+    cetak(x17)
+    var x18 = 18
+    cetak(x18)
+    var x19 = 19
+    cetak(x19)
+    var x20 = 20
+    cetak(x20)
+    var x21 = 21
+    cetak(x21)
+    var x22 = 22
+    cetak(x22)
+    var x23 = 23
+    cetak(x23)
+    var x24 = 24
+    cetak(x24)
+    var x25 = 25
+    cetak(x25)
+    var x26 = 26
+    cetak(x26)
+    var x27 = 27
+    cetak(x27)
+    var x28 = 28
+    cetak(x28)
+    var x29 = 29
+    cetak(x29)
+    var x30 = 30
+    cetak(x30)
+    var x31 = 31
+    cetak(x31)
+    var x32 = 32
+    cetak(x32)
+    var x33 = 33
+    cetak(x33)
+    var x34 = 34
+    cetak(x34)
+    var x35 = 35
+    cetak(x35)
+    var x36 = 36
+    cetak(x36)
+    var x37 = 37
+    cetak(x37)
+    var x38 = 38
+    cetak(x38)
+    var x39 = 39
+    cetak(x39)
+    var x40 = 40
+    cetak(x40)
+    var x41 = 41
+    cetak(x41)
+    var x42 = 42
+    cetak(x42)
+    var x43 = 43
+    cetak(x43)
+    var x44 = 44
+    cetak(x44)
+    var x45 = 45
+    cetak(x45)
+    var x46 = 46
+    cetak(x46)
+    var x47 = 47
+    cetak(x47)
+    var x48 = 48
+    cetak(x48)
+    var x49 = 49
+    cetak(x49)
+    var x50 = 50
+    cetak(x50)
+    var x51 = 51
+    cetak(x51)
+    var x52 = 52
+    cetak(x52)
+    var x53 = 53
+    cetak(x53)
+    var x54 = 54
+    cetak(x54)
+    var x55 = 55
+    cetak(x55)
+    var x56 = 56
+    cetak(x56)
+    var x57 = 57
+    cetak(x57)
+    var x58 = 58
+    cetak(x58)
+    var x59 = 59
+    cetak(x59)
+    var x60 = 60
+    cetak(x60)
+    var x61 = 61
+    cetak(x61)
+    var x62 = 62
+    cetak(x62)
+    var x63 = 63
+    cetak(x63)
+    var x64 = 64
+    cetak(x64)
+    var x65 = 65
+    cetak(x65)
+    var x66 = 66
+    cetak(x66)
+    var x67 = 67
+    cetak(x67)
+    var x68 = 68
+    cetak(x68)
+    var x69 = 69
+    cetak(x69)
+    var x70 = 70
+    cetak(x70)
+    var x71 = 71
+    cetak(x71)
+    var x72 = 72
+    cetak(x72)
+    var x73 = 73
+    cetak(x73)
+    var x74 = 74
+    cetak(x74)
+    var x75 = 75
+    cetak(x75)
+    var x76 = 76
+    cetak(x76)
+    var x77 = 77
+    cetak(x77)
+    var x78 = 78
+    cetak(x78)
+    var x79 = 79
+    cetak(x79)
+    var x80 = 80
+    cetak(x80)
+    var x81 = 81
+    cetak(x81)
+    var x82 = 82
+    cetak(x82)
+    var x83 = 83
+    cetak(x83)
+    var x84 = 84
+    cetak(x84)
+    var x85 = 85
+    cetak(x85)
+    var x86 = 86
+    cetak(x86)
+    var x87 = 87
+    cetak(x87)
+    var x88 = 88
+    cetak(x88)
+    var x89 = 89
+    cetak(x89)
+    var x90 = 90
+    cetak(x90)
+    var x91 = 91
+    cetak(x91)
+    var x92 = 92
+    cetak(x92)
+    var x93 = 93
+    cetak(x93)
+    var x94 = 94
+    cetak(x94)
+    var x95 = 95
+    cetak(x95)
+    var x96 = 96
+    cetak(x96)
+    var x97 = 97
+    cetak(x97)
+    var x98 = 98
+    cetak(x98)
+    var x99 = 99
+    cetak(x99)
+    var x100 = 100
+    cetak(x100)
+    var x101 = 101
+    cetak(x101)
+    var x102 = 102
+    cetak(x102)
+    var x103 = 103
+    cetak(x103)
+    var x104 = 104
+    cetak(x104)
+    var x105 = 105
+    cetak(x105)
+    var x106 = 106
+    cetak(x106)
+    var x107 = 107
+    cetak(x107)
+    var x108 = 108
+    cetak(x108)
+    var x109 = 109
+    cetak(x109)
+    var x110 = 110
+    cetak(x110)
+    var x111 = 111
+    cetak(x111)
+    var x112 = 112
+    cetak(x112)
+    var x113 = 113
+    cetak(x113)
+    var x114 = 114
+    cetak(x114)
+    var x115 = 115
+    cetak(x115)
+    var x116 = 116
+    cetak(x116)
+    var x117 = 117
+    cetak(x117)
+    var x118 = 118
+    cetak(x118)
+    var x119 = 119
+    cetak(x119)
+    var x120 = 120
+    cetak(x120)
+    var x121 = 121
+    cetak(x121)
+    var x122 = 122
+    cetak(x122)
+    var x123 = 123
+    cetak(x123)
+    var x124 = 124
+    cetak(x124)
+    var x125 = 125
+    cetak(x125)
+    var x126 = 126
+    cetak(x126)
+    var x127 = 127
+    cetak(x127)
+    var x128 = 128
+    cetak(x128)
+    var x129 = 129
+    cetak(x129)
+    var x130 = 130
+    cetak(x130)
+    var x131 = 131
+    cetak(x131)
+    var x132 = 132
+    cetak(x132)
+    var x133 = 133
+    cetak(x133)
+    var x134 = 134
+    cetak(x134)
+    var x135 = 135
+    cetak(x135)
+    var x136 = 136
+    cetak(x136)
+    var x137 = 137
+    cetak(x137)
+    var x138 = 138
+    cetak(x138)
+    var x139 = 139
+    cetak(x139)
+    var x140 = 140
+    cetak(x140)
+    var x141 = 141
+    cetak(x141)
+    var x142 = 142
+    cetak(x142)
+    var x143 = 143
+    cetak(x143)
+    var x144 = 144
+    cetak(x144)
+    var x145 = 145
+    cetak(x145)
+    var x146 = 146
+    cetak(x146)
+    var x147 = 147
+    cetak(x147)
+    var x148 = 148
+    cetak(x148)
+    var x149 = 149
+    cetak(x149)
+    var x150 = 150
+    cetak(x150)
+    var x151 = 151
+    cetak(x151)
+    var x152 = 152
+    cetak(x152)
+    var x153 = 153
+    cetak(x153)
+    var x154 = 154
+    cetak(x154)
+    var x155 = 155
+    cetak(x155)
+    var x156 = 156
+    cetak(x156)
+    var x157 = 157
+    cetak(x157)
+    var x158 = 158
+    cetak(x158)
+    var x159 = 159
+    cetak(x159)
+    var x160 = 160
+    cetak(x160)
+    var x161 = 161
+    cetak(x161)
+    var x162 = 162
+    cetak(x162)
+    var x163 = 163
+    cetak(x163)
+    var x164 = 164
+    cetak(x164)
+    var x165 = 165
+    cetak(x165)
+    var x166 = 166
+    cetak(x166)
+    var x167 = 167
+    cetak(x167)
+    var x168 = 168
+    cetak(x168)
+    var x169 = 169
+    cetak(x169)
+    var x170 = 170
+    cetak(x170)
+    var x171 = 171
+    cetak(x171)
+    var x172 = 172
+    cetak(x172)
+    var x173 = 173
+    cetak(x173)
+    var x174 = 174
+    cetak(x174)
+    var x175 = 175
+    cetak(x175)
+    var x176 = 176
+    cetak(x176)
+    var x177 = 177
+    cetak(x177)
+    var x178 = 178
+    cetak(x178)
+    var x179 = 179
+    cetak(x179)
+    var x180 = 180
+    cetak(x180)
+    var x181 = 181
+    cetak(x181)
+    var x182 = 182
+    cetak(x182)
+    var x183 = 183
+    cetak(x183)
+    var x184 = 184
+    cetak(x184)
+    var x185 = 185
+    cetak(x185)
+    var x186 = 186
+    cetak(x186)
+    var x187 = 187
+    cetak(x187)
+    var x188 = 188
+    cetak(x188)
+    var x189 = 189
+    cetak(x189)
+    var x190 = 190
+    cetak(x190)
+    var x191 = 191
+    cetak(x191)
+    var x192 = 192
+    cetak(x192)
+    var x193 = 193
+    cetak(x193)
+    var x194 = 194
+    cetak(x194)
+    var x195 = 195
+    cetak(x195)
+    var x196 = 196
+    cetak(x196)
+    var x197 = 197
+    cetak(x197)
+    var x198 = 198
+    cetak(x198)
+    var x199 = 199
+    cetak(x199)
+    var x200 = 200
+    cetak(x200)
+    var x201 = 201
+    cetak(x201)
+    var x202 = 202
+    cetak(x202)
+    var x203 = 203
+    cetak(x203)
+    var x204 = 204
+    cetak(x204)
+    var x205 = 205
+    cetak(x205)
+    var x206 = 206
+    cetak(x206)
+    var x207 = 207
+    cetak(x207)
+    var x208 = 208
+    cetak(x208)
+    var x209 = 209
+    cetak(x209)
+    var x210 = 210
+    cetak(x210)
+    var x211 = 211
+    cetak(x211)
+    var x212 = 212
+    cetak(x212)
+    var x213 = 213
+    cetak(x213)
+    var x214 = 214
+    cetak(x214)
+    var x215 = 215
+    cetak(x215)
+    var x216 = 216
+    cetak(x216)
+    var x217 = 217
+    cetak(x217)
+    var x218 = 218
+    cetak(x218)
+    var x219 = 219
+    cetak(x219)
+    var x220 = 220
+    cetak(x220)
+    var x221 = 221
+    cetak(x221)
+    var x222 = 222
+    cetak(x222)
+    var x223 = 223
+    cetak(x223)
+    var x224 = 224
+    cetak(x224)
+    var x225 = 225
+    cetak(x225)
+    var x226 = 226
+    cetak(x226)
+    var x227 = 227
+    cetak(x227)
+    var x228 = 228
+    cetak(x228)
+    var x229 = 229
+    cetak(x229)
+    var x230 = 230
+    cetak(x230)
+    var x231 = 231
+    cetak(x231)
+    var x232 = 232
+    cetak(x232)
+    var x233 = 233
+    cetak(x233)
+    var x234 = 234
+    cetak(x234)
+    var x235 = 235
+    cetak(x235)
+    var x236 = 236
+    cetak(x236)
+    var x237 = 237
+    cetak(x237)
+    var x238 = 238
+    cetak(x238)
+    var x239 = 239
+    cetak(x239)
+    var x240 = 240
+    cetak(x240)
+    var x241 = 241
+    cetak(x241)
+    var x242 = 242
+    cetak(x242)
+    var x243 = 243
+    cetak(x243)
+    var x244 = 244
+    cetak(x244)
+    var x245 = 245
+    cetak(x245)
+    var x246 = 246
+    cetak(x246)
+    var x247 = 247
+    cetak(x247)
+    var x248 = 248
+    cetak(x248)
+    var x249 = 249
+    cetak(x249)
+    var x250 = 250
+    cetak(x250)
+    var x251 = 251
+    cetak(x251)
+    var x252 = 252
+    cetak(x252)
+    var x253 = 253
+    cetak(x253)
+    var x254 = 254
+    cetak(x254)
+    var x255 = 255
+    cetak(x255)
+    var x256 = 256
+    cetak(x256)
+    var x257 = 257
+    cetak(x257)
+    var x258 = 258
+    cetak(x258)
+    var x259 = 259
+    cetak(x259)
+    var x260 = 260
+    cetak(x260)
+    var x261 = 261
+    cetak(x261)
+    var x262 = 262
+    cetak(x262)
+    var x263 = 263
+    cetak(x263)
+    var x264 = 264
+    cetak(x264)
+    var x265 = 265
+    cetak(x265)
+    var x266 = 266
+    cetak(x266)
+    var x267 = 267
+    cetak(x267)
+    var x268 = 268
+    cetak(x268)
+    var x269 = 269
+    cetak(x269)
+    var x270 = 270
+    cetak(x270)
+    var x271 = 271
+    cetak(x271)
+    var x272 = 272
+    cetak(x272)
+    var x273 = 273
+    cetak(x273)
+    var x274 = 274
+    cetak(x274)
+    var x275 = 275
+    cetak(x275)
+    var x276 = 276
+    cetak(x276)
+    var x277 = 277
+    cetak(x277)
+    var x278 = 278
+    cetak(x278)
+    var x279 = 279
+    cetak(x279)
+    var x280 = 280
+    cetak(x280)
+    var x281 = 281
+    cetak(x281)
+    var x282 = 282
+    cetak(x282)
+    var x283 = 283
+    cetak(x283)
+    var x284 = 284
+    cetak(x284)
+    var x285 = 285
+    cetak(x285)
+    var x286 = 286
+    cetak(x286)
+    var x287 = 287
+    cetak(x287)
+    var x288 = 288
+    cetak(x288)
+    var x289 = 289
+    cetak(x289)
+    var x290 = 290
+    cetak(x290)
+    var x291 = 291
+    cetak(x291)
+    var x292 = 292
+    cetak(x292)
+    var x293 = 293
+    cetak(x293)
+    var x294 = 294
+    cetak(x294)
+    var x295 = 295
+    cetak(x295)
+    var x296 = 296
+    cetak(x296)
+    var x297 = 297
+    cetak(x297)
+    var x298 = 298
+    cetak(x298)
+    var x299 = 299
+    cetak(x299)
+    var x300 = 300
+    cetak(x300)
+tutup_fungsi
+panggil test_large()
