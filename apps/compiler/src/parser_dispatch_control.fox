@@ -1,0 +1,49 @@
+; Parser Dispatcher - Control Flow Handling
+; Handles: fungsi, tutup_fungsi, jika, lain, lain_jika, tutup_jika, selama, tutup_selama
+
+### 1142
+fungsi dispatch_control(line)
+   ; Dispatch control flow statements to helpers
+
+   var is_fungsi = str_starts_with(line, "fungsi")
+   jika (is_fungsi == 1)
+      panggil handle_fungsi_begin(line)
+   tutup_jika
+
+   var is_end_func = str_starts_with(line, "tutup_fungsi")
+   jika (is_end_func == 1)
+      panggil handle_fungsi_end()
+   tutup_jika
+
+   var is_jika = str_starts_with(line, "jika ")
+   jika (is_jika == 1)
+      panggil handle_jika(line)
+   tutup_jika
+
+   var is_lain_jika = str_starts_with(line, "lain_jika ")
+   jika (is_lain_jika == 1)
+       panggil handle_lain_jika(line)
+   tutup_jika
+
+   jika (is_lain_jika == 0)
+      var is_lain_only = str_starts_with(line, "lain")
+      jika (is_lain_only == 1)
+         panggil handle_lain()
+      tutup_jika
+   tutup_jika
+
+   var is_tutup_jika = str_starts_with(line, "tutup_jika")
+   jika (is_tutup_jika == 1)
+      panggil handle_tutup_jika()
+   tutup_jika
+
+   var is_selama = str_starts_with(line, "selama ")
+   jika (is_selama == 1)
+       panggil handle_selama(line)
+   tutup_jika
+
+   var is_tutup_selama = str_starts_with(line, "tutup_selama")
+   jika (is_tutup_selama == 1)
+       panggil handle_tutup_selama()
+   tutup_jika
+tutup_fungsi

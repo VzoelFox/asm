@@ -1,0 +1,102 @@
+; Parser Dispatcher - Cetak Handling
+; Handles: cetak("string"), cetak(var), cetak_str(var)
+
+### 1145
+fungsi dispatch_cetak(line)
+   ; Dispatch cetak and cetak_str statements
+
+   ; --- CETAK STR ---
+   var is_cetak_str = str_starts_with(line, "cetak_str")
+   jika (is_cetak_str == 1)
+      var after_cetak_str = str_substring_after(line, 9)
+      var parts_str = str_split_once(after_cetak_str, 40)
+      var args_part = vec_get(parts_str, 1)
+      jika (args_part != 0)
+         var args_len_s = str_len(args_part)
+         jika (args_len_s > 0)
+            var last_idx = args_len_s - 1
+            var last_ch = str_get(args_part, last_idx)
+            jika (last_ch == 41)
+               var var_name = str_slice(args_part, 0, last_idx)
+               var var_clean = str_trim(var_name)
+               var asm1 = str_concat(s_mov_rsi_v, var_clean)
+               asm1 = str_concat(asm1, s_close_br)
+               panggil emit(asm1)
+               panggil emit(s_print_ptr)
+            tutup_jika
+         tutup_jika
+      tutup_jika
+   tutup_jika
+
+   ; --- CETAK ---
+   jika (is_cetak_str == 0)
+      var is_cetak = str_starts_with(line, "cetak")
+      jika (is_cetak == 1)
+         var after_cetak = str_substring_after(line, 5)
+         var parts_c = str_split_once(after_cetak, 40)
+         var args_c = vec_get(parts_c, 1)
+
+         jika (args_c != 0)
+            var args_len_c = str_len(args_c)
+            jika (args_len_c > 0)
+               var last_idx_c = args_len_c - 1
+               var last_ch_c = str_get(args_c, last_idx_c)
+               jika (last_ch_c == 41)
+                  var content_c = str_slice(args_c, 0, last_idx_c)
+                  var content_t = str_trim(content_c)
+                  var first_char = str_get(content_t, 0)
+
+                  jika (first_char == 34)
+                     var ct_len = str_len(content_t)
+                     var str_val = str_slice(content_t, 1, ct_len - 2)
+                     str_counter = str_counter + 1
+                     var str_cnt_str = format_int(str_counter)
+                     var msg_label = str_concat(s_msg, str_cnt_str)
+                     var len_label = str_concat(s_len, msg_label)
+
+                     panggil emit(s_data)
+                     var data_line = str_concat(s_indent, msg_label)
+                     data_line = str_concat(data_line, s_db)
+                     data_line = str_concat(data_line, str_val)
+                     data_line = str_concat(data_line, s_db_end)
+                     panggil emit(data_line)
+
+                     var len_line = str_concat(s_indent, len_label)
+                     len_line = str_concat(len_line, s_equ)
+                     len_line = str_concat(len_line, msg_label)
+                     panggil emit(len_line)
+
+                     panggil emit(s_text)
+                     var asm_rsi = str_concat(s_mov_rsi_lit, msg_label)
+                     panggil emit(asm_rsi)
+                     var asm_rdx = str_concat(s_mov_rdx_lit, len_label)
+                     panggil emit(asm_rdx)
+                     panggil emit(s_print)
+                     panggil emit(s_nl)
+                  lain
+                     var is_num = 0
+                     jika (first_char >= 48)
+                        jika (first_char <= 57)
+                           is_num = 1
+                        tutup_jika
+                     tutup_jika
+                     jika (first_char == 45)
+                        is_num = 1
+                     tutup_jika
+                     jika (is_num == 1)
+                        var asm_mov = str_concat(s_mov_rax, content_t)
+                        panggil emit(asm_mov)
+                     lain
+                        var asm_load = str_concat(s_mov_rax_v, content_t)
+                        asm_load = str_concat(asm_load, s_close_br)
+                        panggil emit(asm_load)
+                     tutup_jika
+                     panggil emit(s_print_int)
+                     panggil emit(s_nl)
+                  tutup_jika
+               tutup_jika
+            tutup_jika
+         tutup_jika
+      tutup_jika
+   tutup_jika
+tutup_fungsi

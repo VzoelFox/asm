@@ -1,0 +1,126 @@
+; Expression Parser - Compiler Integration
+; Uses Trickster + AST for deterministic expression parsing
+; ID Range: 1150-1152
+
+Ambil 220, 221, 222 ; Trickster tokenize
+Ambil 223, 224 ; Trickster parse (AST building)
+Ambil 410, 411, 412, 413, 414, 415, 416, 417, 418 ; AST structures
+
+### 1150
+fungsi expr_parse(expr_str)
+   ; Parse expression to AST
+   ; expr_str: Expression like "10 + y * 2"
+   ; Returns: ASTNode pointer (root of expression tree)
+
+   var ast_root = trickster_parse_to_ast(expr_str)
+   kembalikan ast_root
+tutup_fungsi
+
+### 1151
+fungsi expr_emit_asm(ast_node)
+   ; Emit assembly code from AST (recursive tree walk)
+   ; ast_node: ASTNode pointer
+   ; Strategy: Post-order traversal (left, right, operator)
+
+   var node_type = ast_get_type(ast_node)
+
+   jika (node_type == NODE_NUMBER)
+      ; Leaf: emit immediate value
+      var val = ast_get_value(ast_node)
+      var val_str = format_int(val)
+      var asm_line = str_concat("    push ", val_str)
+      panggil emit(asm_line)
+      kembalikan 0
+   tutup_jika
+
+   jika (node_type == NODE_IDENT)
+      ; Leaf: emit variable load
+      var name_ptr = ast_get_value(ast_node)
+      var mov_asm = str_concat("    mov rax, [var_", name_ptr)
+      mov_asm = str_concat(mov_asm, "]")
+      panggil emit(mov_asm)
+      panggil emit("    push rax")
+      kembalikan 0
+   tutup_jika
+
+   jika (node_type == NODE_BINOP)
+      ; Binary operation: emit left, emit right, emit operator
+      var left = ast_get_left(ast_node)
+      var right = ast_get_right(ast_node)
+      var op_char = ast_get_value(ast_node)
+
+      ; Recursive: evaluate children first
+      panggil expr_emit_asm(left)
+      panggil expr_emit_asm(right)
+
+      ; Pop operands
+      panggil emit("    pop rbx    ; right operand")
+      panggil emit("    pop rax    ; left operand")
+
+      ; Apply operator
+      jika (op_char == 43)  ; +
+         panggil emit("    add rax, rbx")
+      lain_jika (op_char == 45)  ; -
+         panggil emit("    sub rax, rbx")
+      lain_jika (op_char == 42)  ; *
+         panggil emit("    imul rax, rbx")
+      lain_jika (op_char == 47)  ; /
+         panggil emit("    xor rdx, rdx")
+         panggil emit("    idiv rbx")
+      lain_jika (op_char == 37)  ; %
+         panggil emit("    xor rdx, rdx")
+         panggil emit("    idiv rbx")
+         panggil emit("    mov rax, rdx")
+      ; Comparison operators (result: 1 or 0)
+      lain_jika (op_char == 60)  ; <
+         panggil emit("    cmp rax, rbx")
+         panggil emit("    setl al")
+         panggil emit("    movzx rax, al")
+      lain_jika (op_char == 62)  ; >
+         panggil emit("    cmp rax, rbx")
+         panggil emit("    setg al")
+         panggil emit("    movzx rax, al")
+      tutup_jika
+
+      ; Push result
+      panggil emit("    push rax")
+      kembalikan 0
+   tutup_jika
+
+   jika (node_type == NODE_UNOP)
+      ; Unary operation: emit operand, emit operator
+      var operand = ast_get_left(ast_node)
+      var op_char = ast_get_value(ast_node)
+
+      panggil expr_emit_asm(operand)
+      panggil emit("    pop rax")
+
+      jika (op_char == 45)  ; unary -
+         panggil emit("    neg rax")
+      lain_jika (op_char == 33)  ; logical NOT
+         panggil emit("    test rax, rax")
+         panggil emit("    setz al")
+         panggil emit("    movzx rax, al")
+      tutup_jika
+
+      panggil emit("    push rax")
+      kembalikan 0
+   tutup_jika
+
+   kembalikan 0
+tutup_fungsi
+
+### 1152
+fungsi expr_parse_and_emit(expr_str)
+   ; Convenience function: parse + emit in one call
+   ; expr_str: Expression string
+   ; Returns: 0
+
+   var ast = expr_parse(expr_str)
+   panggil expr_emit_asm(ast)
+
+   ; Final result in rax (pop from stack)
+   panggil emit("    pop rax    ; final expression result")
+
+   kembalikan 0
+tutup_fungsi

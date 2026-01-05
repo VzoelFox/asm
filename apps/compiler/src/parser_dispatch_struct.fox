@@ -1,0 +1,25 @@
+; Parser Dispatcher - Struct Handling
+; Handles: struktur, tutup_struktur, struct fields
+
+### 1141
+fungsi dispatch_struct(line)
+   ; Dispatch struct-related statements to helpers
+
+   var is_struktur = str_starts_with(line, "struktur")
+   jika (is_struktur == 1)
+       panggil handle_struct_begin(line)
+   tutup_jika
+
+   var is_tutup_struktur = str_starts_with(line, "tutup_struktur")
+   jika (is_tutup_struktur == 1)
+       panggil handle_struct_end()
+   tutup_jika
+
+   jika (in_struct_block == 1)
+       jika (is_struktur == 0)
+           jika (is_tutup_struktur == 0)
+               panggil handle_struct_field(line)
+           tutup_jika
+       tutup_jika
+   tutup_jika
+tutup_fungsi

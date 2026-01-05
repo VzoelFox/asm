@@ -1,6 +1,25 @@
+# ============================================================================
 # Morph Standard Library ID Registry
+# ============================================================================
+#
 # Central index mapping IDs to library modules
 # Usage: indeks "indeks.fox" then Ambil <ids>
+#
+# Last Updated: 2026-01-05
+# Engineers: Claude Code (Anthropic), Kiro (AWS Q CLI Agent)
+#
+# ID Range Allocation:
+#   100-199  : Math utilities
+#   200-299  : Boolean, Circuit Breaker
+#   300-399  : Core data structures (Buffer, File IO, Format, Hashmap, Vector)
+#   380-399  : String utilities
+#   400-499  : Morphroutine, AST, JSON
+#   1000-1099: Compiler core (main, globals, constants, codegen, types, supplier)
+#   1100-1199: Parser helpers
+#   1140-1149: Parser dispatchers
+#   1150-1199: Expression parser
+#
+# ============================================================================
 
 # Buffer Library (310-316)
 Daftar "lib/buffer.fox" = 310-316
@@ -20,8 +39,12 @@ Daftar "lib/vector.fox" = 340-344
 # String Utils Library (380-388)
 Daftar "lib/string_utils.fox" = 380-388
 
-# Morphroutine Library (400-402)
-Daftar "lib/morphroutine.fox" = 400-402
+# Morphroutine Library (400-402, 410-418)
+Daftar "lib/morphroutine.fox" = 400-402, 410-418  ; AST structures added
+
+# Trickster Expression Parser (220-224)
+Daftar "lib/trickster_tokenize.fox" = 220-222  ; Tokenization
+Daftar "lib/trickster_parse.fox" = 223-224     ; AST building
 
 # JSON Library (450-459)
 Daftar "lib/json.fox" = 450-459
@@ -32,5 +55,30 @@ Daftar "lib/math.fox" = 100-105
 # Compiler Parser Helpers (1100-1199)
 Daftar "apps/compiler/src/parser_helpers_import.fox" = 1100-1103
 Daftar "apps/compiler/src/parser_helpers_struct.fox" = 1110-1112
-Daftar "apps/compiler/src/parser_helpers_flow.fox" = 1120-1127
+Daftar "apps/compiler/src/parser_helpers_fungsi.fox" = 1120-1121
+Daftar "apps/compiler/src/parser_helpers_jika.fox" = 1122-1125
+Daftar "apps/compiler/src/parser_helpers_loop.fox" = 1126-1127
 Daftar "apps/compiler/src/parser_helpers_stmt.fox" = 1130-1139
+
+# Compiler Parser Dispatchers (1140-1149)
+Daftar "apps/compiler/src/parser_dispatch_import.fox" = 1140
+Daftar "apps/compiler/src/parser_dispatch_struct.fox" = 1141
+Daftar "apps/compiler/src/parser_dispatch_control.fox" = 1142
+Daftar "apps/compiler/src/parser_dispatch_var_struct.fox" = 1143
+Daftar "apps/compiler/src/parser_dispatch_var_simple.fox" = 1144
+Daftar "apps/compiler/src/parser_dispatch_cetak.fox" = 1145
+Daftar "apps/compiler/src/parser_dispatch_panggil.fox" = 1146
+
+# Compiler Expression Parser (1150-1152)
+Daftar "apps/compiler/src/exprs.fox" = 1150-1152  ; AST-based expression compiler
+
+# Compiler Core Modules (1010-1030)
+Daftar "apps/compiler/src/globals.fox" = 1010-1011    ; Global variables
+Daftar "apps/compiler/src/constants.fox" = 1020-1021 ; String constants
+Daftar "apps/compiler/src/codegen.fox" = 1030        ; Code emission
+
+# Compiler Type System (1040-1047)
+Daftar "apps/compiler/src/types.fox" = 1040-1047     ; Type checking
+
+# Compiler Supplier System (1050-1056)
+Daftar "apps/compiler/src/supplier.fox" = 1050-1056  ; ID-based imports

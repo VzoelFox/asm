@@ -1,0 +1,108 @@
+; Parser Helpers - Flow Control Logic
+; Handles: fungsi, tutup_fungsi, jika, lain, lain_jika, tutup_jika, selama, tutup_selama
+; NOTE: No Ambil here - inherits from parser.fox parent
+
+### 1120
+fungsi handle_fungsi_begin(line)
+   ; Handle: fungsi func_name(param1, param2, ...)
+   ; Emit function prologue and parameter handling
+
+   var func_decl_full = str_substring_after(line, 6)
+   var func_decl = str_trim(func_decl_full)
+   var f_parts = str_split_once(func_decl, 40)
+   var f_name_raw = vec_get(f_parts, 0)
+   var f_name_clean = str_trim(f_name_raw)
+
+   cetak("[CODEGEN] Function: ")
+   cetak_str(f_name_clean)
+   current_func = f_name_clean
+
+   var label = str_concat(f_name_clean, s_colon)
+   panggil emit(label)
+   panggil emit("    push rbp")
+
+   var func_prologue = "    mov rbp, rsp"
+   panggil emit(func_prologue)
+
+   var f_args_raw = vec_get(f_parts, 1)
+   jika (f_args_raw != 0)
+      var f_args_len = str_len(f_args_raw)
+      jika (f_args_len > 0)
+         var last_idx_f = f_args_len - 1
+         var last_ch_f = str_get(f_args_raw, last_idx_f)
+         jika (last_ch_f == 41)
+            var params_str = str_slice(f_args_raw, 0, last_idx_f)
+            var params_trim = str_trim(params_str)
+
+            var param_list = vec_create(6)
+            var current_param = ""
+            var idx_p = 0
+            var params_len = str_len(params_trim)
+
+            selama (idx_p < params_len)
+               var ch_p = str_get(params_trim, idx_p)
+               jika (ch_p == 44)
+                  var trim_param = str_trim(current_param)
+                  panggil vec_push(param_list, trim_param)
+                  current_param = ""
+               lain
+                  var ch_str_p = str_slice(params_trim, idx_p, idx_p + 1)
+                  current_param = str_concat(current_param, ch_str_p)
+               tutup_jika
+               idx_p = idx_p + 1
+            tutup_selama
+            jika (params_len > 0)
+               var last_param = str_trim(current_param)
+               panggil vec_push(param_list, last_param)
+            tutup_jika
+
+            var param_count = vec_len(param_list)
+            var param_idx = 0
+
+            selama (param_idx < param_count)
+               var param_name = vec_get(param_list, param_idx)
+               var param_trim = str_trim(param_name)
+               var src_reg = ""
+               jika (param_idx == 0)
+                  src_reg = "rdi"
+               lain_jika (param_idx == 1)
+                  src_reg = "rsi"
+               lain_jika (param_idx == 2)
+                  src_reg = "rdx"
+               lain_jika (param_idx == 3)
+                  src_reg = "rcx"
+               lain_jika (param_idx == 4)
+                  src_reg = "r8"
+               lain_jika (param_idx == 5)
+                  src_reg = "r9"
+               tutup_jika
+
+               ; Push
+               var push_asm = str_concat(s_push_q, param_trim)
+               push_asm = str_concat(push_asm, s_close_br)
+               panggil emit(push_asm)
+
+               ; Mov
+               var mov_param = str_concat(s_mov_mem, param_trim)
+               mov_param = str_concat(mov_param, s_comma_space)
+               mov_param = str_concat(mov_param, src_reg)
+               panggil emit(mov_param)
+
+               var vars_v = global_vars
+               panggil vec_push(vars_v, param_trim)
+               param_idx = param_idx + 1
+            tutup_selama
+         tutup_jika
+      tutup_jika
+   tutup_jika
+tutup_fungsi
+
+### 1121
+fungsi handle_fungsi_end()
+   ; Handle: tutup_fungsi
+   ; Emit function epilogue
+
+   panggil emit("    pop rbp")
+   panggil emit("    ret")
+   current_func = ""
+tutup_fungsi

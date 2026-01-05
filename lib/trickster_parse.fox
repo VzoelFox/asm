@@ -1,0 +1,139 @@
+; Trickster Parser - Build AST from Tokens
+; Uses shunting-yard algorithm to build expression tree
+; ID Range: 223
+
+Ambil 220, 221, 222 ; Tokenize
+Ambil 410, 411, 412, 413 ; AST structures
+Ambil 340, 341, 342, 343, 344 ; Vector
+
+### 223
+fungsi trickster_parse_to_ast(expr_str)
+   ; Parse expression string and build AST
+   ; Returns: ASTNode pointer (root of expression tree)
+
+   var tokens = trickster_tokenize(expr_str)
+   var tok_count = vec_len(tokens)
+
+   ; Shunting-yard algorithm (build RPN, then AST)
+   var output = vec_create(50)
+   var ops = vec_create(20)
+
+   var idx = 0
+   selama (idx < tok_count)
+      var tok = vec_get(tokens, idx)
+      tipe tok Token
+
+      jika (tok.type == TOK_NUMBER)
+         var node = ast_create_number(tok.value)
+         panggil vec_push(output, node)
+      lain_jika (tok.type == TOK_IDENT)
+         var node = ast_create_ident(tok.value)
+         panggil vec_push(output, node)
+      lain_jika (tok.type == TOK_OPERATOR)
+         var slen = vec_len(ops)
+         selama (slen > 0)
+            var tidx = slen - 1
+            var top = vec_get(ops, tidx)
+            tipe top Token
+            jika (top.type == TOK_OPERATOR)
+               jika (top.precedence >= tok.precedence)
+                  panggil vec_push(output, top)
+                  tipe ops Vector
+                  ops.length = ops.length - 1
+                  slen = slen - 1
+               lain
+                  slen = 0
+               tutup_jika
+            lain
+               slen = 0
+            tutup_jika
+         tutup_selama
+         panggil vec_push(ops, tok)
+      lain_jika (tok.type == TOK_LPAREN)
+         panggil vec_push(ops, tok)
+      lain_jika (tok.type == TOK_RPAREN)
+         var found = 0
+         selama (found == 0)
+            var slen_r = vec_len(ops)
+            var tidx_r = slen_r - 1
+            var top_r = vec_get(ops, tidx_r)
+            tipe top_r Token
+            jika (top_r.type == TOK_LPAREN)
+               found = 1
+               tipe ops Vector
+               ops.length = ops.length - 1
+            lain
+               panggil vec_push(output, top_r)
+               tipe ops Vector
+               ops.length = ops.length - 1
+            tutup_jika
+         tutup_selama
+      tutup_jika
+
+      idx = idx + 1
+   tutup_selama
+
+   ; Pop remaining ops
+   var rem = vec_len(ops)
+   selama (rem > 0)
+      var tidx_f = rem - 1
+      var top_f = vec_get(ops, tidx_f)
+      panggil vec_push(output, top_f)
+      rem = rem - 1
+   tutup_selama
+
+   ; Build AST from RPN (output queue)
+   var ast_root = trickster_build_ast_from_rpn(output)
+   kembalikan ast_root
+tutup_fungsi
+
+### 224
+fungsi trickster_build_ast_from_rpn(rpn)
+   ; Build AST tree from RPN token queue
+   ; Returns: Root ASTNode pointer
+
+   var stack = vec_create(20)
+   var qlen = vec_len(rpn)
+   var idx = 0
+
+   selama (idx < qlen)
+      var item = vec_get(rpn, idx)
+
+      ; Check if Token or ASTNode
+      var is_tok = 0
+      tipe item Token
+      jika (item.type == TOK_NUMBER)
+         is_tok = 1
+      lain_jika (item.type == TOK_IDENT)
+         is_tok = 1
+      lain_jika (item.type == TOK_OPERATOR)
+         is_tok = 1
+      tutup_jika
+
+      jika (is_tok == 1)
+         ; It's a Token
+         tipe item Token
+         jika (item.type == TOK_OPERATOR)
+            ; Pop two nodes, create binop
+            var slen = vec_len(stack)
+            var ridx = slen - 1
+            var lidx = slen - 2
+            var right = vec_get(stack, ridx)
+            var left = vec_get(stack, lidx)
+            var node = ast_create_binop(item.value, left, right)
+            tipe stack Vector
+            stack.length = stack.length - 2
+            panggil vec_push(stack, node)
+         tutup_jika
+      lain
+         ; It's already an ASTNode, push it
+         panggil vec_push(stack, item)
+      tutup_jika
+
+      idx = idx + 1
+   tutup_selama
+
+   ; Root is top of stack
+   var root = vec_get(stack, 0)
+   kembalikan root
+tutup_fungsi

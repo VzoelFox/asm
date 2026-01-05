@@ -1,0 +1,69 @@
+; Parser Helpers - Loop Logic (selama/tutup_selama)
+; Handles: selama, tutup_selama
+; NOTE: No Ambil here - inherits from parser.fox parent
+
+### 1126
+fungsi handle_selama(line)
+   ; Handle: selama (condition)
+   ; Emit loop start label and conditional check
+
+   label_counter = label_counter + 1
+   var loop_id = label_counter
+   var stack_l = label_stack
+   panggil vec_push(stack_l, loop_id)
+
+   var loop_id_str = format_int(loop_id)
+   var start_label = str_concat(s_loop_start, loop_id_str)
+   var start_asm = str_concat(start_label, s_colon)
+   panggil emit(start_asm)
+
+   var cond_raw_l = str_substring_after(line, 7)
+   var cond_clean_l = str_trim(cond_raw_l)
+   var c_len_l = str_len(cond_clean_l)
+   var inner_cond_l = str_slice(cond_clean_l, 1, c_len_l - 2)
+   var pl1 = str_split_once(inner_cond_l, 32)
+   var lhs_l = vec_get(pl1, 0)
+   var rest_l = vec_get(pl1, 1)
+   var pl2 = str_split_once(rest_l, 32)
+   var op_l = vec_get(pl2, 0)
+   var rhs_l = vec_get(pl2, 1)
+
+   var lhs_mov_l = str_concat(s_mov_rax_v, lhs_l)
+   lhs_mov_l = str_concat(lhs_mov_l, s_close_br)
+   panggil emit(lhs_mov_l)
+
+   var cmp_asm_l = str_concat(s_cmp_rax, rhs_l)
+   var rhs_first_l = str_get(rhs_l, 0)
+   jika (rhs_first_l < 48)
+      cmp_asm_l = str_concat(s_cmp_rax_v, rhs_l)
+      cmp_asm_l = str_concat(cmp_asm_l, s_close_br)
+   tutup_jika
+   panggil emit(cmp_asm_l)
+
+   var end_label_l = str_concat(s_loop_end, loop_id_str)
+   var jmp_instr_l = ""
+   var op_char_l = str_get(op_l, 0)
+   jika (op_char_l == 61)
+      jmp_instr_l = s_jne
+   lain_jika (op_char_l == 60)
+      jmp_instr_l = s_jge
+   tutup_jika
+   var jump_asm_l = str_concat(jmp_instr_l, end_label_l)
+   panggil emit(jump_asm_l)
+tutup_fungsi
+
+### 1127
+fungsi handle_tutup_selama()
+   ; Handle: tutup_selama
+   ; Emit jump back to loop start and end label
+
+   var stack_loop = label_stack
+   var len_sl = vec_len(stack_loop)
+   var last_idx_l = len_sl - 1
+   var loop_id_j = vec_get(stack_loop, last_idx_l)
+   tipe stack_loop Vector
+   stack_loop.length = stack_loop.length - 1
+
+   var loop_id_j_str = format_int(loop_id_j)
+   var start_label_j = str_concat(s_loop_start, loop_id_j_str)
+   var jmp_back = str_concat(s_jmp, start_label_j)

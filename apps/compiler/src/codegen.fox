@@ -1,8 +1,9 @@
 ; Code Generation Utilities
 ; Functions for emitting assembly code to output buffer
+; NOTE: No Ambil here - inherits from main.fox parent
+; ID Range: 1030
 
-Ambil 340, 341, 342, 343, 344 ; Vector
-
+### 1030
 fungsi emit(line)
   var vec = output_lines
   panggil vec_push(vec, line)

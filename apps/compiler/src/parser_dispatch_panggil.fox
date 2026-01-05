@@ -1,0 +1,98 @@
+; Parser Dispatcher - Panggil (Function Call) Handling
+; Handles: panggil func_name(arg1, arg2, ...)
+
+### 1146
+fungsi dispatch_panggil(line)
+   ; Dispatch function call statements
+
+   var is_panggil = str_starts_with(line, "panggil ")
+   jika (is_panggil == 1)
+      var content_after_panggil = str_substring_after(line, 8)
+      var call_parts = str_split_once(content_after_panggil, 40)
+      var func_name = vec_get(call_parts, 0)
+      var func_name_clean = str_trim(func_name)
+      var args_raw = vec_get(call_parts, 1)
+      var args_clean = str_trim(args_raw)
+      var args_len = str_len(args_clean)
+
+      jika (args_len > 0)
+         var last_char_idx = args_len - 1
+         var last_char = str_get(args_clean, last_char_idx)
+         jika (last_char == 41)
+             var args_content = str_slice(args_clean, 0, last_char_idx)
+             var args_trimmed = str_trim(args_content)
+
+             var arg_list = vec_create(6)
+             var current_arg = ""
+             var idx_char = 0
+             var args_total_len = str_len(args_trimmed)
+
+             selama (idx_char < args_total_len)
+                var ch = str_get(args_trimmed, idx_char)
+                jika (ch == 44)
+                   var trimmed_arg = str_trim(current_arg)
+                   panggil vec_push(arg_list, trimmed_arg)
+                   current_arg = ""
+                lain
+                   var ch_str = str_slice(args_trimmed, idx_char, idx_char + 1)
+                   current_arg = str_concat(current_arg, ch_str)
+                tutup_jika
+                idx_char = idx_char + 1
+             tutup_selama
+
+             jika (args_total_len > 0)
+                var last_arg = str_trim(current_arg)
+                panggil vec_push(arg_list, last_arg)
+             tutup_jika
+
+             var arg_count = vec_len(arg_list)
+             var arg_idx = 0
+             selama (arg_idx < arg_count)
+                var arg_val = vec_get(arg_list, arg_idx)
+                var arg_val_t = str_trim(arg_val)
+                var reg_name = ""
+                jika (arg_idx == 0)
+                   reg_name = "rdi"
+                lain_jika (arg_idx == 1)
+                   reg_name = "rsi"
+                lain_jika (arg_idx == 2)
+                   reg_name = "rdx"
+                lain_jika (arg_idx == 3)
+                   reg_name = "rcx"
+                lain_jika (arg_idx == 4)
+                   reg_name = "r8"
+                lain_jika (arg_idx == 5)
+                   reg_name = "r9"
+                tutup_jika
+
+                var first_ch_arg = str_get(arg_val_t, 0)
+                var is_literal = 0
+                jika (first_ch_arg >= 48)
+                   jika (first_ch_arg <= 57)
+                      is_literal = 1
+                   tutup_jika
+                tutup_jika
+                jika (first_ch_arg == 45)
+                   is_literal = 1
+                tutup_jika
+
+                var mov_asm = str_concat(s_mov_reg, reg_name)
+                jika (is_literal == 1)
+                   mov_asm = str_concat(mov_asm, s_comma)
+                   mov_asm = str_concat(mov_asm, arg_val_t)
+                lain
+                   mov_asm = str_concat(mov_asm, s_comma_mem)
+                   mov_asm = str_concat(mov_asm, arg_val_t)
+                   mov_asm = str_concat(mov_asm, s_close_br)
+                tutup_jika
+                panggil emit(mov_asm)
+                arg_idx = arg_idx + 1
+             tutup_selama
+         tutup_jika
+      tutup_jika
+
+      ; CRITICAL: Emit call instruction (was missing in original!)
+      var call_asm = str_concat("    call ", func_name_clean)
+      panggil emit(call_asm)
+   tutup_jika
+tutup_fungsi

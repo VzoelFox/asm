@@ -39,3 +39,112 @@ fungsi check_context(ctx)
     tutup_jika
     return 1
 tutup_fungsi
+
+### 410
+
+# ===================================================================
+# AST (Abstract Syntax Tree) Structures
+# Pure data structures for compiler expression parsing
+# Used by: trickster_parse.fox, exprs.fox, parser.fox
+# ===================================================================
+
+# AST Node Types
+const NODE_NUMBER = 1
+const NODE_IDENT = 2
+const NODE_BINOP = 3
+const NODE_UNOP = 4
+const NODE_CALL = 5
+
+# AST Node Structure (Polymorphic tree node)
+struktur ASTNode
+    node_type int       ; NODE_NUMBER, NODE_IDENT, NODE_BINOP, etc
+    value int           ; For NUMBER: literal value, For IDENT: string ptr, For BINOP: operator char
+    left int            ; Left child (ASTNode ptr) or 0
+    right int           ; Right child (ASTNode ptr) or 0
+tutup_struktur
+
+### 411
+fungsi ast_create_number(val)
+    ; Create AST node for number literal
+    ; val: Integer value
+    ; Returns: ASTNode pointer
+
+    var node = ASTNode(NODE_NUMBER, val, 0, 0)
+    kembalikan node
+tutup_fungsi
+
+### 412
+fungsi ast_create_ident(name_ptr)
+    ; Create AST node for identifier (variable name)
+    ; name_ptr: String pointer to variable name
+    ; Returns: ASTNode pointer
+
+    var node = ASTNode(NODE_IDENT, name_ptr, 0, 0)
+    kembalikan node
+tutup_fungsi
+
+### 413
+fungsi ast_create_binop(op_char, left_node, right_node)
+    ; Create AST node for binary operation
+    ; op_char: Operator character (43='+', 45='-', 42='*', 47='/')
+    ; left_node: Left operand ASTNode pointer
+    ; right_node: Right operand ASTNode pointer
+    ; Returns: ASTNode pointer
+
+    var node = ASTNode(NODE_BINOP, op_char, left_node, right_node)
+    kembalikan node
+tutup_fungsi
+
+### 414
+fungsi ast_create_unop(op_char, operand_node)
+    ; Create AST node for unary operation
+    ; op_char: Operator character (45='-' for negation, 33='!' for logical NOT)
+    ; operand_node: Operand ASTNode pointer
+    ; Returns: ASTNode pointer
+
+    var node = ASTNode(NODE_UNOP, op_char, operand_node, 0)
+    kembalikan node
+tutup_fungsi
+
+### 415
+fungsi ast_get_type(node)
+    ; Get node type
+    ; node: ASTNode pointer
+    ; Returns: node_type (NODE_NUMBER, NODE_IDENT, etc)
+
+    tipe node ASTNode
+    kembalikan node.node_type
+tutup_fungsi
+
+### 416
+fungsi ast_get_value(node)
+    ; Get node value
+    ; For NUMBER: returns literal value
+    ; For IDENT: returns string pointer
+    ; For BINOP/UNOP: returns operator character
+    ; node: ASTNode pointer
+    ; Returns: value
+
+    tipe node ASTNode
+    kembalikan node.value
+tutup_fungsi
+
+### 417
+fungsi ast_get_left(node)
+    ; Get left child node
+    ; node: ASTNode pointer
+    ; Returns: Left child ASTNode pointer or 0
+
+    tipe node ASTNode
+    kembalikan node.left
+tutup_fungsi
+
+### 418
+fungsi ast_get_right(node)
+    ; Get right child node
+    ; node: ASTNode pointer
+    ; Returns: Right child ASTNode pointer or 0
+
+    tipe node ASTNode
+    kembalikan node.right
+tutup_fungsi
