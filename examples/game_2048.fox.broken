@@ -1,0 +1,418 @@
+; 2048 Game - Loop & Recursion Stress Test
+; Test intensive loops, recursion, vector operations
+; Auto-play simulation untuk memory stress testing
+
+ambil "lib/vector.fox"
+ambil "lib/memory_pool.fox"
+ambil "lib/memory_arena.fox"
+
+; === CONSTANTS ===
+const GRID_SIZE = 16  ; 4x4 grid
+const DIR_UP = 0
+const DIR_DOWN = 1
+const DIR_LEFT = 2
+const DIR_RIGHT = 3
+
+; === GLOBAL STATE ===
+var GRID_PTR = 0
+var SCORE = 0
+var MOVE_COUNT = 0
+var GAME_ARENA_PTR = 0
+var RNG_STATE = 12345  ; Simple PRNG seed
+
+; === PRNG (untuk spawn random tiles) ===
+fungsi rng_next()
+    ; Simple Linear Congruential Generator
+    ; X(n+1) = (aX(n) + c) mod m
+    ; a=1103515245, c=12345, m=2^31
+
+    var a = 1103515245
+    var c = 12345
+    var m = 2147483647  ; 2^31 - 1
+
+    var next = RNG_STATE * a
+    next = next + c
+
+    ; Modulo via ASM (simple: just use lower 31 bits)
+    asm_mulai
+    mov rax, [var_next]
+    and rax, 0x7FFFFFFF
+    mov [var_next], rax
+    tutup_asm
+
+    RNG_STATE = next
+
+    asm_mulai
+    mov rax, [var_next]
+    tutup_asm
+tutup_fungsi
+
+fungsi rng_range(max)
+    ; Random number in range [0, max)
+    var r = rng_next()
+
+    ; r % max
+    var result = 0
+    asm_mulai
+    mov rax, [var_r]
+    xor rdx, rdx
+    mov rbx, [var_max]
+    div rbx
+    mov [var_result], rdx
+    tutup_asm
+
+    asm_mulai
+    mov rax, [var_result]
+    tutup_asm
+tutup_fungsi
+
+; === GRID OPERATIONS ===
+fungsi grid_init()
+    ; Initialize 4x4 grid (16 cells)
+
+    GRID_PTR = vec_create(GRID_SIZE)
+
+    var i = 0
+    selama (i < GRID_SIZE)
+        vec_push(GRID_PTR, 0)
+        i = i + 1
+    tutup_selama
+
+    ; Spawn 2 initial tiles
+    grid_spawn_tile()
+    grid_spawn_tile()
+
+    cetak("Grid initialized")
+tutup_fungsi
+
+fungsi grid_get(idx)
+    ; Get tile value at index
+    kembalikan vec_get(GRID_PTR, idx)
+tutup_fungsi
+
+fungsi grid_set(idx, value)
+    ; Set tile value at index
+    vec_set(GRID_PTR, idx, value)
+tutup_fungsi
+
+fungsi grid_spawn_tile()
+    ; Spawn new tile (2 atau 4) di random empty cell
+    ; Return 1 jika sukses, 0 jika grid full
+
+    ; Count empty cells
+    var empty_count = 0
+    var i = 0
+
+    selama (i < GRID_SIZE)
+        var val = grid_get(i)
+        jika (val == 0)
+            empty_count = empty_count + 1
+        tutup_jika
+        i = i + 1
+    tutup_selama
+
+    jika (empty_count == 0)
+        kembalikan 0  ; Grid full
+    tutup_jika
+
+    ; Pick random empty cell
+    var target_empty = rng_range(empty_count)
+    var empty_idx = 0
+    i = 0
+    var found_idx = 0
+
+    selama (i < GRID_SIZE)
+        var val = grid_get(i)
+        jika (val == 0)
+            jika (empty_idx == target_empty)
+                found_idx = i
+                i = GRID_SIZE  ; Break loop
+            tutup_jika
+            empty_idx = empty_idx + 1
+        tutup_jika
+        i = i + 1
+    tutup_selama
+
+    ; Spawn 2 (90%) atau 4 (10%)
+    var new_val = 2
+    var r = rng_range(10)
+    jika (r == 0)
+        new_val = 4
+    tutup_jika
+
+    grid_set(found_idx, new_val)
+
+    kembalikan 1
+tutup_fungsi
+
+fungsi grid_slide_merge_row(row, cols, step)
+    ; Slide and merge single row (atau column jika step=4)
+    ; row: start index
+    ; cols: number of cells
+    ; step: index increment (1 untuk row, 4 untuk column)
+    ; Returns: 1 jika ada perubahan, 0 jika tidak
+
+    var changed = 0
+    var merged = vec_create(cols)
+
+    ; Initialize merged flags
+    var i = 0
+    selama (i < cols)
+        vec_push(merged, 0)
+        i = i + 1
+    tutup_selama
+
+    ; Slide pass: compact non-zero values
+    var write_pos = 0
+    i = 0
+
+    selama (i < cols)
+        var idx = row + i * step
+        var val = grid_get(idx)
+
+        jika (val != 0)
+            jika (write_pos != i)
+                var write_idx = row + write_pos * step
+                grid_set(write_idx, val)
+                grid_set(idx, 0)
+                changed = 1
+            tutup_jika
+            write_pos = write_pos + 1
+        tutup_jika
+
+        i = i + 1
+    tutup_selama
+
+    ; Merge pass: combine adjacent equal tiles
+    i = 0
+    selama (i < cols - 1)
+        var idx1 = row + i * step
+        var idx2 = row + (i + 1) * step
+        var val1 = grid_get(idx1)
+        var val2 = grid_get(idx2)
+
+        jika (val1 != 0)
+            jika (val1 == val2)
+                ; Merge
+                var merged_val = val1 + val2
+                grid_set(idx1, merged_val)
+                grid_set(idx2, 0)
+
+                SCORE = SCORE + merged_val
+                changed = 1
+
+                ; Shift remaining tiles left
+                var j = i + 1
+                selama (j < cols - 1)
+                    var src_idx = row + (j + 1) * step
+                    var dst_idx = row + j * step
+                    var shift_val = grid_get(src_idx)
+                    grid_set(dst_idx, shift_val)
+                    j = j + 1
+                tutup_selama
+
+                ; Clear last cell
+                var last_idx = row + (cols - 1) * step
+                grid_set(last_idx, 0)
+            tutup_jika
+        tutup_jika
+
+        i = i + 1
+    tutup_selama
+
+    kembalikan changed
+tutup_fungsi
+
+fungsi grid_move(direction)
+    ; Execute move in direction
+    ; Returns: 1 jika valid move, 0 jika tidak ada perubahan
+
+    var changed = 0
+
+    jika (direction == DIR_LEFT)
+        ; Slide each row left
+        var row = 0
+        selama (row < 4)
+            var row_idx = row * 4
+            var row_changed = grid_slide_merge_row(row_idx, 4, 1)
+            jika (row_changed == 1)
+                changed = 1
+            tutup_jika
+            row = row + 1
+        tutup_selama
+    tutup_jika
+
+    jika (direction == DIR_RIGHT)
+        ; Slide each row right (reverse order)
+        var row = 0
+        selama (row < 4)
+            var row_idx = row * 4 + 3
+            var row_changed = grid_slide_merge_row(row_idx, 4, -1)
+            jika (row_changed == 1)
+                changed = 1
+            tutup_jika
+            row = row + 1
+        tutup_selama
+    tutup_jika
+
+    jika (direction == DIR_UP)
+        ; Slide each column up
+        var col = 0
+        selama (col < 4)
+            var col_changed = grid_slide_merge_row(col, 4, 4)
+            jika (col_changed == 1)
+                changed = 1
+            tutup_jika
+            col = col + 1
+        tutup_selama
+    tutup_jika
+
+    jika (direction == DIR_DOWN)
+        ; Slide each column down (reverse order)
+        var col = 0
+        selama (col < 4)
+            var col_idx = 12 + col
+            var col_changed = grid_slide_merge_row(col_idx, 4, -4)
+            jika (col_changed == 1)
+                changed = 1
+            tutup_jika
+            col = col + 1
+        tutup_selama
+    tutup_jika
+
+    jika (changed == 1)
+        grid_spawn_tile()
+        MOVE_COUNT = MOVE_COUNT + 1
+    tutup_jika
+
+    kembalikan changed
+tutup_fungsi
+
+fungsi grid_has_moves()
+    ; Check jika ada valid moves tersisa
+    ; Returns: 1 jika bisa move, 0 jika game over
+
+    ; Check empty cells
+    var i = 0
+    selama (i < GRID_SIZE)
+        var val = grid_get(i)
+        jika (val == 0)
+            kembalikan 1
+        tutup_jika
+        i = i + 1
+    tutup_selama
+
+    ; Check adjacent cells (horizontal & vertical)
+    var row = 0
+    selama (row < 4)
+        var col = 0
+        selama (col < 4)
+            var idx = row * 4 + col
+            var val = grid_get(idx)
+
+            ; Check right neighbor
+            jika (col < 3)
+                var right_idx = idx + 1
+                var right_val = grid_get(right_idx)
+                jika (val == right_val)
+                    kembalikan 1
+                tutup_jika
+            tutup_jika
+
+            ; Check down neighbor
+            jika (row < 3)
+                var down_idx = idx + 4
+                var down_val = grid_get(down_idx)
+                jika (val == down_val)
+                    kembalikan 1
+                tutup_jika
+            tutup_jika
+
+            col = col + 1
+        tutup_selama
+        row = row + 1
+    tutup_selama
+
+    kembalikan 0  ; No moves
+tutup_fungsi
+
+fungsi game_auto_play(max_moves)
+    ; Auto-play game dengan random moves
+    ; max_moves: Maximum moves untuk stress test
+
+    cetak("=== Auto-playing 2048 ===")
+
+    var moves = 0
+
+    selama (moves < max_moves)
+        var has_moves = grid_has_moves()
+
+        jika (has_moves == 0)
+            cetak("Game over (no moves)")
+            moves = max_moves  ; Break
+        lain
+            ; Try random direction
+            var dir = rng_range(4)
+            var valid = grid_move(dir)
+
+            jika (valid == 1)
+                moves = moves + 1
+
+                ; Print progress every 100 moves
+                var mod = moves % 100
+                jika (mod == 0)
+                    cetak("Move ")
+                    cetak(moves)
+                    cetak(" | Score: ")
+                    cetak(SCORE)
+                tutup_jika
+            tutup_jika
+        tutup_jika
+    tutup_selama
+
+    cetak("=== Auto-play complete ===")
+    cetak("Total moves: ")
+    cetak(MOVE_COUNT)
+    cetak("Final score: ")
+    cetak(SCORE)
+tutup_fungsi
+
+fungsi mulai()
+    ; Entry point
+
+    cetak("2048 Game - Loop & Recursion Stress Test")
+    cetak("Initializing memory systems...")
+
+    ; Initialize memory pool
+    pools_init()
+    cetak("Pools initialized")
+
+    ; Initialize arena registry
+    arena_init_registry()
+    cetak("Arena registry initialized")
+
+    ; Create game arena (512KB)
+    var arena_size = 524288
+    GAME_ARENA_PTR = arena_create(arena_size, 0)
+    cetak("Game arena created")
+
+    ; Initialize grid
+    grid_init()
+
+    ; Auto-play 1000 moves untuk stress test
+    var test_moves = 1000
+    cetak("Starting auto-play test (")
+    cetak(test_moves)
+    cetak(" moves)...")
+
+    game_auto_play(test_moves)
+
+    ; Print memory stats
+    cetak("")
+    pools_report()
+    cetak("")
+    arena_report_all()
+
+    cetak("")
+    cetak("2048 test completed successfully!")
+tutup_fungsi

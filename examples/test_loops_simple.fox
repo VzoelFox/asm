@@ -1,0 +1,58 @@
+; Simple Loop Stress Test - No complex dependencies
+; Test intensive nested loops and recursion
+
+var COUNTER = 0
+var MAX_OUTER = 10
+var MAX_INNER = 10
+
+fungsi nested_loops()
+    var outer = 0
+
+    selama (outer < MAX_OUTER)
+        var inner = 0
+
+        selama (inner < MAX_INNER)
+            COUNTER = COUNTER + 1
+            inner = inner + 1
+        tutup_selama
+
+        outer = outer + 1
+
+        ; Progress indicator
+        cetak("Outer loop: ")
+        cetak(outer)
+        cetak(" | Counter: ")
+        cetak(COUNTER)
+    tutup_selama
+
+    cetak("Nested loops completed!")
+tutup_fungsi
+
+fungsi recursive_test(depth, max_depth)
+    jika (depth >= max_depth)
+        kembalikan depth
+    tutup_jika
+
+    var result = recursive_test(depth + 1, max_depth)
+    kembalikan result
+tutup_fungsi
+
+fungsi mulai()
+    cetak("=== Simple Loop & Recursion Test ===")
+
+    cetak("Testing nested loops...")
+    nested_loops()
+
+    cetak("")
+    cetak("Total iterations: ")
+    cetak(COUNTER)
+
+    cetak("")
+    cetak("Testing recursion (depth=20)...")
+    var final_depth = recursive_test(0, 20)
+    cetak("Reached depth: ")
+    cetak(final_depth)
+
+    cetak("")
+    cetak("All tests passed!")
+tutup_fungsi

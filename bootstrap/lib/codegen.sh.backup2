@@ -1968,30 +1968,10 @@ emit_output() {
 
     # Rest of output (variables, functions, etc)
     if [ ${#BSS_VARS[@]} -gt 0 ]; then
-        # FIX: Exclude hardcoded vars to prevent duplication
-        local hardcoded_vars=(
-            "POOLS_INITIALIZED" "VECTOR_DATA_POOL" "HASHMAP_NODE_POOL"
-            "ARENA_REGISTRY_PTR" "ARENA_COUNT"
-            "new_len" "buf" "capacity" "data" "temp" "s" "start_index"
-            "global_argc" "global_argv"
-        )
-
-        # Deduplicate using sort -u and filter out hardcoded vars
+        # Deduplicate using sort -u
         local unique_vars=($(printf "%s\n" "${BSS_VARS[@]}" | sort -u))
         for var in "${unique_vars[@]}"; do
-            # Check if var is in hardcoded list
-            local is_hardcoded=0
-            for hc in "${hardcoded_vars[@]}"; do
-                if [ "$var" == "$hc" ]; then
-                    is_hardcoded=1
-                    break
-                fi
-            done
-
-            # Only emit if not hardcoded
-            if [ $is_hardcoded -eq 0 ]; then
-                echo "    var_$var resq 1"
-            fi
+            echo "    var_$var resq 1"
         done
     fi
 

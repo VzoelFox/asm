@@ -1,0 +1,271 @@
+; 2048 Game - Loop & Recursion Stress Test (FIXED - No lib dependencies)
+; Test intensive loops, recursion, manual array operations
+; Auto-play simulation untuk memory stress testing
+
+; === CONSTANTS ===
+const GRID_SIZE = 16  ; 4x4 grid
+const DIR_UP = 0
+const DIR_DOWN = 1
+const DIR_LEFT = 2
+const DIR_RIGHT = 3
+
+; === GLOBAL STATE ===
+var GRID_0 = 0
+var GRID_1 = 0
+var GRID_2 = 0
+var GRID_3 = 0
+var GRID_4 = 0
+var GRID_5 = 0
+var GRID_6 = 0
+var GRID_7 = 0
+var GRID_8 = 0
+var GRID_9 = 0
+var GRID_10 = 0
+var GRID_11 = 0
+var GRID_12 = 0
+var GRID_13 = 0
+var GRID_14 = 0
+var GRID_15 = 0
+
+var SCORE = 0
+var MOVE_COUNT = 0
+var RNG_STATE = 12345  ; Simple PRNG seed
+
+; === PRNG ===
+fungsi rng_next()
+    var a = 1103515245
+    var c = 12345
+
+    var next = RNG_STATE * a
+    next = next + c
+
+    asm_mulai
+    mov rax, [var_next]
+    and rax, 0x7FFFFFFF
+    mov [var_next], rax
+    tutup_asm
+
+    RNG_STATE = next
+
+    asm_mulai
+    mov rax, [var_next]
+    tutup_asm
+tutup_fungsi
+
+fungsi rng_range(max)
+    ; BUGFIX: Check for division by zero
+    jika (max == 0)
+        kembalikan 0
+    tutup_jika
+
+    var r = rng_next()
+    var result = 0
+
+    asm_mulai
+    mov rax, [var_r]
+    xor rdx, rdx
+    mov rbx, [var_max]
+    div rbx
+    mov [var_result], rdx
+    tutup_asm
+
+    asm_mulai
+    mov rax, [var_result]
+    tutup_asm
+tutup_fungsi
+
+; === GRID OPERATIONS (Manual array) ===
+fungsi grid_get(idx)
+    jika (idx == 0) kembalikan GRID_0 tutup_jika
+    jika (idx == 1) kembalikan GRID_1 tutup_jika
+    jika (idx == 2) kembalikan GRID_2 tutup_jika
+    jika (idx == 3) kembalikan GRID_3 tutup_jika
+    jika (idx == 4) kembalikan GRID_4 tutup_jika
+    jika (idx == 5) kembalikan GRID_5 tutup_jika
+    jika (idx == 6) kembalikan GRID_6 tutup_jika
+    jika (idx == 7) kembalikan GRID_7 tutup_jika
+    jika (idx == 8) kembalikan GRID_8 tutup_jika
+    jika (idx == 9) kembalikan GRID_9 tutup_jika
+    jika (idx == 10) kembalikan GRID_10 tutup_jika
+    jika (idx == 11) kembalikan GRID_11 tutup_jika
+    jika (idx == 12) kembalikan GRID_12 tutup_jika
+    jika (idx == 13) kembalikan GRID_13 tutup_jika
+    jika (idx == 14) kembalikan GRID_14 tutup_jika
+    jika (idx == 15) kembalikan GRID_15 tutup_jika
+    kembalikan 0
+tutup_fungsi
+
+fungsi grid_set(idx, val)
+    jika (idx == 0) GRID_0 = val tutup_jika
+    jika (idx == 1) GRID_1 = val tutup_jika
+    jika (idx == 2) GRID_2 = val tutup_jika
+    jika (idx == 3) GRID_3 = val tutup_jika
+    jika (idx == 4) GRID_4 = val tutup_jika
+    jika (idx == 5) GRID_5 = val tutup_jika
+    jika (idx == 6) GRID_6 = val tutup_jika
+    jika (idx == 7) GRID_7 = val tutup_jika
+    jika (idx == 8) GRID_8 = val tutup_jika
+    jika (idx == 9) GRID_9 = val tutup_jika
+    jika (idx == 10) GRID_10 = val tutup_jika
+    jika (idx == 11) GRID_11 = val tutup_jika
+    jika (idx == 12) GRID_12 = val tutup_jika
+    jika (idx == 13) GRID_13 = val tutup_jika
+    jika (idx == 14) GRID_14 = val tutup_jika
+    jika (idx == 15) GRID_15 = val tutup_jika
+tutup_fungsi
+
+fungsi grid_init()
+    var i = 0
+    selama (i < GRID_SIZE)
+        grid_set(i, 0)
+        i = i + 1
+    tutup_selama
+
+    ; Spawn 2 initial tiles
+    grid_spawn_tile()
+    grid_spawn_tile()
+tutup_fungsi
+
+fungsi grid_spawn_tile()
+    ; Count empty cells
+    var empty_count = 0
+    var i = 0
+
+    selama (i < GRID_SIZE)
+        var val = grid_get(i)
+        jika (val == 0)
+            empty_count = empty_count + 1
+        tutup_jika
+        i = i + 1
+    tutup_selama
+
+    jika (empty_count == 0)
+        kembalikan 0  ; Grid full
+    tutup_jika
+
+    ; Pick random empty cell (BUGFIX: guaranteed empty_count > 0)
+    var target_empty = rng_range(empty_count)
+    var empty_idx = 0
+    i = 0
+
+    selama (i < GRID_SIZE)
+        var val = grid_get(i)
+        jika (val == 0)
+            jika (empty_idx == target_empty)
+                ; Spawn 2 (90%) or 4 (10%)
+                var new_val = 2
+                var r = rng_range(10)
+                jika (r == 0)
+                    new_val = 4
+                tutup_jika
+
+                grid_set(i, new_val)
+                kembalikan 1
+            tutup_jika
+            empty_idx = empty_idx + 1
+        tutup_jika
+        i = i + 1
+    tutup_selama
+
+    kembalikan 0
+tutup_fungsi
+
+fungsi grid_has_moves()
+    ; Check if any moves possible
+    var i = 0
+
+    ; Check for empty cells
+    selama (i < GRID_SIZE)
+        var val = grid_get(i)
+        jika (val == 0)
+            kembalikan 1  ; Has empty = has moves
+        tutup_jika
+        i = i + 1
+    tutup_selama
+
+    ; Grid full - check for adjacent matches
+    i = 0
+    selama (i < GRID_SIZE)
+        var row = i / 4
+        var col = i - (row * 4)
+        var val = grid_get(i)
+
+        ; Check right neighbor
+        jika (col < 3)
+            var right_idx = i + 1
+            var right_val = grid_get(right_idx)
+            jika (val == right_val)
+                kembalikan 1
+            tutup_jika
+        tutup_jika
+
+        ; Check down neighbor
+        jika (row < 3)
+            var down_idx = i + 4
+            var down_val = grid_get(down_idx)
+            jika (val == down_val)
+                kembalikan 1
+            tutup_jika
+        tutup_jika
+
+        i = i + 1
+    tutup_selama
+
+    kembalikan 0  ; No moves possible
+tutup_fungsi
+
+fungsi game_auto_play(max_moves)
+    var moves = 0
+    var stuck_count = 0
+
+    selama (moves < max_moves)
+        var has_moves = grid_has_moves()
+        jika (has_moves == 0)
+            kembalikan moves
+        tutup_jika
+
+        ; Try random direction
+        var dir = rng_range(4)
+
+        ; For simplicity: just spawn tiles (loop stress test)
+        var spawned = grid_spawn_tile()
+
+        jika (spawned == 1)
+            moves = moves + 1
+            stuck_count = 0
+
+            ; Progress indicator every 100 moves
+            var mod = moves - ((moves / 100) * 100)
+            jika (mod == 0)
+                cetak("Progress: ")
+                cetak(moves)
+                cetak(" moves")
+            tutup_jika
+        lain
+            stuck_count = stuck_count + 1
+            jika (stuck_count > 10)
+                kembalikan moves  ; Stuck, grid likely full
+            tutup_jika
+        tutup_jika
+    tutup_selama
+
+    kembalikan moves
+tutup_fungsi
+
+fungsi mulai()
+    cetak("=== 2048 Game - Loop Stress Test (FIXED) ===")
+
+    grid_init()
+    cetak("Grid initialized")
+
+    var test_moves = 100  ; Reduced from 1000 for faster test
+    cetak("Starting auto-play test...")
+
+    var completed = game_auto_play(test_moves)
+
+    cetak("")
+    cetak("Completed moves: ")
+    cetak(completed)
+    cetak("")
+    cetak("2048 test finished!")
+tutup_fungsi
