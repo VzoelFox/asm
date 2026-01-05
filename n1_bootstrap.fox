@@ -1,0 +1,27 @@
+; N1 Minimal - No Global Dependencies (N0 Bootstrap Compatible)
+; Pure functions only, no cross-module globals
+
+fungsi mulai(arg1, arg2)
+  cetak("N1 Minimal Compiler v0.1")
+  cetak("Bootstrap compatible - no globals")
+  
+  ; Simple echo compiler
+  cetak("section .text")
+  cetak("global _start") 
+  cetak("_start:")
+  cetak("    call mulai")
+  cetak("    mov rax, 60")
+  cetak("    xor rdi, rdi") 
+  cetak("    syscall")
+  
+  cetak("mulai:")
+  cetak("    mov rax, 1")
+  cetak("    mov rdi, 1")
+  cetak("    mov rsi, hello_msg")
+  cetak("    mov rdx, 13")
+  cetak("    syscall")
+  cetak("    ret")
+  
+  cetak("section .data")
+  cetak("hello_msg db 'Hello World!', 10")
+tutup_fungsi

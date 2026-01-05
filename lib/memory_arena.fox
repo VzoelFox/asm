@@ -1,0 +1,221 @@
+; Memory Arena - Scoped Arena Allocator dengan Batch Reset
+; Untuk allocations yang bisa di-reset sekaligus (contoh: per-frame game state)
+; ID Range: 360-369
+
+### 360
+; Arena Structure
+struktur Arena
+    start_ptr int       ; Start of arena memory
+    current_ptr int     ; Current bump pointer
+    end_ptr int         ; End boundary
+    id int              ; Arena ID
+    name_ptr int        ; Optional name (string ptr)
+tutup_struktur
+
+### 361
+; Arena Registry (Global)
+var ARENA_REGISTRY_PTR = 0
+var ARENA_COUNT = 0
+const MAX_ARENAS = 16
+
+fungsi arena_init_registry()
+    ; Initialize global arena registry
+    ; Call once at program start
+
+    jika (ARENA_REGISTRY_PTR != 0)
+        kembalikan 0  ; Already initialized
+    tutup_jika
+
+    var size = MAX_ARENAS * 8
+
+    asm_mulai
+    mov rax, [var_size]
+    call sys_alloc
+    mov [var_ARENA_REGISTRY_PTR], rax
+
+    ; Zero out registry
+    mov rdi, rax
+    mov rcx, 16
+    xor rax, rax
+    rep stosq
+    tutup_asm
+
+    kembalikan 1
+tutup_fungsi
+
+### 362
+fungsi arena_create(size_bytes, name_ptr)
+    ; Create new arena
+    ; size_bytes: Size of arena in bytes
+    ; name_ptr: Optional name (0 if none)
+    ; Returns: Arena pointer
+
+    jika (ARENA_COUNT >= MAX_ARENAS)
+        cetak("Arena registry full!")
+        kembalikan 0
+    tutup_jika
+
+    var arena_mem = 0
+
+    asm_mulai
+    mov rax, [var_size_bytes]
+    call sys_alloc
+    mov [var_arena_mem], rax
+    tutup_asm
+
+    var end_addr = arena_mem + size_bytes
+    var arena = Arena(arena_mem, arena_mem, end_addr, ARENA_COUNT, name_ptr)
+
+    ; Register arena
+    var registry = ARENA_REGISTRY_PTR
+    var idx = ARENA_COUNT
+    registry[idx] = arena
+
+    ARENA_COUNT = ARENA_COUNT + 1
+
+    asm_mulai
+    mov rax, [var_arena]
+    tutup_asm
+tutup_fungsi
+
+### 363
+fungsi arena_alloc(arena, size)
+    ; Allocate from arena (bump pointer)
+    ; arena: Arena pointer
+    ; size: Bytes to allocate
+    ; Returns: Allocated pointer or 0 if OOM
+
+    tipe arena Arena
+
+    var curr = arena.current_ptr
+    var new_ptr = curr + size
+    var limit = arena.end_ptr
+
+    jika (new_ptr > limit)
+        cetak("Arena OOM!")
+        kembalikan 0
+    tutup_jika
+
+    arena.current_ptr = new_ptr
+
+    asm_mulai
+    mov rax, [var_curr]
+    tutup_asm
+tutup_fungsi
+
+### 364
+fungsi arena_reset(arena)
+    ; Reset arena (bump pointer kembali ke start)
+    ; Semua allocations di-invalidate
+    ; arena: Arena pointer
+
+    tipe arena Arena
+    var start = arena.start_ptr
+    arena.current_ptr = start
+tutup_fungsi
+
+### 365
+fungsi arena_get_usage(arena)
+    ; Get current usage in bytes
+    ; arena: Arena pointer
+    ; Returns: Used bytes
+
+    tipe arena Arena
+    var start = arena.start_ptr
+    var curr = arena.current_ptr
+    var used = curr - start
+
+    asm_mulai
+    mov rax, [var_used]
+    tutup_asm
+tutup_fungsi
+
+### 366
+fungsi arena_get_capacity(arena)
+    ; Get total capacity
+    ; arena: Arena pointer
+    ; Returns: Total bytes
+
+    tipe arena Arena
+    var start = arena.start_ptr
+    var end = arena.end_ptr
+    var cap = end - start
+
+    asm_mulai
+    mov rax, [var_cap]
+    tutup_asm
+tutup_fungsi
+
+### 367
+fungsi arena_destroy_all()
+    ; Reset all arenas (cleanup)
+    ; Returns: Number of arenas reset
+
+    var i = 0
+    var count = 0
+
+    selama (i < ARENA_COUNT)
+        var registry = ARENA_REGISTRY_PTR
+        var arena_ptr = registry[i]
+
+        jika (arena_ptr != 0)
+            arena_reset(arena_ptr)
+            count = count + 1
+        tutup_jika
+
+        i = i + 1
+    tutup_selama
+
+    asm_mulai
+    mov rax, [var_count]
+    tutup_asm
+tutup_fungsi
+
+### 368
+fungsi arena_print_stats(arena)
+    ; Print arena statistics
+    ; arena: Arena pointer
+
+    tipe arena Arena
+
+    cetak("Arena ID: ")
+    var aid = arena.id
+    cetak(aid)
+
+    var name = arena.name_ptr
+    jika (name != 0)
+        cetak(" Name: ")
+        cetak(name)
+    tutup_jika
+
+    cetak("  Used: ")
+    var used = arena_get_usage(arena)
+    cetak(used)
+
+    cetak(" / Capacity: ")
+    var cap = arena_get_capacity(arena)
+    cetak(cap)
+
+    cetak(" bytes")
+tutup_fungsi
+
+### 369
+fungsi arena_report_all()
+    ; Print stats untuk semua arenas
+
+    cetak("=== Arena Memory Report ===")
+    cetak("Active Arenas: ")
+    cetak(ARENA_COUNT)
+
+    var i = 0
+    selama (i < ARENA_COUNT)
+        var registry = ARENA_REGISTRY_PTR
+        var arena_ptr = registry[i]
+
+        jika (arena_ptr != 0)
+            arena_print_stats(arena_ptr)
+        tutup_jika
+
+        i = i + 1
+    tutup_selama
+tutup_fungsi

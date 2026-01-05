@@ -1,0 +1,64 @@
+=========================================
+  QUICK ASM CHECK - N1 Debugger
+=========================================
+File: build/n1_compiler.asm
+
+=== 1. Undefined Symbol Detection ===
+🔴 NASM assembly failed
+
+Undefined symbols found: 65
+
+Top 10 undefined symbols:
+heap_current_ptr
+heap_end_ptr
+heap_start_ptr
+mulai
+pool_acquire
+pool_release
+var_arr
+var_b_ptr
+var_buckets_base
+var_buckets_size
+
+Breakdown:
+  var_* symbols: 59
+  heap_* symbols: 3
+  Pool/Arena symbols: 3
+
+🔴 DIAGNOSIS: Memory pool globals not available
+   → POOLS_INITIALIZED, VECTOR_DATA_POOL, etc not in BSS
+   → Solution: Compile lib/memory_pool.fox first, link manually
+
+=== 2. Stack Depth Analysis ===
+Push instructions: 192
+Pop instructions: 196
+Balance: -4
+✅ Stack balance looks healthy
+
+=== 3. Section Verification ===
+Sections found:
+  .data: 9
+  .bss: 2
+  .text: 9
+
+=== 4. Function Analysis ===
+Functions defined: 100
+
+Checking for known problem functions:
+
+=== 5. File Statistics ===
+Total lines: 2159
+File size: 48K
+
+=========================================
+  SUMMARY
+=========================================
+🔴 Assembly has errors - Cannot link
+
+Recommended actions:
+  1. Fix cross-module globals (add BSS generation)
+  2. Or use N1 compiler instead of bootstrap
+  3. Compile memory_pool.fox separately
+  4. Link object files together
+
+=========================================

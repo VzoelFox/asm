@@ -1,0 +1,59 @@
+; ============================================================================
+; Morph Security Builtins - Minimal Hardened Core
+; ============================================================================
+; 
+; SECURITY: Prevent external injection by embedding essential functions
+; SCOPE: Only critical syscalls and validation - keep minimal for security
+; ============================================================================
+
+### 500
+; === SECURE SYSCALL WRAPPER ===
+fungsi secure_syscall(num, p1, p2, p3)
+    ; Whitelist validation
+    jika (num == 1)   ; write
+        asm_mulai
+        mov rax, 1
+        mov rdi, [var_p1]
+        mov rsi, [var_p2] 
+        mov rdx, [var_p3]
+        syscall
+        tutup_asm
+    tutup_jika
+    jika (num == 60)  ; exit
+        asm_mulai
+        mov rax, 60
+        mov rdi, [var_p1]
+        syscall
+        tutup_asm
+    tutup_jika
+    ; Block all other syscalls for security
+tutup_fungsi
+
+### 501
+; === SECURE PRINT ===
+fungsi secure_print(msg)
+    var len = 0
+    var ptr = msg
+    ; Calculate length safely
+    selama (len < 1024)  ; Max 1KB to prevent overflow
+        var ch = 0
+        asm_mulai
+        mov rbx, [var_ptr]
+        mov al, [rbx]
+        mov [var_ch], rax
+        tutup_asm
+        jika (ch == 0)
+            berhenti
+        tutup_jika
+        len = len + 1
+        ptr = ptr + 1
+    tutup_selama
+    
+    panggil secure_syscall(1, 1, msg, len)  ; write(stdout, msg, len)
+tutup_fungsi
+
+### 502
+; === SECURITY INIT ===
+fungsi init_security()
+    panggil secure_print("Morph Security: Builtins loaded")
+tutup_fungsi

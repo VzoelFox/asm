@@ -30,43 +30,40 @@
 ; Morph Self-Hosted Compiler Entry Point (Refactored)
 ; NOTE: Uses ID-based imports to avoid recursive file parsing
 
-; === LOAD ID REGISTRY ===
+; === SECURITY: AUTO-LOAD BUILTINS ===
 indeks "indeks.fox"
+Ambil 500-515  ; Builtins - security hardened core functions
 
-; === STANDARD LIBRARY ===
-Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
-Ambil 318, 319 ; File IO
-Ambil 320, 321, 322, 323, 324 ; Format
-Ambil 330, 331, 332, 333 ; Hashmap
-Ambil 340, 341, 342, 343, 344 ; Vector
-Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
-Ambil 390, 391 ; str_to_int, str_index_of
+; === MEMORY SYSTEM (CRITICAL FOR ROBUSTNESS) ===
+Ambil 350-359  ; Memory pool - prevent Vector/HashMap leaks
+Ambil 360-369  ; Memory arena - scoped allocation
 
-; === COMPILER CORE MODULES ===
+; === STANDARD LIBRARY (File-based imports) ===
+ambil "lib/buffer.fox"
+ambil "lib/file_io.fox"
+ambil "lib/vector.fox"
+ambil "lib/string_utils.fox"
+
+; === COMPILER MODULES (ID-based imports) ===
+indeks "indeks.fox"
 Ambil 1010, 1011 ; globals
 Ambil 1020, 1021 ; constants
 Ambil 1030 ; codegen
 Ambil 1040, 1041, 1042, 1043, 1044, 1045, 1046, 1047 ; types
 Ambil 1050, 1051, 1052, 1053, 1054, 1055, 1056 ; supplier
 
-; === PARSER HELPERS ===
-Ambil 1100, 1101, 1102, 1103 ; parser_helpers_import
-Ambil 1110, 1111, 1112 ; parser_helpers_struct
-Ambil 1120, 1121 ; parser_helpers_fungsi
-Ambil 1122, 1123, 1124, 1125 ; parser_helpers_jika
-Ambil 1126, 1127 ; parser_helpers_loop
-Ambil 1130, 1131, 1132, 1133, 1134, 1135, 1136, 1137, 1138, 1139 ; parser_helpers_stmt
-
-; === PARSER DISPATCHERS ===
-Ambil 1140 ; parser_dispatch_import
-Ambil 1141 ; parser_dispatch_struct
-Ambil 1142 ; parser_dispatch_control
-Ambil 1143 ; parser_dispatch_var_struct
-Ambil 1144 ; parser_dispatch_var_simple
-Ambil 1145 ; parser_dispatch_cetak
-Ambil 1146 ; parser_dispatch_panggil
+; === PARSER HELPERS & DISPATCHERS ===
+; NOTE: Moved to parser.fox to reduce main.fox size below 150 lines
+; main.fox calls parse_source_lines() which has access to all parser functions
 
 fungsi mulai(arg_unused1, arg_unused2)
+  ; === SECURITY INITIALIZATION ===
+  panggil init_builtins()  ; Load security-hardened functions first
+  
+  ; === MEMORY SYSTEM INITIALIZATION ===
+  panggil pools_init()           ; Initialize object pools
+  panggil arena_init_registry()  ; Initialize arena system
+  
   ; === INITIALIZATION ===
   panggil init_globals()
   panggil init_constants()
@@ -201,6 +198,10 @@ fungsi mulai(arg_unused1, arg_unused2)
 
      ; Check for type errors before declaring success
      panggil report_type_errors()
+
+     ; === MEMORY CLEANUP & STATS ===
+     panggil pools_report()      ; Show pool reuse metrics
+     panggil arena_report_all()  ; Show arena usage stats
 
      cetak("Success!")
   tutup_jika

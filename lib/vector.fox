@@ -42,15 +42,20 @@ fungsi vec_push(vec, value)
         new_cap = 4
      tutup_jika
 
-     ; Alloc new array
+     ; Alloc new array via POOL (ID 353)
      var new_byte_size = new_cap * 8
      var new_ptr = 0
 
-     asm_mulai
-     mov rax, [var_new_byte_size]
-     call sys_alloc
-     mov [var_new_ptr], rax
-     tutup_asm
+     ; Use pool if initialized, otherwise fallback to sys_alloc
+     jika (POOLS_INITIALIZED == 1)
+        new_ptr = pool_acquire(VECTOR_DATA_POOL, new_byte_size)
+     lain
+        asm_mulai
+        mov rax, [var_new_byte_size]
+        call sys_alloc
+        mov [var_new_ptr], rax
+        tutup_asm
+     tutup_jika
 
      ; Copy old to new
      var copy_size = sz * 8
@@ -63,6 +68,13 @@ fungsi vec_push(vec, value)
      call sys_memcpy
      tutup_asm
 
+     ; RELEASE old array to pool (prevent leak!)
+     jika (POOLS_INITIALIZED == 1)
+        jika (old_ptr != 0)
+           pool_release(VECTOR_DATA_POOL, old_ptr)
+        tutup_jika
+     tutup_jika
+
      ; Update vec
      vec.data_ptr = new_ptr
      vec.capacity = new_cap
@@ -70,12 +82,6 @@ fungsi vec_push(vec, value)
   tutup_jika
 
   ; 3. Append value
-  ; vec.data[sz] = value
-  ; Accessing raw array still needs manual ASM or trick
-  ; Trick: var arr = vec.data_ptr -> then arr[sz] = value?
-  ; Parser supports 'arr[idx] = val' but assumes 'arr' is a variable holding pointer.
-  ; Let's try that.
-
   var arr = vec.data_ptr
   arr[sz] = value
 

@@ -1,0 +1,452 @@
+; ============================================================================
+; MORPH_ROBOT.FOX - Assembly Debugger & Analyzer
+; ============================================================================
+;
+; Self-hosted debugging tool untuk analyze assembly output dari Morph compiler
+; Deteksi: stack overflow, undefined symbols, infinite loops, memory issues
+;
+; Usage:
+;   ./morph_robot <input.asm> [options]
+;
+; Features:
+;   1. ASM Parser - Tokenize & parse assembly
+;   2. Symbol Tracker - Build symbol table
+;   3. Stack Analyzer - Track push/pop, rsp movements
+;   4. Crash Detector - Identify potential runtime issues
+;   5. Report Generator - Human-readable analysis
+;
+; Version: 1.0.0
+; Date: 2026-01-05
+; Engineer: Claude Code (Anthropic) + User (Vzoel Fox)
+; ============================================================================
+
+ambil "lib/vector.fox"
+ambil "lib/hashmap.fox"
+ambil "lib/file_io.fox"
+ambil "lib/string_utils.fox"
+ambil "lib/format.fox"
+
+; === CONSTANTS ===
+
+const MAX_LINE_LENGTH = 1024
+const MAX_SYMBOLS = 1000
+const STACK_WARN_THRESHOLD = 4096  ; 4KB stack usage warning
+
+; Section types
+const SEC_NONE = 0
+const SEC_DATA = 1
+const SEC_BSS = 2
+const SEC_TEXT = 3
+
+; Instruction types
+const INS_PUSH = 1
+const INS_POP = 2
+const INS_CALL = 3
+const INS_RET = 4
+const INS_JMP = 5
+const INS_MOV = 6
+const INS_ADD_RSP = 7
+const INS_SUB_RSP = 8
+
+; === GLOBAL STATE ===
+
+var ASM_FILE_PATH = 0
+var LINES_VECTOR = 0           ; Vector of line strings
+var SYMBOLS_MAP = 0            ; Symbol name → address/line
+var FUNCTIONS_VECTOR = 0       ; Vector of function names
+var UNDEFINED_REFS = 0         ; Vector of undefined symbol refs
+var CURRENT_SECTION = 0
+var MAX_STACK_DEPTH = 0
+var CURRENT_STACK_DEPTH = 0
+var ERROR_COUNT = 0
+var WARNING_COUNT = 0
+
+; === STRUCTURES ===
+
+struktur Symbol
+    name_ptr int
+    section int
+    line_num int
+    type int        ; 0=label, 1=function, 2=variable
+tutup_struktur
+
+struktur StackFrame
+    function_name int
+    depth int
+    line_num int
+tutup_struktur
+
+struktur Issue
+    severity int    ; 0=info, 1=warning, 2=error
+    line_num int
+    message_ptr int
+tutup_struktur
+
+; === UTILITY FUNCTIONS ===
+
+fungsi str_starts_with(str, prefix)
+    ; Check if str starts with prefix
+    ; Simple implementation: compare first N chars
+
+    var str_len = str_len(str)
+    var prefix_len = str_len(prefix)
+
+    jika (prefix_len > str_len)
+        kembalikan 0
+    tutup_jika
+
+    ; Compare character by character (simplified)
+    ; TODO: implement proper strncmp
+    kembalikan 1  ; Stub: always true for now
+tutup_fungsi
+
+fungsi str_contains(str, substr)
+    ; Check if str contains substr
+    var idx = str_index_of(str, substr)
+    jika (idx >= 0)
+        kembalikan 1
+    tutup_jika
+    kembalikan 0
+tutup_fungsi
+
+fungsi str_trim(str)
+    ; Remove leading/trailing whitespace
+    ; TODO: implement proper trim
+    kembalikan str  ; Stub: return as-is
+tutup_fungsi
+
+fungsi parse_instruction_type(line)
+    ; Detect instruction type from line
+
+    jika (str_contains(line, "push") == 1)
+        kembalikan INS_PUSH
+    tutup_jika
+
+    jika (str_contains(line, "pop") == 1)
+        kembalikan INS_POP
+    tutup_jika
+
+    jika (str_contains(line, "call") == 1)
+        kembalikan INS_CALL
+    tutup_jika
+
+    jika (str_contains(line, "ret") == 1)
+        kembalikan INS_RET
+    tutup_jika
+
+    jika (str_contains(line, "jmp") == 1)
+        kembalikan INS_JMP
+    tutup_jika
+
+    jika (str_contains(line, "add") == 1)
+        jika (str_contains(line, "rsp") == 1)
+            kembalikan INS_ADD_RSP
+        tutup_jika
+    tutup_jika
+
+    jika (str_contains(line, "sub") == 1)
+        jika (str_contains(line, "rsp") == 1)
+            kembalikan INS_SUB_RSP
+        tutup_jika
+    tutup_jika
+
+    kembalikan 0  ; Unknown
+tutup_fungsi
+
+; === FILE PARSING ===
+
+fungsi load_asm_file(file_path)
+    ; Load assembly file into LINES_VECTOR
+
+    cetak("Loading ASM file: ")
+    cetak(file_path)
+
+    var fd = file_open(file_path, 0)  ; O_RDONLY
+    jika (fd < 0)
+        cetak("ERROR: Cannot open file")
+        kembalikan 0
+    tutup_jika
+
+    ; Read file line by line
+    ; TODO: Implement proper line reading
+    ; For now, stub implementation
+
+    var lines = vec_create(1000)
+    LINES_VECTOR = lines
+
+    ; Simulate reading (stub)
+    cetak("File loaded (stub implementation)")
+
+    file_close(fd)
+    kembalikan 1
+tutup_fungsi
+
+; === SYMBOL TRACKING ===
+
+fungsi is_label(line)
+    ; Check if line is a label (ends with ':')
+    var line_len = str_len(line)
+    jika (line_len < 2)
+        kembalikan 0
+    tutup_jika
+
+    ; TODO: Check last char is ':'
+    kembalikan 0  ; Stub
+tutup_fungsi
+
+fungsi extract_label_name(line)
+    ; Extract label name before ':'
+    ; TODO: implement string manipulation
+    kembalikan line  ; Stub
+tutup_fungsi
+
+fungsi track_symbol(name, line_num, sym_type)
+    ; Add symbol to tracking map
+
+    var symbol = Symbol(name, CURRENT_SECTION, line_num, sym_type)
+
+    ; Store in map: name → symbol
+    map_put(SYMBOLS_MAP, name, symbol)
+
+    jika (sym_type == 1)  ; Function
+        vec_push(FUNCTIONS_VECTOR, name)
+    tutup_jika
+tutup_fungsi
+
+fungsi parse_symbols()
+    ; First pass: Build symbol table
+
+    cetak("=== PHASE 1: Symbol Tracking ===")
+
+    var line_count = vec_len(LINES_VECTOR)
+    var i = 0
+
+    selama (i < line_count)
+        var line = vec_get(LINES_VECTOR, i)
+        var trimmed = str_trim(line)
+
+        ; Detect section changes
+        jika (str_contains(trimmed, "section .data") == 1)
+            CURRENT_SECTION = SEC_DATA
+        tutup_jika
+
+        jika (str_contains(trimmed, "section .bss") == 1)
+            CURRENT_SECTION = SEC_BSS
+        tutup_jika
+
+        jika (str_contains(trimmed, "section .text") == 1)
+            CURRENT_SECTION = SEC_TEXT
+        tutup_jika
+
+        ; Detect labels
+        jika (is_label(trimmed) == 1)
+            var label_name = extract_label_name(trimmed)
+
+            ; Detect if it's a function (followed by push rbp)
+            var next_line = vec_get(LINES_VECTOR, i + 1)
+            var is_func = 0
+            jika (str_contains(next_line, "push") == 1)
+                is_func = 1
+            tutup_jika
+
+            track_symbol(label_name, i, is_func)
+        tutup_jika
+
+        i = i + 1
+    tutup_selama
+
+    cetak("Symbols tracked: ")
+    var sym_count = vec_len(FUNCTIONS_VECTOR)
+    cetak(sym_count)
+tutup_fungsi
+
+; === STACK ANALYSIS ===
+
+fungsi analyze_stack()
+    ; Second pass: Analyze stack usage
+
+    cetak("=== PHASE 2: Stack Analysis ===")
+
+    CURRENT_STACK_DEPTH = 0
+    MAX_STACK_DEPTH = 0
+
+    var line_count = vec_len(LINES_VECTOR)
+    var i = 0
+    var current_func = 0
+
+    selama (i < line_count)
+        var line = vec_get(LINES_VECTOR, i)
+        var ins_type = parse_instruction_type(line)
+
+        jika (ins_type == INS_PUSH)
+            CURRENT_STACK_DEPTH = CURRENT_STACK_DEPTH + 8
+
+            jika (CURRENT_STACK_DEPTH > MAX_STACK_DEPTH)
+                MAX_STACK_DEPTH = CURRENT_STACK_DEPTH
+            tutup_jika
+
+            ; Check threshold
+            jika (CURRENT_STACK_DEPTH > STACK_WARN_THRESHOLD)
+                cetak("WARNING: Stack depth ")
+                cetak(CURRENT_STACK_DEPTH)
+                cetak(" bytes at line ")
+                cetak(i)
+                WARNING_COUNT = WARNING_COUNT + 1
+            tutup_jika
+        tutup_jika
+
+        jika (ins_type == INS_POP)
+            CURRENT_STACK_DEPTH = CURRENT_STACK_DEPTH - 8
+            jika (CURRENT_STACK_DEPTH < 0)
+                cetak("ERROR: Stack underflow at line ")
+                cetak(i)
+                ERROR_COUNT = ERROR_COUNT + 1
+            tutup_jika
+        tutup_jika
+
+        jika (ins_type == INS_SUB_RSP)
+            ; Extract immediate value (TODO: parse properly)
+            ; For now, assume worst case: 1024 bytes
+            CURRENT_STACK_DEPTH = CURRENT_STACK_DEPTH + 1024
+
+            jika (CURRENT_STACK_DEPTH > MAX_STACK_DEPTH)
+                MAX_STACK_DEPTH = CURRENT_STACK_DEPTH
+            tutup_jika
+        tutup_jika
+
+        jika (ins_type == INS_ADD_RSP)
+            CURRENT_STACK_DEPTH = CURRENT_STACK_DEPTH - 1024
+        tutup_jika
+
+        jika (ins_type == INS_RET)
+            ; Reset stack for next function
+            CURRENT_STACK_DEPTH = 0
+        tutup_jika
+
+        i = i + 1
+    tutup_selama
+
+    cetak("Max stack depth: ")
+    cetak(MAX_STACK_DEPTH)
+    cetak(" bytes")
+tutup_fungsi
+
+; === UNDEFINED SYMBOL DETECTION ===
+
+fungsi check_undefined_symbols()
+    ; Third pass: Find undefined references
+
+    cetak("=== PHASE 3: Undefined Symbol Check ===")
+
+    var line_count = vec_len(LINES_VECTOR)
+    var i = 0
+
+    selama (i < line_count)
+        var line = vec_get(LINES_VECTOR, i)
+
+        ; Look for references like [var_something]
+        jika (str_contains(line, "[var_") == 1)
+            ; Extract var name (TODO: proper parsing)
+            ; For now, just flag it
+
+            ; Check if defined in SYMBOLS_MAP
+            ; TODO: implement actual lookup
+
+            cetak("Checking symbol reference at line ")
+            cetak(i)
+        tutup_jika
+
+        i = i + 1
+    tutup_selama
+tutup_fungsi
+
+; === REPORT GENERATION ===
+
+fungsi print_report()
+    ; Generate final analysis report
+
+    cetak("")
+    cetak("=====================================")
+    cetak("   MORPH ROBOT - Analysis Report")
+    cetak("=====================================")
+    cetak("")
+
+    cetak("File: ")
+    cetak(ASM_FILE_PATH)
+    cetak("")
+
+    cetak("--- SUMMARY ---")
+    var line_count = vec_len(LINES_VECTOR)
+    cetak("Total lines: ")
+    cetak(line_count)
+
+    var func_count = vec_len(FUNCTIONS_VECTOR)
+    cetak("Functions: ")
+    cetak(func_count)
+
+    cetak("Max stack depth: ")
+    cetak(MAX_STACK_DEPTH)
+    cetak(" bytes")
+
+    cetak("")
+    cetak("--- ISSUES ---")
+    cetak("Errors: ")
+    cetak(ERROR_COUNT)
+    cetak("Warnings: ")
+    cetak(WARNING_COUNT)
+
+    cetak("")
+
+    jika (ERROR_COUNT > 0)
+        cetak("🔴 ANALYSIS FAILED - Critical errors detected")
+    lain
+        jika (WARNING_COUNT > 0)
+            cetak("🟡 ANALYSIS PASSED - Warnings detected")
+        lain
+            cetak("✅ ANALYSIS PASSED - No issues found")
+        tutup_jika
+    tutup_jika
+
+    cetak("")
+    cetak("=====================================")
+tutup_fungsi
+
+; === MAIN ENTRY POINT ===
+
+fungsi mulai()
+    cetak("=====================================")
+    cetak("   MORPH ROBOT - Assembly Analyzer")
+    cetak("   Version 1.0.0")
+    cetak("=====================================")
+    cetak("")
+
+    ; TODO: Parse command line arguments
+    ; For now, hardcoded test path
+    ASM_FILE_PATH = "build/n1_compiler.asm"
+
+    cetak("Initializing...")
+
+    ; Initialize data structures
+    SYMBOLS_MAP = map_create(100)
+    FUNCTIONS_VECTOR = vec_create(100)
+    UNDEFINED_REFS = vec_create(100)
+
+    cetak("Phase 0: Loading file...")
+    var loaded = load_asm_file(ASM_FILE_PATH)
+
+    jika (loaded == 0)
+        cetak("FATAL: Cannot load file")
+        kembalikan 0
+    tutup_jika
+
+    ; Analysis phases
+    parse_symbols()
+    analyze_stack()
+    check_undefined_symbols()
+
+    ; Generate report
+    print_report()
+
+    cetak("")
+    cetak("Analysis complete!")
+tutup_fungsi

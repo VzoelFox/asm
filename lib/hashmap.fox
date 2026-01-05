@@ -116,10 +116,24 @@ fungsi map_put(map, key, value)
 
   ; 5. Insert New Node
   jika (found == 0)
-    var new_node_ptr = HashNode(key, value, head_node_ptr)
+    var new_node_ptr = 0
+
+    ; Allocate node via POOL if available
+    jika (POOLS_INITIALIZED == 1)
+       var node_size = 24  ; sizeof(HashNode) = 3 fields * 8 bytes
+       new_node_ptr = pool_acquire(HASHMAP_NODE_POOL, node_size)
+
+       ; Initialize fields manually
+       tipe new_node_ptr HashNode
+       new_node_ptr.key = key
+       new_node_ptr.value = value
+       new_node_ptr.next = head_node_ptr
+    lain
+       ; Fallback to struct constructor
+       new_node_ptr = HashNode(key, value, head_node_ptr)
+    tutup_jika
 
     ; buckets_base[idx] = new_node_ptr
-    ; Parser supports array write: arr[idx] = val
     buckets_base[idx] = new_node_ptr
   tutup_jika
 tutup_fungsi

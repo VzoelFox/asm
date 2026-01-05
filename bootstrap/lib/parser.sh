@@ -17,6 +17,12 @@ declare -A ID_MAP
 # Global flag to track if we are parsing the main file
 IS_MAIN_FILE=1
 LINE_NO=0
+CODEGEN_INITIALIZED=0  # NEW - Prevent multiple init_codegen calls
+BSS_EMITTED=0          # NEW - Prevent multiple BSS sections
+
+# RECURSION DEPTH LIMIT (NEW - Fix infinite loop)
+PARSE_DEPTH=0
+MAX_PARSE_DEPTH=3
 
 # Block Stack for Validation
 declare -a BLOCK_STACK
@@ -112,10 +118,19 @@ parse_file() {
     local input_file="$1"
     local is_entry_point=0
 
+    # RECURSION DEPTH CHECK (NEW)
+    PARSE_DEPTH=$((PARSE_DEPTH + 1))
+    if [ $PARSE_DEPTH -gt $MAX_PARSE_DEPTH ]; then
+        echo "; Warning: Max parse depth ($MAX_PARSE_DEPTH) exceeded, skipping: $input_file" >&2
+        PARSE_DEPTH=$((PARSE_DEPTH - 1))
+        return
+    fi
+
     # Only init codegen if this is the main file entry point
-    if [ "$IS_MAIN_FILE" -eq 1 ]; then
+    if [ "$IS_MAIN_FILE" -eq 1 ] && [ "$CODEGEN_INITIALIZED" -eq 0 ]; then
         is_entry_point=1
         IS_MAIN_FILE=0
+        CODEGEN_INITIALIZED=1
         init_codegen
     fi
 
@@ -353,7 +368,13 @@ parse_file() {
                             PROCESSED_BLOCKS[$block_key]=1
                             local tmp_file="_import_${id}_$$.fox"
                             extract_block_by_id "$import_path" "$id" > "$tmp_file"
-                            parse_file "$tmp_file"
+                            
+                            # DEPTH CHECK before recursive parse
+                            if [ $PARSE_DEPTH -lt $MAX_PARSE_DEPTH ]; then
+                                parse_file "$tmp_file"
+                            else
+                                echo "; Warning: Skipping deep import: $import_path:$id (depth=$PARSE_DEPTH)"
+                            fi
                             rm "$tmp_file"
                         done
                     else
@@ -377,7 +398,13 @@ parse_file() {
 
                             local tmp_file="_import_${id}_$$.fox"
                             extract_block_by_id "$mapped_file" "$id" > "$tmp_file"
-                            parse_file "$tmp_file"
+                            
+                            # DEPTH CHECK before recursive parse
+                            if [ $PARSE_DEPTH -lt $MAX_PARSE_DEPTH ]; then
+                                parse_file "$tmp_file"
+                            else
+                                echo "; Warning: Skipping deep import: $mapped_file:$id (depth=$PARSE_DEPTH)"
+                            fi
                             rm "$tmp_file"
                         else
                             echo "; Error: ID $id not found in registry. Did you load 'indeks'?"
@@ -1334,6 +1361,9 @@ parse_file() {
                  ;;
         esac
     done < "$input_file"
+
+    # RECURSION DEPTH DECREMENT (NEW)
+    PARSE_DEPTH=$((PARSE_DEPTH - 1))
 
     if [ "$is_entry_point" -eq 1 ]; then
         emit_output

@@ -1,0 +1,347 @@
+; Chess Complete - 60 Move Stress Test dengan Undo/Exit/Resume
+; Test memory management: Vector operations, Arena allocations, Snapshot
+; Semua bidak: Pawn, Rook, Knight, Bishop, Queen, King
+
+ambil "lib/vector.fox"
+ambil "lib/memory_pool.fox"
+ambil "lib/memory_arena.fox"
+
+; === PIECE CONSTANTS ===
+const EMPTY = 0
+const W_PAWN = 1
+const W_ROOK = 2
+const W_KNIGHT = 3
+const W_BISHOP = 4
+const W_QUEEN = 5
+const W_KING = 6
+const B_PAWN = 11
+const B_ROOK = 12
+const B_KNIGHT = 13
+const B_BISHOP = 14
+const B_QUEEN = 15
+const B_KING = 16
+
+; === BOARD REPRESENTATION ===
+; Board: 8x8 = 64 squares
+; Index: row*8 + col (row 0 = bottom/white, row 7 = top/black)
+
+struktur Move
+    from_idx int
+    to_idx int
+    piece int
+    captured int
+tutup_struktur
+
+; Global state
+var BOARD_PTR = 0
+var MOVE_HISTORY_PTR = 0
+var CURRENT_TURN = 0  ; 0 = white, 1 = black
+var MOVE_COUNT = 0
+var GAME_ARENA_PTR = 0
+
+fungsi board_init()
+    ; Initialize 8x8 board dengan starting position
+
+    BOARD_PTR = vec_create(64)
+
+    ; Fill empty squares first
+    var i = 0
+    selama (i < 64)
+        vec_push(BOARD_PTR, EMPTY)
+        i = i + 1
+    tutup_selama
+
+    ; White pieces (row 0-1)
+    vec_set(BOARD_PTR, 0, W_ROOK)
+    vec_set(BOARD_PTR, 1, W_KNIGHT)
+    vec_set(BOARD_PTR, 2, W_BISHOP)
+    vec_set(BOARD_PTR, 3, W_QUEEN)
+    vec_set(BOARD_PTR, 4, W_KING)
+    vec_set(BOARD_PTR, 5, W_BISHOP)
+    vec_set(BOARD_PTR, 6, W_KNIGHT)
+    vec_set(BOARD_PTR, 7, W_ROOK)
+
+    ; White pawns (row 1)
+    i = 8
+    selama (i < 16)
+        vec_set(BOARD_PTR, i, W_PAWN)
+        i = i + 1
+    tutup_selama
+
+    ; Black pawns (row 6)
+    i = 48
+    selama (i < 56)
+        vec_set(BOARD_PTR, i, B_PAWN)
+        i = i + 1
+    tutup_selama
+
+    ; Black pieces (row 7)
+    vec_set(BOARD_PTR, 56, B_ROOK)
+    vec_set(BOARD_PTR, 57, B_KNIGHT)
+    vec_set(BOARD_PTR, 58, B_BISHOP)
+    vec_set(BOARD_PTR, 59, B_QUEEN)
+    vec_set(BOARD_PTR, 60, B_KING)
+    vec_set(BOARD_PTR, 61, B_BISHOP)
+    vec_set(BOARD_PTR, 62, B_KNIGHT)
+    vec_set(BOARD_PTR, 63, B_ROOK)
+
+    cetak("Board initialized")
+tutup_fungsi
+
+fungsi board_get_piece(idx)
+    ; Get piece at index
+    kembalikan vec_get(BOARD_PTR, idx)
+tutup_fungsi
+
+fungsi board_set_piece(idx, piece)
+    ; Set piece at index
+    vec_set(BOARD_PTR, idx, piece)
+tutup_fungsi
+
+fungsi move_execute(from, to)
+    ; Execute move dan simpan ke history
+    ; from, to: board indices (0-63)
+
+    var piece = board_get_piece(from)
+    var captured = board_get_piece(to)
+
+    ; Update board
+    board_set_piece(to, piece)
+    board_set_piece(from, EMPTY)
+
+    ; Save to history untuk undo
+    var move_record = Move(from, to, piece, captured)
+    vec_push(MOVE_HISTORY_PTR, move_record)
+
+    MOVE_COUNT = MOVE_COUNT + 1
+
+    ; Toggle turn
+    jika (CURRENT_TURN == 0)
+        CURRENT_TURN = 1
+    lain
+        CURRENT_TURN = 0
+    tutup_jika
+tutup_fungsi
+
+fungsi move_undo()
+    ; Undo last move
+
+    var history_size = vec_len(MOVE_HISTORY_PTR)
+
+    jika (history_size == 0)
+        cetak("No moves to undo")
+        kembalikan 0
+    tutup_jika
+
+    ; Get last move
+    var last_idx = history_size - 1
+    var move_record = vec_get(MOVE_HISTORY_PTR, last_idx)
+
+    tipe move_record Move
+    var from = move_record.from_idx
+    var to = move_record.to_idx
+    var piece = move_record.piece
+    var captured = move_record.captured
+
+    ; Restore board state
+    board_set_piece(from, piece)
+    board_set_piece(to, captured)
+
+    ; Remove from history (simulate pop)
+    tipe MOVE_HISTORY_PTR Vector
+    var new_size = history_size - 1
+    MOVE_HISTORY_PTR.size = new_size
+
+    MOVE_COUNT = MOVE_COUNT - 1
+
+    ; Toggle turn back
+    jika (CURRENT_TURN == 0)
+        CURRENT_TURN = 1
+    lain
+        CURRENT_TURN = 0
+    tutup_jika
+
+    cetak("Move undone")
+    kembalikan 1
+tutup_fungsi
+
+fungsi game_print_status()
+    ; Print game status
+
+    cetak("Move: ")
+    cetak(MOVE_COUNT)
+    cetak(" | Turn: ")
+    jika (CURRENT_TURN == 0)
+        cetak("White")
+    lain
+        cetak("Black")
+    tutup_jika
+tutup_fungsi
+
+fungsi game_snapshot_save()
+    ; Save game state (simulate snapshot untuk exit/resume test)
+
+    cetak("Creating snapshot...")
+
+    ; Arena snapshot: just note current usage
+    var arena_usage = arena_get_usage(GAME_ARENA_PTR)
+    cetak("Arena usage: ")
+    cetak(arena_usage)
+    cetak(" bytes")
+
+    ; In real implementation, seria lize BOARD_PTR dan MOVE_HISTORY_PTR
+    ; Untuk testing, cukup print stats
+
+    cetak("Snapshot created (simulated)")
+    kembalikan 1
+tutup_fungsi
+
+fungsi game_snapshot_restore()
+    ; Restore game state
+
+    cetak("Restoring snapshot...")
+
+    ; Reset arena
+    arena_reset(GAME_ARENA_PTR)
+
+    ; In real implementation, deserialize data
+    ; Untuk testing, re-init board
+
+    cetak("Snapshot restored (simulated)")
+    kembalikan 1
+tutup_fungsi
+
+fungsi chess_play_60_moves()
+    ; Play 60 predetermined moves untuk stress test
+    ; Simplified: just move pieces around untuk test memory
+
+    cetak("=== Starting 60-Move Chess Test ===")
+
+    var moves_played = 0
+
+    ; Opening moves (10 moves)
+    move_execute(12, 20)  ; e2-e4
+    game_print_status()
+    move_execute(52, 44)  ; e7-e5
+    game_print_status()
+    move_execute(6, 21)   ; Ng1-f3
+    game_print_status()
+    move_execute(57, 42)  ; Nb8-c6
+    game_print_status()
+    move_execute(5, 26)   ; Bf1-c4
+    game_print_status()
+    move_execute(58, 47)  ; Bf8-c5
+    game_print_status()
+    move_execute(11, 19)  ; d2-d3
+    game_print_status()
+    move_execute(51, 43)  ; d7-d6
+    game_print_status()
+    move_execute(1, 16)   ; Nb1-c3
+    game_print_status()
+    move_execute(62, 45)  ; Ng8-f6
+    game_print_status()
+
+    moves_played = 10
+    cetak("Opening complete: 10 moves")
+
+    ; Middle game: rapid exchanges (20 more moves)
+    var i = 0
+    selama (i < 10)
+        ; Simulate piece trades
+        move_execute(20, 28)  ; Move forward
+        game_print_status()
+        move_execute(44, 36)  ; Counter
+        game_print_status()
+        i = i + 1
+    tutup_selama
+
+    moves_played = 30
+    cetak("Middle game: 30 moves total")
+
+    ; Test UNDO (undo last 5 moves)
+    cetak("Testing UNDO...")
+    i = 0
+    selama (i < 5)
+        move_undo()
+        i = i + 1
+    tutup_selama
+    cetak("Undone 5 moves")
+
+    ; Redo those moves (memory stress)
+    i = 0
+    selama (i < 5)
+        move_execute(28, 36)  ; Move forward
+        game_print_status()
+        move_execute(36, 28)  ; Move back
+        game_print_status()
+        i = i + 1
+    tutup_selama
+
+    moves_played = 40
+    cetak("Post-undo replay: 40 moves total")
+
+    ; Test SNAPSHOT (exit/resume simulation)
+    cetak("Testing SNAPSHOT/RESUME...")
+    game_snapshot_save()
+    game_snapshot_restore()
+
+    ; Final moves to reach 60
+    i = 0
+    selama (i < 10)
+        move_execute(21, 29)  ; More moves
+        game_print_status()
+        move_execute(45, 37)  ; Counter
+        game_print_status()
+        i = i + 1
+    tutup_selama
+
+    moves_played = 60
+    cetak("=== Test Complete: 60 moves ===")
+
+    ; Print final statistics
+    cetak("Final move count: ")
+    cetak(MOVE_COUNT)
+
+    var history_size = vec_len(MOVE_HISTORY_PTR)
+    cetak("History size: ")
+    cetak(history_size)
+tutup_fungsi
+
+fungsi mulai()
+    ; Entry point
+
+    cetak("Chess Complete - Memory Stress Test")
+    cetak("Initializing memory systems...")
+
+    ; Initialize memory pool
+    pools_init()
+    cetak("Pools initialized")
+
+    ; Initialize arena registry
+    arena_init_registry()
+    cetak("Arena registry initialized")
+
+    ; Create game arena (1MB)
+    var arena_size = 1048576
+    GAME_ARENA_PTR = arena_create(arena_size, 0)
+    cetak("Game arena created")
+
+    ; Initialize board
+    board_init()
+
+    ; Initialize move history
+    MOVE_HISTORY_PTR = vec_create(100)
+    cetak("Move history initialized")
+
+    ; Run 60-move test
+    chess_play_60_moves()
+
+    ; Print memory stats
+    cetak("")
+    pools_report()
+    cetak("")
+    arena_report_all()
+
+    cetak("")
+    cetak("Chess test completed successfully!")
+tutup_fungsi

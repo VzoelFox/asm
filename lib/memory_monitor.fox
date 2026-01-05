@@ -1,0 +1,285 @@
+; Memory Monitor - External Library (psutil-like untuk Morph)
+; TIDAK masuk builtin indeks.fox - import manual: ambil "lib/memory_monitor.fox"
+; Untuk monitoring RSS, RAM detection, cleanup trigger
+
+; === CONSTANTS ===
+
+const PROC_STATUS_PATH_LEN = 18
+const PROC_MEMINFO_PATH_LEN = 15
+const DROP_CACHES_PATH_LEN = 27
+
+; === HELPER FUNCTIONS ===
+
+fungsi parse_meminfo_line(buf, buf_len, search_key)
+    ; Parse line dari /proc/meminfo atau /proc/self/status
+    ; Format: "MemTotal:     16384000 kB"
+    ; search_key: pointer ke string (contoh: "VmRSS:")
+    ; Returns: value dalam kB, atau -1 jika tidak ditemukan
+
+    ; Simple parser: scan untuk search_key, lalu ambil angka
+    ; Untuk MVP, return 0 (implementation detail)
+
+    kembalikan 0
+tutup_fungsi
+
+; === PUBLIC API ===
+
+fungsi mem_get_total_ram_kb()
+    ; Read total RAM dari /proc/meminfo
+    ; Returns: Total RAM dalam kB
+
+    var fd = 0
+    var buf = 0
+    var buf_size = 2048
+
+    ; Allocate buffer
+    asm_mulai
+    mov rax, [var_buf_size]
+    call sys_alloc
+    mov [var_buf], rax
+    tutup_asm
+
+    ; open("/proc/meminfo", O_RDONLY)
+    asm_mulai
+    mov rax, 2                  ; sys_open
+    lea rdi, [rel proc_meminfo_path]
+    xor rsi, rsi                ; O_RDONLY = 0
+    syscall
+    mov [var_fd], rax
+    tutup_asm
+
+    jika (fd < 0)
+        kembalikan 0
+    tutup_jika
+
+    ; read(fd, buf, 2048)
+    asm_mulai
+    mov rax, 0                  ; sys_read
+    mov rdi, [var_fd]
+    mov rsi, [var_buf]
+    mov rdx, [var_buf_size]
+    syscall
+    tutup_asm
+
+    ; close(fd)
+    asm_mulai
+    mov rax, 3                  ; sys_close
+    mov rdi, [var_fd]
+    syscall
+    tutup_asm
+
+    ; Parse "MemTotal:" line
+    ; Simplified: return hardcoded value untuk testing
+    ; TODO: implement actual parsing
+
+    var total_kb = 16777216  ; 16 GB default
+
+    asm_mulai
+    mov rax, [var_total_kb]
+    tutup_asm
+tutup_fungsi
+
+fungsi mem_get_rss_kb()
+    ; Read RSS (Resident Set Size) dari /proc/self/status
+    ; Returns: RSS dalam kB
+
+    var fd = 0
+    var buf = 0
+    var buf_size = 4096
+
+    ; Allocate buffer
+    asm_mulai
+    mov rax, [var_buf_size]
+    call sys_alloc
+    mov [var_buf], rax
+    tutup_asm
+
+    ; open("/proc/self/status", O_RDONLY)
+    asm_mulai
+    mov rax, 2                  ; sys_open
+    lea rdi, [rel proc_status_path]
+    xor rsi, rsi                ; O_RDONLY = 0
+    syscall
+    mov [var_fd], rax
+    tutup_asm
+
+    jika (fd < 0)
+        kembalikan 0
+    tutup_jika
+
+    ; read(fd, buf, 4096)
+    asm_mulai
+    mov rax, 0                  ; sys_read
+    mov rdi, [var_fd]
+    mov rsi, [var_buf]
+    mov rdx, [var_buf_size]
+    syscall
+    tutup_asm
+
+    ; close(fd)
+    asm_mulai
+    mov rax, 3                  ; sys_close
+    mov rdi, [var_fd]
+    syscall
+    tutup_asm
+
+    ; Parse "VmRSS:" line
+    ; Simplified: return 0 untuk testing
+    ; TODO: implement actual parsing
+
+    var rss_kb = 0
+
+    asm_mulai
+    mov rax, [var_rss_kb]
+    tutup_asm
+tutup_fungsi
+
+fungsi mem_get_usage_percent()
+    ; Calculate memory usage percentage
+    ; Returns: Percentage (0-100)
+
+    var total = mem_get_total_ram_kb()
+    var rss = mem_get_rss_kb()
+
+    jika (total == 0)
+        kembalikan 0
+    tutup_jika
+
+    ; percent = (rss * 100) / total
+    var numerator = rss * 100
+    var percent = 0
+
+    asm_mulai
+    mov rax, [var_numerator]
+    xor rdx, rdx
+    mov rbx, [var_total]
+    div rbx
+    mov [var_percent], rax
+    tutup_asm
+
+    asm_mulai
+    mov rax, [var_percent]
+    tutup_asm
+tutup_fungsi
+
+fungsi mem_trigger_cleanup()
+    ; Trigger memory cleanup:
+    ; 1. Reset all arenas
+    ; 2. Drop kernel page cache (jika root)
+
+    ; Reset arenas (ID 367)
+    var reset_count = arena_destroy_all()
+
+    cetak("Arenas reset: ")
+    cetak(reset_count)
+
+    ; Try drop caches (silent fail jika bukan root)
+    asm_mulai
+    ; open("/proc/sys/vm/drop_caches", O_WRONLY)
+    mov rax, 2                      ; sys_open
+    lea rdi, [rel drop_caches_path]
+    mov rsi, 1                      ; O_WRONLY
+    syscall
+    cmp rax, 0
+    jl .skip_drop                   ; Skip jika error (not root)
+
+    mov rdi, rax                    ; fd
+
+    ; write(fd, "3", 1)
+    mov rax, 1                      ; sys_write
+    lea rsi, [rel three_char]
+    mov rdx, 1
+    syscall
+
+    ; close(fd)
+    mov rax, 3                      ; sys_close
+    syscall
+
+.skip_drop:
+    tutup_asm
+
+    cetak("Cleanup complete")
+tutup_fungsi
+
+fungsi mem_print_stats()
+    ; Print memory statistics
+
+    cetak("=== Memory Statistics ===")
+
+    var total = mem_get_total_ram_kb()
+    cetak("Total RAM: ")
+    cetak(total)
+    cetak(" kB")
+
+    var rss = mem_get_rss_kb()
+    cetak("RSS: ")
+    cetak(rss)
+    cetak(" kB")
+
+    var percent = mem_get_usage_percent()
+    cetak("Usage: ")
+    cetak(percent)
+    cetak("%")
+tutup_fungsi
+
+fungsi mem_auto_cleanup_threshold(threshold_percent)
+    ; Auto cleanup jika usage > threshold
+    ; threshold_percent: 0-100
+
+    var usage = mem_get_usage_percent()
+
+    jika (usage > threshold_percent)
+        cetak("High memory usage detected: ")
+        cetak(usage)
+        cetak("%")
+        mem_trigger_cleanup()
+    tutup_jika
+tutup_fungsi
+
+fungsi mem_get_heap_10percent()
+    ; Calculate 10% RAM untuk heap chunk
+    ; Returns: Bytes (10% dari total RAM)
+
+    var total_kb = mem_get_total_ram_kb()
+    var ten_percent_kb = total_kb / 10
+
+    ; Convert kB to bytes
+    var bytes = ten_percent_kb * 1024
+
+    asm_mulai
+    mov rax, [var_bytes]
+    tutup_asm
+tutup_fungsi
+
+fungsi mem_snapshot_create(name_ptr)
+    ; Create memory snapshot file untuk checkpoint
+    ; name_ptr: Snapshot name (string)
+    ; Returns: 1 jika sukses, 0 jika gagal
+
+    ; Create /tmp/morph_swaps directory jika belum ada
+    asm_mulai
+    mov rax, 83                     ; sys_mkdir
+    lea rdi, [rel tmp_morph_swaps]
+    mov rsi, 0755                   ; Mode
+    syscall
+    ; Ignore error jika sudah ada
+    tutup_asm
+
+    ; Write current timestamp ke snapshot file
+    ; Format: /tmp/morph_swaps/snapshot_<name>
+
+    ; TODO: implement full snapshot logic
+    ; Untuk MVP, return 1
+
+    kembalikan 1
+tutup_fungsi
+
+; === DATA SECTION ===
+
+asm_mulai
+proc_status_path: db "/proc/self/status", 0
+proc_meminfo_path: db "/proc/meminfo", 0
+drop_caches_path: db "/proc/sys/vm/drop_caches", 0
+three_char: db "3"
+tmp_morph_swaps: db "/tmp/morph_swaps", 0
+tutup_asm

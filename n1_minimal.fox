@@ -1,0 +1,25 @@
+; N1 Compiler - File-based imports only (N0 compatible)
+; Temporary version to bootstrap N1, then N1 can compile full version
+
+ambil "lib/buffer.fox"
+ambil "lib/file_io.fox" 
+ambil "lib/vector.fox"
+ambil "lib/string_utils.fox"
+
+fungsi mulai(arg1, arg2)
+  cetak("N1 Compiler v0.1 (N0 Bootstrap Compatible)")
+  cetak("File-based imports only")
+  
+  ; Minimal parser - just echo input for now
+  var filename = "test.fox"
+  cetak("Compiling:")
+  cetak_str(filename)
+  
+  ; Generate minimal assembly
+  cetak("section .text")
+  cetak("global _start") 
+  cetak("_start:")
+  cetak("    mov rax, 60")
+  cetak("    xor rdi, rdi")
+  cetak("    syscall")
+tutup_fungsi

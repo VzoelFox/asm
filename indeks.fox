@@ -36,6 +36,12 @@ Daftar "lib/hashmap.fox" = 330-333
 # Vector Library (340-344)
 Daftar "lib/vector.fox" = 340-344
 
+# Memory Pool Library (350-359)
+Daftar "lib/memory_pool.fox" = 350-359  ; Object pooling untuk reuse
+
+# Memory Arena Library (360-369)
+Daftar "lib/memory_arena.fox" = 360-369  ; Scoped arena allocator
+
 # String Utils Library (380-388)
 Daftar "lib/string_utils.fox" = 380-388
 
@@ -49,8 +55,11 @@ Daftar "lib/trickster_parse.fox" = 223-224     ; AST building
 # JSON Library (450-459)
 Daftar "lib/json.fox" = 450-459
 
-# Math Library (100-105)
-Daftar "lib/math.fox" = 100-105
+# Security Builtins (500-502) - MINIMAL HARDENED CORE
+Daftar "lib/security_builtins.fox" = 500-502  ; Secure syscall wrapper, validation
+
+# Builtins Library (500-515) - SECURITY HARDENED  
+Daftar "lib/builtins.fox" = 500-515  ; Core syscalls, string ops, vector ops, security validation
 
 # Compiler Parser Helpers (1100-1199)
 Daftar "apps/compiler/src/parser_helpers_import.fox" = 1100-1103

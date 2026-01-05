@@ -771,9 +771,10 @@ section .data
     msg_sandbox_full db "Error: Sandbox swap full (max 8)", 10, 0
     len_sandbox_full equ $ - msg_sandbox_full
 
-section .bss
+; DISABLED BSS - Moved to emit_output
+; section .bss
     ; Snapshot Swap Slots (4 × 128MB)
-    snapshot_swap_ptrs  resq 4      ; Pointers to mmap regions
+    ; snapshot_swap_ptrs  resq 4      ; Pointers to mmap regions
     snapshot_swap_sizes resq 4      ; Used sizes
     snapshot_swap_active resb 4     ; Active flags (1=used, 0=free)
     snapshot_count      resq 1      ; Current snapshot count
@@ -1142,9 +1143,10 @@ section .data
     CLOCK_REALTIME equ 0
     CLOCK_MONOTONIC equ 1
 
-section .bss
-    timespec_sec  resq 1
-    timespec_nsec resq 1
+; DISABLED BSS - Moved to emit_output
+; section .bss
+    ; timespec_sec  resq 1
+    ; timespec_nsec resq 1
 
 section .text
 
@@ -1908,25 +1910,63 @@ emit_raw_asm() {
 }
 emit_raw_data_fixed() {
     local data_line="$1"
-    echo "section .data"
-    echo "    $data_line"
-    echo "section .text"
+    # DISABLED - Prevent multiple section .data
+    # echo "section .data"
+    # echo "    $data_line"
+    # echo "section .text"
+    echo "; Data emission disabled to prevent multiple sections: $data_line"
 }
 
 emit_output() {
-    # BSS Injection with Deduplication:
-    echo "section .bss"
-    # REMOVED: heap_space resb ...
+    # BSS Injection with Deduplication - ONLY ONCE
+    if [ "$BSS_EMITTED" -eq 0 ]; then
+        BSS_EMITTED=1
+        echo "section .bss"
+        
+        # Core heap pointers
+        echo "    heap_start_ptr   resq 1"
+        echo "    heap_current_ptr resq 1"
+        echo "    heap_end_ptr     resq 1"
+        echo "    var_global_argc  resq 1"
+        echo "    var_global_argv  resq 1"
+        
+        # Memory pool globals (Claude's vision)
+        echo "    var_POOLS_INITIALIZED  resq 1"
+        echo "    var_VECTOR_DATA_POOL   resq 1"
+        echo "    var_HASHMAP_NODE_POOL  resq 1"
+        echo "    var_ARENA_REGISTRY_PTR resq 1"
+        echo "    var_ARENA_COUNT        resq 1"
+        
+        # Essential N1 variables
+        echo "    var_new_len resq 1"
+        echo "    var_buf resq 1"
+        echo "    var_capacity resq 1"
+        echo "    var_data resq 1"
+        echo "    var_temp resq 1"
+        echo "    var_s resq 1"
+        echo "    var_start_index resq 1"
+        
+        # Required system symbols (from disabled BSS sections)
+        echo "    snapshot_swap_ptrs  resq 4"
+        echo "    snapshot_swap_sizes resq 4"
+        echo "    snapshot_swap_active resb 4"
+        echo "    snapshot_count      resq 1"
+        echo "    sandbox_swap_ptrs   resq 8"
+        echo "    sandbox_swap_sizes  resq 8"
+        echo "    sandbox_swap_active resb 8"
+        echo "    sandbox_count       resq 1"
+        echo "    snapshot_timestamps resq 4"
+        echo "    sandbox_timestamps  resq 8"
+        echo "    timespec_sec  resq 1"
+        echo "    timespec_nsec resq 1"
+        
+        # Dynamic globals from imports
+        for global_var in "${ALL_GLOBALS_LIST[@]}"; do
+            echo "    var_$global_var  resq 1"
+        done
+    fi
 
-    # Heap State Pointers (8 bytes each)
-    echo "    heap_start_ptr   resq 1"
-    echo "    heap_current_ptr resq 1"
-    echo "    heap_end_ptr     resq 1"
-
-    # Global Args (Always define them so _start doesn't fail)
-    echo "    var_global_argc  resq 1"
-    echo "    var_global_argv  resq 1"
-
+    # Rest of output (variables, functions, etc)
     if [ ${#BSS_VARS[@]} -gt 0 ]; then
         # Deduplicate using sort -u
         local unique_vars=($(printf "%s\n" "${BSS_VARS[@]}" | sort -u))

@@ -1,0 +1,201 @@
+; Memory Pool - Object Pooling untuk Reuse tanpa Alloc Baru
+; Mengatasi memory leak di Vector/HashMap resize
+; ID Range: 350-359
+
+### 350
+; Pool Node untuk free list
+struktur PoolNode
+    ptr int         ; Pointer ke object yang di-free
+    next int        ; Next node di free list
+tutup_struktur
+
+### 351
+; Object Pool
+struktur ObjectPool
+    free_list int       ; PoolNode* linked list of freed objects
+    chunk_size int      ; Ukuran object (bytes)
+    total_alloc int     ; Total allocation counter
+    reuse_count int     ; Reuse counter (metric)
+tutup_struktur
+
+### 352
+fungsi pool_create(obj_size)
+    ; Create new object pool
+    ; obj_size: Size of objects in bytes
+    ; Returns: ObjectPool pointer
+
+    var pool = ObjectPool(0, obj_size, 0, 0)
+
+    asm_mulai
+    mov rax, [var_pool]
+    tutup_asm
+tutup_fungsi
+
+### 353
+fungsi pool_acquire(pool, needed_size)
+    ; Acquire object from pool (reuse jika ada, alloc baru jika kosong)
+    ; pool: ObjectPool pointer
+    ; needed_size: Actual size needed (bisa > chunk_size untuk dynamic resize)
+    ; Returns: Object pointer
+
+    tipe pool ObjectPool
+
+    ; Cek free list dulu
+    var free_head = pool.free_list
+
+    jika (free_head != 0)
+        ; Ada object di pool - REUSE
+        tipe free_head PoolNode
+        var obj_ptr = free_head.ptr
+        var next_node = free_head.next
+
+        ; Update free list head
+        pool.free_list = next_node
+
+        ; Update reuse counter
+        var reuse_cnt = pool.reuse_count
+        reuse_cnt = reuse_cnt + 1
+        pool.reuse_count = reuse_cnt
+
+        kembalikan obj_ptr
+    tutup_jika
+
+    ; Pool kosong - alloc baru
+    var alloc_size = needed_size
+    var chunk_sz = pool.chunk_size
+
+    ; Gunakan yang lebih besar antara needed_size dan chunk_size
+    jika (chunk_sz > alloc_size)
+        alloc_size = chunk_sz
+    tutup_jika
+
+    var new_ptr = 0
+
+    asm_mulai
+    mov rax, [var_alloc_size]
+    call sys_alloc
+    mov [var_new_ptr], rax
+    tutup_asm
+
+    ; Update allocation counter
+    var total = pool.total_alloc
+    total = total + 1
+    pool.total_alloc = total
+
+    asm_mulai
+    mov rax, [var_new_ptr]
+    tutup_asm
+tutup_fungsi
+
+### 354
+fungsi pool_release(pool, obj_ptr)
+    ; Release object back to pool untuk reuse
+    ; pool: ObjectPool pointer
+    ; obj_ptr: Object pointer to release
+
+    tipe pool ObjectPool
+
+    ; Buat node baru untuk free list
+    var old_head = pool.free_list
+    var node = PoolNode(obj_ptr, old_head)
+
+    ; Update free list head
+    pool.free_list = node
+tutup_fungsi
+
+### 355
+fungsi pool_get_stats(pool)
+    ; Get pool statistics
+    ; pool: ObjectPool pointer
+    ; Returns: total_alloc (reuse_count ada di pool.reuse_count)
+
+    tipe pool ObjectPool
+    var total = pool.total_alloc
+
+    asm_mulai
+    mov rax, [var_total]
+    tutup_asm
+tutup_fungsi
+
+### 356
+fungsi pool_get_reuse_count(pool)
+    ; Get reuse counter
+    ; pool: ObjectPool pointer
+    ; Returns: reuse_count
+
+    tipe pool ObjectPool
+    var reuse = pool.reuse_count
+
+    asm_mulai
+    mov rax, [var_reuse]
+    tutup_asm
+tutup_fungsi
+
+### 357
+fungsi pool_reset(pool)
+    ; Reset pool (clear free list, keep allocation counter)
+    ; pool: ObjectPool pointer
+
+    tipe pool ObjectPool
+    pool.free_list = 0
+    pool.reuse_count = 0
+tutup_fungsi
+
+### 358
+; Global pools untuk Vector dan HashMap
+; Initialized saat pertama kali digunakan
+
+var VECTOR_DATA_POOL = 0
+var HASHMAP_NODE_POOL = 0
+var POOLS_INITIALIZED = 0
+
+fungsi pools_init()
+    ; Initialize global pools
+    ; Call once at program start
+
+    jika (POOLS_INITIALIZED == 1)
+        kembalikan 0
+    tutup_jika
+
+    ; Vector pool: chunks of 64 bytes (8 ints)
+    VECTOR_DATA_POOL = pool_create(64)
+
+    ; HashMap pool: chunks of 24 bytes (HashNode size)
+    HASHMAP_NODE_POOL = pool_create(24)
+
+    POOLS_INITIALIZED = 1
+
+    kembalikan 1
+tutup_fungsi
+
+### 359
+fungsi pools_report()
+    ; Print pool statistics
+
+    jika (POOLS_INITIALIZED == 0)
+        cetak("Pools not initialized")
+        kembalikan 0
+    tutup_jika
+
+    cetak("=== Memory Pool Stats ===")
+
+    var vec_total = pool_get_stats(VECTOR_DATA_POOL)
+    var vec_reuse = pool_get_reuse_count(VECTOR_DATA_POOL)
+
+    cetak("Vector Pool:")
+    cetak("  Total allocs: ")
+    cetak(vec_total)
+    cetak("  Reused: ")
+    cetak(vec_reuse)
+
+    var map_total = pool_get_stats(HASHMAP_NODE_POOL)
+    var map_reuse = pool_get_reuse_count(HASHMAP_NODE_POOL)
+
+    cetak("HashMap Pool:")
+    cetak("  Total allocs: ")
+    cetak(map_total)
+    cetak("  Reused: ")
+    cetak(map_reuse)
+
+    kembalikan 1
+tutup_fungsi
