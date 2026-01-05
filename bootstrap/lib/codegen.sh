@@ -16,7 +16,7 @@ default rel
 section .data
     newline db 10, 0
     ; --- Memory V2 Constants ---
-    HEAP_CHUNK_SIZE equ 67108864 ; 64MB Chunk Size
+    HEAP_CHUNK_SIZE equ 838860800 ; 800MB Chunk Size
 
     PROT_READ       equ 0x1
     PROT_WRITE      equ 0x2
@@ -87,7 +87,7 @@ sys_panic:
 
 ; sys_init_heap: Allocates the first 256MB chunk
 ; TODO: Use sys_sysinfo (syscall 99) to detect RAM and alloc 20%
-; Current Status: Hardcoded to HEAP_CHUNK_SIZE (64MB)
+; Current Status: Hardcoded to HEAP_CHUNK_SIZE (800MB)
 sys_init_heap:
     push rdi
     push rsi
@@ -97,7 +97,7 @@ sys_init_heap:
     push r9
     push rax
 
-    ; mmap(0, 64MB, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
+    ; mmap(0, 800MB, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
     mov rax, SYS_MMAP
     mov rdi, 0                  ; hint = 0
     mov rsi, HEAP_CHUNK_SIZE    ; length
@@ -761,8 +761,8 @@ sys_json_parse_number:
 
 section .data
     ; Swap Configuration
-    SNAPSHOT_SWAP_SIZE equ 134217728    ; 128MB
-    SANDBOX_SWAP_SIZE  equ 67108864     ; 64MB
+    SNAPSHOT_SWAP_SIZE equ 209715200    ; 200MB
+    SANDBOX_SWAP_SIZE  equ 104857600    ; 100MB
     MAX_SNAPSHOTS      equ 4
     MAX_SANDBOXES      equ 8
 

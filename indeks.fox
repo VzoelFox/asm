@@ -7,3 +7,4 @@ Daftar "lib/memory_pool.fox" = 100-110
 Daftar "lib/vector.fox" = 200-220
 Daftar "lib/hashmap.fox" = 221-250
 Daftar "lib/string_utils.fox" = 300-350
+Daftar "lib/daemon.fox" = 400-410
