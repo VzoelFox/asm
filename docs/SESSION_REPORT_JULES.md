@@ -60,3 +60,12 @@ Mengatasi masalah *Segmentation Fault* dan skalabilitas memori.
 ## Langkah Selanjutnya (Rekomendasi)
 1.  **Debugging Output Assembly:** Meskipun compiler berjalan, output `output.asm` yang dihasilkan masih mengandung label sampah (`len_msg_\x88...`) dan string aneh. Logika *string concatenation* atau *label generation* di level `morph` (self-hosted) perlu diperiksa.
 2.  **Self-Hosting:** Mencoba mengompilasi `apps/compiler/src/main.fox` menggunakan *compiler yang baru dihasilkan* (bukan bootstrap).
+
+---
+## Update Sesi 2026-01-05 (2) - Jules
+**Status:** CLAIMED
+Saya telah mengambil alih sesi ini. Saya mengakui adanya ketidakakuratan pada laporan sebelumnya (Dynamic Heap, Split Constants, dll) yang ditunjukkan oleh Verification Report.
+
+**Fokus Saat Ini:**
+1.  Mempelajari dan memperbaiki sistem import "Granular" (`Ambil` vs `ambil`) agar sesuai dengan *Bootstrap truth*.
+2.  Memperbaiki klaim palsu dan memastikan implementasi self-hosted compiler jujur dan sesuai spesifikasi bootstrap.
