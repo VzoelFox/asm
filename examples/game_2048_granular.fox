@@ -1,0 +1,103 @@
+; 2048 Game - Granular Import Version
+; Demonstrates usage of 'Ambil' ID-based imports and Vector library
+
+indeks "indeks.fox"
+
+; Import Builtins (cetak, sys_write, etc)
+Ambil 21, 24
+
+; Import Vector (create, push, get, set)
+Ambil 200, 201, 202, 203, 204
+
+; Import Utils (str_to_int if needed, random?)
+Ambil 300-305 ; string utils just in case
+
+const GRID_SIZE = 16
+const TARGET = 2048
+
+fungsi init_grid()
+    var grid = vec_create(16)
+    var i = 0
+    selama (i < 16)
+        vec_push(grid, 0)
+        i = i + 1
+    tutup_selama
+
+    ; Add two random starts (simulation)
+    vec_set(grid, 0, 2)
+    vec_set(grid, 1, 2)
+
+    return grid
+tutup_fungsi
+
+fungsi print_grid(grid)
+    cetak("-----------------")
+    var i = 0
+    selama (i < 4)
+        var row_str = "|"
+        var j = 0
+        selama (j < 4)
+            var idx = i * 4 + j
+            var val = vec_get(grid, idx)
+
+            ; Simple formatting
+            jika (val == 0)
+                row_str = str_concat(row_str, " . |")
+            lain
+                ; TODO: Need int_to_str helper or just print raw
+                ; For now, we print line by line differently
+                :
+            tutup_jika
+
+            j = j + 1
+        tutup_selama
+        cetak(row_str)
+        i = i + 1
+    tutup_selama
+    cetak("-----------------")
+tutup_fungsi
+
+; Simulation of a move (Left)
+fungsi move_left(grid)
+    cetak("Simulating Move Left...")
+    ; Logic simplified for test
+    ; Merge row 0: [2, 2, 0, 0] -> [4, 0, 0, 0]
+
+    var val0 = vec_get(grid, 0)
+    var val1 = vec_get(grid, 1)
+
+    jika (val0 == val1)
+        var sum = val0 + val1
+        vec_set(grid, 0, sum)
+        vec_set(grid, 1, 0)
+    tutup_jika
+tutup_fungsi
+
+fungsi mulai()
+    init_builtins()
+    cetak("2048 Granular Version")
+
+    var grid = init_grid()
+
+    ; Initial State
+    var v0 = vec_get(grid, 0)
+    var v1 = vec_get(grid, 1)
+    cetak("Pos 0:")
+    cetak(v0)
+    cetak("Pos 1:")
+    cetak(v1)
+
+    ; Move
+    move_left(grid)
+
+    ; After Move
+    var v0_new = vec_get(grid, 0)
+    cetak("Pos 0 after merge:")
+    cetak(v0_new)
+
+    jika (v0_new == 4)
+        cetak("SUCCESS: Logic Works with Vector")
+    lain
+        cetak("FAILURE: Logic Error")
+    tutup_jika
+tutup_fungsi
