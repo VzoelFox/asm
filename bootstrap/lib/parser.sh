@@ -25,7 +25,7 @@ BSS_EMITTED=0          # NEW - Prevent multiple BSS sections
 
 # RECURSION DEPTH LIMIT (NEW - Fix infinite loop)
 PARSE_DEPTH=0
-MAX_PARSE_DEPTH=3
+MAX_PARSE_DEPTH=10
 
 # Block Stack for Validation
 declare -a BLOCK_STACK
@@ -42,17 +42,42 @@ push_block() {
     BLOCK_STACK+=("$1")
 }
 
+# File Stack for Context Tracking
+declare -a FILE_STACK
+
+push_file_context() {
+    FILE_STACK+=("$1")
+}
+
+pop_file_context() {
+    unset 'FILE_STACK[${#FILE_STACK[@]}-1]'
+}
+
+get_current_file() {
+    local len=${#FILE_STACK[@]}
+    if [ $len -gt 0 ]; then
+        echo "${FILE_STACK[$len-1]}"
+    else
+        echo "unknown"
+    fi
+}
+
+log_error() {
+    local msg="$1"
+    local file=$(get_current_file)
+    echo "[Error] File: $file | Line: $LINE_NO | $msg" >&2
+    exit 1
+}
+
 pop_block() {
     local expected="$1"
     local len=${#BLOCK_STACK[@]}
     if [ $len -eq 0 ]; then
-        echo "Error on line $LINE_NO: Unexpected '$expected'. No block open." >&2
-        exit 1
+        log_error "Unexpected '$expected'. No block open."
     fi
     local actual="${BLOCK_STACK[$len-1]}"
     if [ "$actual" != "$expected" ]; then
-        echo "Error on line $LINE_NO: Mismatched block closer. Expected to close '$actual' but found '$expected'." >&2
-        exit 1
+        log_error "Mismatched block closer. Expected to close '$actual' but found '$expected'."
     fi
     unset 'BLOCK_STACK[$len-1]'
 }
@@ -121,11 +146,15 @@ parse_file() {
     local input_file="$1"
     local is_entry_point=0
 
+    # Context Push
+    push_file_context "$input_file"
+
     # RECURSION DEPTH CHECK (NEW)
     PARSE_DEPTH=$((PARSE_DEPTH + 1))
     if [ $PARSE_DEPTH -gt $MAX_PARSE_DEPTH ]; then
         echo "; Warning: Max parse depth ($MAX_PARSE_DEPTH) exceeded, skipping: $input_file" >&2
         PARSE_DEPTH=$((PARSE_DEPTH - 1))
+        pop_file_context
         return
     fi
 
@@ -199,8 +228,7 @@ parse_file() {
                 in_struct_block=0
                 pop_block "struktur"
             elif [ "$line" == "akhir" ]; then
-                echo "Error on line $CURRENT_FILE_LINE: Deprecated keyword 'akhir'. Use 'tutup_struktur'." >&2
-                exit 1
+                log_error "Deprecated keyword 'akhir'. Use 'tutup_struktur'."
             else
                 if [[ "$line" =~ ^([a-zA-Z0-9_]+)[[:space:]]+([a-zA-Z0-9_]+)$ ]]; then
                     local field_name="${BASH_REMATCH[1]}"
@@ -903,8 +931,7 @@ parse_file() {
                     # Check if inside 'jika' block
                     local len=${#BLOCK_STACK[@]}
                     if [ $len -eq 0 ] || [ "${BLOCK_STACK[$len-1]}" != "jika" ]; then
-                         echo "Error on line $LINE_NO: 'lain_jika' must be inside a 'jika' block." >&2
-                         exit 1
+                         log_error "'lain_jika' must be inside a 'jika' block."
                     fi
 
                     local op1="${BASH_REMATCH[1]}"
@@ -923,8 +950,7 @@ parse_file() {
                     # Check if inside 'jika' block
                     local len=${#BLOCK_STACK[@]}
                     if [ $len -eq 0 ] || [ "${BLOCK_STACK[$len-1]}" != "jika" ]; then
-                         echo "Error on line $LINE_NO: 'lain' must be inside a 'jika' block." >&2
-                         exit 1
+                         log_error "'lain' must be inside a 'jika' block."
                     fi
                     emit_else
                 fi
@@ -1090,8 +1116,7 @@ parse_file() {
                     # Get switch var
                     local len=${#SWITCH_VAL_STACK[@]}
                     if [ $len -eq 0 ]; then
-                        echo "Error on line $LINE_NO: 'kasus' outside of 'pilih'." >&2
-                        exit 1
+                        log_error "'kasus' outside of 'pilih'."
                     fi
                     local sw_var="${SWITCH_VAL_STACK[$len-1]}"
                     local is_first="${SWITCH_FIRST_STACK[$len-1]}"
@@ -1386,6 +1411,9 @@ parse_file() {
 
     # RECURSION DEPTH DECREMENT (NEW)
     PARSE_DEPTH=$((PARSE_DEPTH - 1))
+
+    # Context Pop
+    pop_file_context
 
     if [ "$is_entry_point" -eq 1 ]; then
         emit_output

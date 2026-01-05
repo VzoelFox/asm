@@ -1,0 +1,17 @@
+; Global Access Test - Main
+ambil "examples/lib_global.fox"
+
+fungsi mulai()
+    cetak("Testing Global Access...")
+
+    ; Read initial value
+    cetak(GLOBAL_VAL)
+
+    ; Update directly
+    GLOBAL_VAL = 67890
+    cetak(GLOBAL_VAL)
+
+    ; Update via function
+    panggil update_global(99999)
+    cetak(GLOBAL_VAL)
+tutup_fungsi
