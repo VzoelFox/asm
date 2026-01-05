@@ -1,0 +1,47 @@
+
+; Test case for Granular Import restoration
+indeks "indeks.fox"
+
+Ambil 21, 22    ; cetak, cetak_str (builtins)
+Ambil 200, 201  ; vec_create, vec_push (vector)
+
+; Note: We don't need 'Ambil 18' (_override_vec_create) because 200 is vec_create
+; But vec_create (200) calls sys_alloc which is NOT in builtins.fox anymore?
+; builtins.fox has sys_mmap (14).
+; Check if sys_alloc exists or if vec_create uses sys_alloc directly.
+; vec_create calls `sys_alloc`.
+; Where is sys_alloc defined? It used to be in memory_pool or codegen helpers.
+; In codegen.sh, sys_alloc is a helper. So it is fine.
+
+fungsi mulai()
+    cetak("Starting Granular Import Test...")
+
+    var v = vec_create(10)
+    vec_push(v, 100)
+    vec_push(v, 200)
+
+    cetak("Vector created and populated.")
+
+    ; Verification? We need vec_get (202) to verify.
+    ; Let's add it.
+
+    Ambil 202 ; vec_get
+
+    var val1 = vec_get(v, 0)
+    var val2 = vec_get(v, 1)
+
+    cetak(val1) ; Should be 100
+    cetak(val2) ; Should be 200
+
+    jika (val1 == 100)
+        cetak("Test PASSED: Value 1 correct")
+    lain
+        cetak("Test FAILED: Value 1 incorrect")
+    tutup_jika
+
+    jika (val2 == 200)
+        cetak("Test PASSED: Value 2 correct")
+    lain
+        cetak("Test FAILED: Value 2 incorrect")
+    tutup_jika
+tutup_fungsi

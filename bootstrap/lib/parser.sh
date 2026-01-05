@@ -25,7 +25,7 @@ BSS_EMITTED=0          # NEW - Prevent multiple BSS sections
 
 # RECURSION DEPTH LIMIT (NEW - Fix infinite loop)
 PARSE_DEPTH=0
-MAX_PARSE_DEPTH=3
+MAX_PARSE_DEPTH=10
 
 # Block Stack for Validation
 declare -a BLOCK_STACK
