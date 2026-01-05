@@ -1,11 +1,9 @@
-### 100
 fungsi math_tambah(a, b)
   var hasil = a + b
   cetak("Hasil Tambah (via ID 100):")
   cetak(hasil)
 tutup_fungsi
 
-### 101
 fungsi math_kurang(a, b)
   var hasil = a - b
   cetak("Hasil Kurang (via ID 101):")

@@ -1,7 +1,6 @@
 ; Parser Dispatcher - Struct Handling
 ; Handles: struktur, tutup_struktur, struct fields
 
-### 1141
 fungsi dispatch_struct(line)
    ; Dispatch struct-related statements to helpers
 

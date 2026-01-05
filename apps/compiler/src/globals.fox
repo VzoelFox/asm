@@ -3,7 +3,6 @@
 ; NOTE: No Ambil here - inherits from main.fox parent
 ; ID Range: 1010-1011
 
-### 1010
 ; Global Output Buffer
 var output_lines = 0
 var global_vars = 0
@@ -28,7 +27,6 @@ var struct_names = 0
 var current_struct_name = ""
 var in_struct_block = 0
 
-### 1011
 fungsi init_globals()
   var temp_out = vec_create(1000)
   output_lines = temp_out

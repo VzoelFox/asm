@@ -2,7 +2,6 @@
 ; Provides fault tolerance infrastructure for Morph runtime
 ; ID Range: 500-519
 
-### 500
 
 ; Signal Constants (Linux x86_64)
 const SIGHUP = 1
@@ -42,7 +41,6 @@ tutup_struktur
 ; Global crash state (shared across handlers)
 var global_crash_state = 0
 
-### 501
 fungsi signal_init()
    ; Initialize signal handling system
    ; Set up handlers for crash signals
@@ -64,7 +62,6 @@ fungsi signal_init()
    cetak("[Signal] Crash detection active")
 tutup_fungsi
 
-### 502
 fungsi signal_register(signal_num, handler_func)
    ; Register signal handler using rt_sigaction syscall
    ; signal_num: Signal to catch
@@ -114,7 +111,6 @@ fungsi signal_register(signal_num, handler_func)
    cetak("[Signal] Handler registered")
 tutup_fungsi
 
-### 503
 fungsi signal_handler_segfault(sig, info, context)
    ; Handle SIGSEGV (segmentation fault)
    ; This is called by kernel on crash
@@ -170,7 +166,6 @@ fungsi signal_handler_segfault(sig, info, context)
    panggil signal_trigger_recovery(cs)
 tutup_fungsi
 
-### 504
 fungsi signal_handler_abort(sig, info, context)
    ; Handle SIGABRT (abort)
 
@@ -188,7 +183,6 @@ fungsi signal_handler_abort(sig, info, context)
    panggil signal_trigger_recovery(cs)
 tutup_fungsi
 
-### 505
 fungsi signal_handler_fpe(sig, info, context)
    ; Handle SIGFPE (floating point exception / divide by zero)
 
@@ -206,7 +200,6 @@ fungsi signal_handler_fpe(sig, info, context)
    panggil signal_trigger_recovery(cs)
 tutup_fungsi
 
-### 506
 fungsi signal_handler_bus(sig, info, context)
    ; Handle SIGBUS (bus error / alignment fault)
 
@@ -224,7 +217,6 @@ fungsi signal_handler_bus(sig, info, context)
    panggil signal_trigger_recovery(cs)
 tutup_fungsi
 
-### 507
 fungsi signal_handler_checkpoint(sig, info, context)
    ; Handle SIGUSR1 - Create checkpoint
    ; Used by morph_cleaner daemon
@@ -240,7 +232,6 @@ fungsi signal_handler_checkpoint(sig, info, context)
    cetak(checkpoint_id)
 tutup_fungsi
 
-### 508
 fungsi signal_handler_cleanup(sig, info, context)
    ; Handle SIGUSR2 - Cleanup old snapshots
    ; Used by morph_cleaner daemon
@@ -251,7 +242,6 @@ fungsi signal_handler_cleanup(sig, info, context)
    cetak("[Signal] Cleanup complete")
 tutup_fungsi
 
-### 509
 fungsi signal_trigger_recovery(crash_state)
    ; Trigger crash recovery mechanism
    ; Called by signal handlers to initiate rollback
@@ -286,7 +276,6 @@ fungsi signal_trigger_recovery(crash_state)
    cetak("[Recovery] TODO: Call cb_handle_crash()")
 tutup_fungsi
 
-### 510
 fungsi signal_get_crash_count()
    ; Get total crash count
    ; Returns: Number of crashes since init
@@ -300,7 +289,6 @@ fungsi signal_get_crash_count()
    tutup_asm
 tutup_fungsi
 
-### 511
 fungsi signal_reset_crash_count()
    ; Reset crash counter (for testing)
 
@@ -313,7 +301,6 @@ fungsi signal_reset_crash_count()
    cetak("[Signal] Crash counters reset")
 tutup_fungsi
 
-### 512
 fungsi signal_freeze_all_children()
    ; Freeze all child processes (SIGSTOP)
    ; Used during crash recovery to prevent concurrent modification
@@ -331,7 +318,6 @@ fungsi signal_freeze_all_children()
    cetak("[Signal] TODO: Implement child process freezing")
 tutup_fungsi
 
-### 513
 fungsi signal_unfreeze_all_children()
    ; Unfreeze all child processes (SIGCONT)
    ; Used after successful recovery

@@ -2,7 +2,6 @@
 ; Handles: struktur, tutup_struktur, struct fields
 ; NOTE: No Ambil here - inherits from parser.fox parent
 
-### 1110
 fungsi handle_struct_begin(line)
    ; Handle: struktur StructName
    ; Initialize struct metadata (size, offsets map, name list)
@@ -24,7 +23,6 @@ fungsi handle_struct_begin(line)
    cetak_str(struct_name_raw)
 tutup_fungsi
 
-### 1111
 fungsi handle_struct_end()
    ; Handle: tutup_struktur
    ; Close current struct definition block
@@ -33,7 +31,6 @@ fungsi handle_struct_end()
    current_struct_name = ""
 tutup_fungsi
 
-### 1112
 fungsi handle_struct_field(line)
    ; Handle: field_name field_type (inside struct block)
    ; Record field offset based on current struct size

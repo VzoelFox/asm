@@ -3,7 +3,6 @@
 # NOTE: No Ambil here - inherits from main.fox parent
 # ID Range: 1040-1047
 
-### 1040
 # Type Constants
 const TYPE_UNKNOWN = 0
 const TYPE_INT = 1
@@ -72,7 +71,6 @@ var struct_field_types = 0
 var type_errors = 0
 var type_error_count = 0
 
-### 1041
 fungsi init_type_system()
    var vtm = map_create(256)
    var_type_map = vtm
@@ -83,13 +81,11 @@ fungsi init_type_system()
    type_error_count = 0
 tutup_fungsi
 
-### 1042
 fungsi register_variable_type(var_name, type_id)
    var vtm = var_type_map
    panggil map_put(vtm, var_name, type_id)
 tutup_fungsi
 
-### 1043
 fungsi register_struct_variable(var_name, struct_name)
    var vtm = var_type_map
    panggil map_put(vtm, var_name, TYPE_STRUCT)
@@ -97,7 +93,6 @@ fungsi register_struct_variable(var_name, struct_name)
    panggil map_put(vtm, key, struct_name)
 tutup_fungsi
 
-### 1044
 fungsi get_variable_type(var_name)
    var vtm = var_type_map
    var type_id = map_get(vtm, var_name)
@@ -113,7 +108,6 @@ fungsi get_variable_type(var_name)
    kembalikan
 tutup_fungsi
 
-### 1045
 fungsi get_struct_name(var_name)
    var vtm = var_type_map
    var key = str_concat("struct_", var_name)
@@ -124,7 +118,6 @@ fungsi get_struct_name(var_name)
    kembalikan
 tutup_fungsi
 
-### 1046
 fungsi report_type_errors()
    jika (type_error_count > 0)
       cetak("=== TYPE ERRORS DETECTED ===")
@@ -146,7 +139,6 @@ fungsi report_type_errors()
    tutup_jika
 tutup_fungsi
 
-### 1047
 fungsi infer_literal_type(literal_str)
    var first_ch = str_get(literal_str, 0)
    jika (first_ch == 34)

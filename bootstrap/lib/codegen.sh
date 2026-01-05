@@ -1910,11 +1910,9 @@ emit_raw_asm() {
 }
 emit_raw_data_fixed() {
     local data_line="$1"
-    # DISABLED - Prevent multiple section .data
-    # echo "section .data"
-    # echo "    $data_line"
-    # echo "section .text"
-    echo "; Data emission disabled to prevent multiple sections: $data_line"
+    echo "section .data"
+    echo "    $data_line"
+    echo "section .text"
 }
 
 emit_output() {

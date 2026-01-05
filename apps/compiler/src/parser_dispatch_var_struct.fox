@@ -1,7 +1,6 @@
 ; Parser Dispatcher - Var Struct Instantiation
 ; Handles: var x = StructName(field1, field2, ...)
 
-### 1143
 fungsi handle_var_struct(name, struct_name_candidate, struct_args)
    ; Handle struct instantiation: var x = MyStruct(a, b, c)
 

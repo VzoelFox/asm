@@ -1,4 +1,3 @@
-### 320
 struktur FormatBuffer
   data_ptr int
   length int
@@ -26,7 +25,6 @@ fungsi format_buffer_buat(capacity)
   tutup_asm
 tutup_fungsi
 
-### 321
 fungsi format_append(buf, text)
   ; Logic: concat current data + text
   ; Current data is at buf.data_ptr
@@ -62,7 +60,6 @@ fungsi format_append(buf, text)
   tutup_asm
 tutup_fungsi
 
-### 322
 fungsi format_int(value)
   ; Convert int to string
   ; We don't have a direct helper for this exposed yet, but print_int logic exists in codegen.
@@ -172,7 +169,6 @@ fungsi format_int(value)
   tutup_asm
 tutup_fungsi
 
-### 323
 fungsi format_bool(value)
   var res = ""
   jika (value == 1)
@@ -186,7 +182,6 @@ fungsi format_bool(value)
   tutup_asm
 tutup_fungsi
 
-### 324
 fungsi format_print(text)
   cetak_str(text)
 tutup_fungsi

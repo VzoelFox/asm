@@ -2,7 +2,6 @@
 ; Combines snapshot + crash recovery + state management
 ; ID Range: 210-219
 
-### 210
 
 ; Circuit Breaker States
 const CB_CLOSED = 0      ; Normal operation
@@ -20,7 +19,6 @@ struktur CircuitBreaker
     last_failure_time int  ; Timestamp of last failure
 tutup_struktur
 
-### 211
 fungsi cb_create(failure_threshold, timeout_ms)
    ; Create new circuit breaker with thresholds
    ; Returns: CircuitBreaker pointer
@@ -39,7 +37,6 @@ fungsi cb_create(failure_threshold, timeout_ms)
    tutup_asm
 tutup_fungsi
 
-### 212
 fungsi cb_can_execute(cb)
    ; Check if execution is allowed
    ; Returns: TRUE if allowed, FALSE if blocked
@@ -73,7 +70,6 @@ fungsi cb_can_execute(cb)
    kembalikan TRUE
 tutup_fungsi
 
-### 213
 fungsi cb_on_success(cb)
    ; Record successful execution
    ; Manages state transitions
@@ -97,7 +93,6 @@ fungsi cb_on_success(cb)
    tutup_jika
 tutup_fungsi
 
-### 214
 fungsi cb_on_failure(cb)
    ; Record failed execution
    ; Creates snapshot before transitioning to OPEN
@@ -132,7 +127,6 @@ fungsi cb_on_failure(cb)
    tutup_jika
 tutup_fungsi
 
-### 215
 fungsi cb_execute_with_recovery(cb, func_ptr)
    ; Execute function with circuit breaker protection
    ; If crash → snapshot, reset, resume from checkpoint
@@ -170,7 +164,6 @@ fungsi cb_execute_with_recovery(cb, func_ptr)
    kembalikan TRUE
 tutup_fungsi
 
-### 216
 fungsi cb_handle_crash(cb)
    ; Handle crash: restore checkpoint, freeze processes, recurse
    ; This is called by signal handler on SIGSEGV/SIGABRT
@@ -202,7 +195,6 @@ fungsi cb_handle_crash(cb)
    ; TODO: Implement retry with delay
 tutup_fungsi
 
-### 217
 fungsi cb_get_state(cb)
    ; Get current state as string (for debugging)
 

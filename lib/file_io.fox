@@ -1,4 +1,3 @@
-### 318
 fungsi buffer_dari_file(filepath)
   ; 1. Open File
   var fd = 0
@@ -44,7 +43,6 @@ fungsi buffer_dari_file(filepath)
   tutup_jika
 tutup_fungsi
 
-### 319
 fungsi file_write_str(filepath, content)
   ; Flags: O_WRONLY(1) | O_CREAT(64) | O_TRUNC(512) = 577
   ; Mode: 0644 (420 decimal)

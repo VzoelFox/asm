@@ -3,7 +3,6 @@
 ; Key: "menutup unit/shard yang bermasalah bukan membongkar pasang codebase"
 ; ID Range: 200-209
 
-### 200
 
 ; Boolean Constants
 const FALSE = 0
@@ -27,7 +26,6 @@ tutup_struktur
 ; Global unit registry
 var unit_registry = 0
 
-### 201
 fungsi bool_and(a, b)
    ; Logical AND
    ; Returns: TRUE if both true, FALSE otherwise
@@ -40,7 +38,6 @@ fungsi bool_and(a, b)
    kembalikan FALSE
 tutup_fungsi
 
-### 202
 fungsi bool_or(a, b)
    ; Logical OR
    ; Returns: TRUE if at least one true
@@ -54,7 +51,6 @@ fungsi bool_or(a, b)
    kembalikan FALSE
 tutup_fungsi
 
-### 203
 fungsi bool_not(a)
    ; Logical NOT
    ; Returns: TRUE if false, FALSE if true
@@ -65,7 +61,6 @@ fungsi bool_not(a)
    kembalikan TRUE
 tutup_fungsi
 
-### 204
 fungsi bool_xor(a, b)
    ; Logical XOR
    ; Returns: TRUE if exactly one is true
@@ -82,7 +77,6 @@ fungsi bool_xor(a, b)
    kembalikan FALSE
 tutup_fungsi
 
-### 205
 fungsi unit_init_registry()
    ; Initialize global unit registry
    ; Call this before unit testing
@@ -96,7 +90,6 @@ fungsi unit_init_registry()
    cetak("[Unit] Registry ready")
 tutup_fungsi
 
-### 206
 fungsi unit_create(unit_id)
    ; Create new compilation unit
    ; Returns: CompilationUnit pointer
@@ -125,7 +118,6 @@ fungsi unit_create(unit_id)
    kembalikan unit
 tutup_fungsi
 
-### 207
 fungsi unit_close(unit_id)
    ; Close/isolate failed unit
    ; Key function: "menutup unit yang bermasalah bukan membongkar codebase"
@@ -151,7 +143,6 @@ fungsi unit_close(unit_id)
    kembalikan TRUE
 tutup_fungsi
 
-### 208
 fungsi unit_can_execute(unit_id)
    ; Test: "jika 1 ditutup, apakah crash atau bisa lanjut?"
    ; Returns: TRUE if unit can execute, FALSE if closed/isolated
@@ -174,7 +165,6 @@ fungsi unit_can_execute(unit_id)
    kembalikan TRUE
 tutup_fungsi
 
-### 209
 fungsi unit_test_isolation()
    ; Test unit isolation: Close unit 1, verify unit 2 continues
    ; This validates: "menutup unit/shard yang bermasalah bukan membongkar codebase"

@@ -2,7 +2,6 @@
 ; Handles: selama, tutup_selama
 ; NOTE: No Ambil here - inherits from parser.fox parent
 
-### 1126
 fungsi handle_selama(line)
    ; Handle: selama (condition)
    ; Emit loop start label and conditional check
@@ -52,7 +51,6 @@ fungsi handle_selama(line)
    panggil emit(jump_asm_l)
 tutup_fungsi
 
-### 1127
 fungsi handle_tutup_selama()
    ; Handle: tutup_selama
    ; Emit jump back to loop start and end label
