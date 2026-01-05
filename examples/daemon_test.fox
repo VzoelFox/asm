@@ -1,0 +1,45 @@
+; Daemon Test
+; Verifies memory sizing and automatic cleanup
+indeks "indeks.fox"
+
+Ambil 21, 24        ; cetak, init_builtins
+Ambil 400, 401, 402 ; Daemon logic
+
+fungsi mulai()
+    init_builtins()
+    cetak("Starting Daemon Test...")
+
+    ; 1. Config Setup
+    var config = DaemonConfig(5, 2, 0) ; Check every 5s, expire after 2s
+    daemon_init(config)
+
+    ; 2. Create Snapshot (Allocating 800MB heap implies we have room)
+    ; We create a snapshot to test swap mechanism
+    cetak("Creating snapshot 0...")
+    var id0 = sys_snapshot_create()
+    jika (id0 < 0)
+        cetak("Failed to create snapshot!")
+        return 1
+    tutup_jika
+    cetak("Snapshot 0 created.")
+
+    ; 3. Sleep to age the snapshot
+    cetak("Sleeping for 3 seconds...")
+    sys_sleep(3)
+
+    ; 4. Run Daemon Cycle
+    cetak("Running daemon cycle...")
+    daemon_check_snapshots(config)
+
+    ; 5. Verify Deletion
+    ; Try to restore - should fail if deleted
+    cetak("Attempting to restore deleted snapshot...")
+    var res = sys_snapshot_restore(id0)
+
+    jika (res == 0)
+        cetak("SUCCESS: Snapshot was automatically deleted.")
+    lain
+        cetak("FAILURE: Snapshot still exists!")
+    tutup_jika
+
+tutup_fungsi
