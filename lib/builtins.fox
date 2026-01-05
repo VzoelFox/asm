@@ -13,7 +13,6 @@
 ; DESIGN: All essential functions embedded, no external dependencies
 ; ============================================================================
 
-### 500
 ; === CORE SYSTEM FUNCTIONS (BUILTIN) ===
 fungsi sys_write(fd, buf, len)
     asm_mulai
@@ -25,8 +24,7 @@ fungsi sys_write(fd, buf, len)
     tutup_asm
 tutup_fungsi
 
-### 501
-fungsi sys_read(fd, buf, len)
+fungsi _override_sys_read(fd, buf, len)
     asm_mulai
     mov rax, 0
     mov rdi, [var_fd]
@@ -36,8 +34,7 @@ fungsi sys_read(fd, buf, len)
     tutup_asm
 tutup_fungsi
 
-### 502
-fungsi sys_open(path, flags, mode)
+fungsi _override_sys_open(path, flags, mode)
     asm_mulai
     mov rax, 2
     mov rdi, [var_path]
@@ -47,8 +44,7 @@ fungsi sys_open(path, flags, mode)
     tutup_asm
 tutup_fungsi
 
-### 503
-fungsi sys_close(fd)
+fungsi _override_sys_close(fd)
     asm_mulai
     mov rax, 3
     mov rdi, [var_fd]
@@ -56,7 +52,6 @@ fungsi sys_close(fd)
     tutup_asm
 tutup_fungsi
 
-### 504
 ; === MEMORY MANAGEMENT (BUILTIN) ===
 fungsi sys_mmap(addr, length, prot, flags, fd, offset)
     asm_mulai
@@ -71,7 +66,6 @@ fungsi sys_mmap(addr, length, prot, flags, fd, offset)
     tutup_asm
 tutup_fungsi
 
-### 505
 fungsi sys_munmap(addr, length)
     asm_mulai
     mov rax, 11
@@ -81,12 +75,11 @@ fungsi sys_munmap(addr, length)
     tutup_asm
 tutup_fungsi
 
-### 506
 ; === STRING OPERATIONS (BUILTIN) ===
-fungsi str_len(s)
+fungsi _override_str_len(s)
     var len = 0
     var ptr = s
-    selama (1)
+    selama (1 == 1)
         var ch = 0
         asm_mulai
         mov rbx, [var_ptr]
@@ -101,7 +94,6 @@ fungsi str_len(s)
     tutup_selama
 tutup_fungsi
 
-### 507
 fungsi str_copy(dest, src, max_len)
     var i = 0
     selama (i < max_len)
@@ -126,7 +118,6 @@ fungsi str_copy(dest, src, max_len)
     kembalikan i
 tutup_fungsi
 
-### 508
 ; === VECTOR OPERATIONS (BUILTIN) ===
 struktur Vector
     data_ptr int
@@ -134,8 +125,7 @@ struktur Vector
     capacity int
 tutup_struktur
 
-### 509
-fungsi vec_create(initial_capacity)
+fungsi _override_vec_create(initial_capacity)
     var vec_size = 24  ; sizeof(Vector)
     var vec_ptr = sys_mmap(0, vec_size, 3, 34, -1, 0)
     
@@ -154,8 +144,7 @@ fungsi vec_create(initial_capacity)
     kembalikan vec_ptr
 tutup_fungsi
 
-### 510
-fungsi vec_push(vec, value)
+fungsi _override_vec_push(vec, value)
     tipe vec Vector
     jika (vec.size >= vec.capacity)
         ; Resize needed - SECURE: no external pool dependency
@@ -199,7 +188,6 @@ fungsi vec_push(vec, value)
     tutup_asm
 tutup_fungsi
 
-### 511
 ; === SECURITY VALIDATION (BUILTIN) ===
 fungsi validate_syscall_params(syscall_num, param1, param2, param3)
     ; Whitelist allowed syscalls
@@ -229,22 +217,19 @@ fungsi validate_syscall_params(syscall_num, param1, param2, param3)
     kembalikan 0  ; Reject unknown/dangerous syscalls
 tutup_fungsi
 
-### 512
 ; === SECURE PRINT FUNCTIONS (BUILTIN) ===
 fungsi cetak(message)
-    var len = str_len(message)
+    var len = _override_str_len(message)
     sys_write(1, message, len)
-    var newline = 10
+    var newline = "\n"
     sys_write(1, newline, 1)
 tutup_fungsi
 
-### 513
 fungsi cetak_str(str_ptr)
     var len = str_len(str_ptr)
     sys_write(1, str_ptr, len)
 tutup_fungsi
 
-### 514
 ; === SECURE FILE OPERATIONS (BUILTIN) ===
 fungsi file_read_secure(filepath)
     ; SECURITY: Validate filepath
@@ -275,7 +260,6 @@ fungsi file_read_secure(filepath)
     kembalikan buffer
 tutup_fungsi
 
-### 515
 ; === INITIALIZATION (BUILTIN) ===
 fungsi init_builtins()
     ; Initialize builtin security systems

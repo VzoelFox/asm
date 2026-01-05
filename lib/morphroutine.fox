@@ -1,7 +1,6 @@
 # Morphroutine: Runtime Library for Morph Execution Architecture
 # Provides structures and constants for Unit/Shard orchestration.
 
-### 400
 
 # Status Constants
 const STATUS_PENDING = 0
@@ -40,7 +39,6 @@ fungsi check_context(ctx)
     return 1
 tutup_fungsi
 
-### 410
 
 # ===================================================================
 # AST (Abstract Syntax Tree) Structures
@@ -63,7 +61,6 @@ struktur ASTNode
     right int           ; Right child (ASTNode ptr) or 0
 tutup_struktur
 
-### 411
 fungsi ast_create_number(val)
     ; Create AST node for number literal
     ; val: Integer value
@@ -73,7 +70,6 @@ fungsi ast_create_number(val)
     kembalikan node
 tutup_fungsi
 
-### 412
 fungsi ast_create_ident(name_ptr)
     ; Create AST node for identifier (variable name)
     ; name_ptr: String pointer to variable name
@@ -83,7 +79,6 @@ fungsi ast_create_ident(name_ptr)
     kembalikan node
 tutup_fungsi
 
-### 413
 fungsi ast_create_binop(op_char, left_node, right_node)
     ; Create AST node for binary operation
     ; op_char: Operator character (43='+', 45='-', 42='*', 47='/')
@@ -95,7 +90,6 @@ fungsi ast_create_binop(op_char, left_node, right_node)
     kembalikan node
 tutup_fungsi
 
-### 414
 fungsi ast_create_unop(op_char, operand_node)
     ; Create AST node for unary operation
     ; op_char: Operator character (45='-' for negation, 33='!' for logical NOT)
@@ -106,7 +100,6 @@ fungsi ast_create_unop(op_char, operand_node)
     kembalikan node
 tutup_fungsi
 
-### 415
 fungsi ast_get_type(node)
     ; Get node type
     ; node: ASTNode pointer
@@ -116,7 +109,6 @@ fungsi ast_get_type(node)
     kembalikan node.node_type
 tutup_fungsi
 
-### 416
 fungsi ast_get_value(node)
     ; Get node value
     ; For NUMBER: returns literal value
@@ -129,7 +121,6 @@ fungsi ast_get_value(node)
     kembalikan node.value
 tutup_fungsi
 
-### 417
 fungsi ast_get_left(node)
     ; Get left child node
     ; node: ASTNode pointer
@@ -139,7 +130,6 @@ fungsi ast_get_left(node)
     kembalikan node.left
 tutup_fungsi
 
-### 418
 fungsi ast_get_right(node)
     ; Get right child node
     ; node: ASTNode pointer

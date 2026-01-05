@@ -2,14 +2,12 @@
 ; Mengatasi memory leak di Vector/HashMap resize
 ; ID Range: 350-359
 
-### 350
 ; Pool Node untuk free list
 struktur PoolNode
     ptr int         ; Pointer ke object yang di-free
     next int        ; Next node di free list
 tutup_struktur
 
-### 351
 ; Object Pool
 struktur ObjectPool
     free_list int       ; PoolNode* linked list of freed objects
@@ -18,7 +16,6 @@ struktur ObjectPool
     reuse_count int     ; Reuse counter (metric)
 tutup_struktur
 
-### 352
 fungsi pool_create(obj_size)
     ; Create new object pool
     ; obj_size: Size of objects in bytes
@@ -31,7 +28,6 @@ fungsi pool_create(obj_size)
     tutup_asm
 tutup_fungsi
 
-### 353
 fungsi pool_acquire(pool, needed_size)
     ; Acquire object from pool (reuse jika ada, alloc baru jika kosong)
     ; pool: ObjectPool pointer
@@ -87,7 +83,6 @@ fungsi pool_acquire(pool, needed_size)
     tutup_asm
 tutup_fungsi
 
-### 354
 fungsi pool_release(pool, obj_ptr)
     ; Release object back to pool untuk reuse
     ; pool: ObjectPool pointer
@@ -103,7 +98,6 @@ fungsi pool_release(pool, obj_ptr)
     pool.free_list = node
 tutup_fungsi
 
-### 355
 fungsi pool_get_stats(pool)
     ; Get pool statistics
     ; pool: ObjectPool pointer
@@ -117,7 +111,6 @@ fungsi pool_get_stats(pool)
     tutup_asm
 tutup_fungsi
 
-### 356
 fungsi pool_get_reuse_count(pool)
     ; Get reuse counter
     ; pool: ObjectPool pointer
@@ -131,7 +124,6 @@ fungsi pool_get_reuse_count(pool)
     tutup_asm
 tutup_fungsi
 
-### 357
 fungsi pool_reset(pool)
     ; Reset pool (clear free list, keep allocation counter)
     ; pool: ObjectPool pointer
@@ -141,7 +133,6 @@ fungsi pool_reset(pool)
     pool.reuse_count = 0
 tutup_fungsi
 
-### 358
 ; Global pools untuk Vector dan HashMap
 ; Initialized saat pertama kali digunakan
 
@@ -168,7 +159,6 @@ fungsi pools_init()
     kembalikan 1
 tutup_fungsi
 
-### 359
 fungsi pools_report()
     ; Print pool statistics
 

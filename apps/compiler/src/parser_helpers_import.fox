@@ -2,7 +2,6 @@
 ; Handles: ambil (file import), Daftar (registry), Ambil (ID import), indeks
 ; NOTE: No Ambil here - inherits from parser.fox parent
 
-### 1100
 fungsi handle_import_ambil(line)
    ; Handle: ambil "filepath"
    ; Recursively parse imported file if not already processed
@@ -50,7 +49,6 @@ fungsi handle_import_ambil(line)
    tutup_jika
 tutup_fungsi
 
-### 1101
 fungsi handle_import_Daftar(line)
    ; Handle: Daftar "filepath" = ID-range
    ; Delegate to supplier system
@@ -58,7 +56,6 @@ fungsi handle_import_Daftar(line)
    panggil parse_daftar_line(line)
 tutup_fungsi
 
-### 1102
 fungsi handle_import_Ambil(line)
    ; Handle: Ambil 310, 311, 312 (selective ID-based import)
    ; Parse IDs, lookup registry, extract blocks, parse recursively
@@ -135,7 +132,6 @@ fungsi handle_import_Ambil(line)
    tutup_selama
 tutup_fungsi
 
-### 1103
 fungsi handle_import_indeks(line)
    ; Handle: indeks "filepath" (load ID registry)
    ; Delegate to supplier system

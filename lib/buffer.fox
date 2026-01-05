@@ -1,4 +1,3 @@
-### 310
 struktur MemoryBuffer
   data_ptr int
   size int
@@ -26,7 +25,6 @@ fungsi buffer_buat(capacity)
   tutup_asm
 tutup_fungsi
 
-### 311
 fungsi buffer_tulis(buf, data)
   tipe buf MemoryBuffer
   ; Check if readonly
@@ -81,7 +79,6 @@ fungsi buffer_tulis(buf, data)
   tutup_jika
 tutup_fungsi
 
-### 312
 fungsi buffer_baca(buf, size)
   tipe buf MemoryBuffer
   ; Read 'size' bytes from current position
@@ -123,7 +120,6 @@ fungsi buffer_baca(buf, size)
   tutup_asm
 tutup_fungsi
 
-### 313
 fungsi buffer_seek(buf, pos)
   tipe buf MemoryBuffer
   jika (pos >= 0)
@@ -149,7 +145,6 @@ fungsi buffer_seek(buf, pos)
   tutup_jika
 tutup_fungsi
 
-### 314
 fungsi buffer_size(buf)
   tipe buf MemoryBuffer
   var s = buf.size
@@ -158,14 +153,12 @@ fungsi buffer_size(buf)
   tutup_asm
 tutup_fungsi
 
-### 315
 fungsi buffer_reset(buf)
   tipe buf MemoryBuffer
   buf.size = 0
   buf.position = 0
 tutup_fungsi
 
-### 316
 fungsi buffer_readonly(buf)
   tipe buf MemoryBuffer
   buf.is_readonly = 1

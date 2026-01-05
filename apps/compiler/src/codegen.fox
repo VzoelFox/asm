@@ -3,7 +3,6 @@
 ; NOTE: No Ambil here - inherits from main.fox parent
 ; ID Range: 1030
 
-### 1030
 fungsi emit(line)
   var vec = output_lines
   panggil vec_push(vec, line)

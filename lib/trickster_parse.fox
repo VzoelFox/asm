@@ -6,7 +6,6 @@ Ambil 220, 221, 222 ; Tokenize
 Ambil 410, 411, 412, 413 ; AST structures
 Ambil 340, 341, 342, 343, 344 ; Vector
 
-### 223
 fungsi trickster_parse_to_ast(expr_str)
    ; Parse expression string and build AST
    ; Returns: ASTNode pointer (root of expression tree)
@@ -87,7 +86,6 @@ fungsi trickster_parse_to_ast(expr_str)
    kembalikan ast_root
 tutup_fungsi
 
-### 224
 fungsi trickster_build_ast_from_rpn(rpn)
    ; Build AST tree from RPN token queue
    ; Returns: Root ASTNode pointer

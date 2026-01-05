@@ -1,7 +1,6 @@
 ; Parser Dispatcher - Control Flow Handling
 ; Handles: fungsi, tutup_fungsi, jika, lain, lain_jika, tutup_jika, selama, tutup_selama
 
-### 1142
 fungsi dispatch_control(line)
    ; Dispatch control flow statements to helpers
 

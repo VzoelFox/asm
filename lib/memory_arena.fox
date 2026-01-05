@@ -2,7 +2,6 @@
 ; Untuk allocations yang bisa di-reset sekaligus (contoh: per-frame game state)
 ; ID Range: 360-369
 
-### 360
 ; Arena Structure
 struktur Arena
     start_ptr int       ; Start of arena memory
@@ -12,7 +11,6 @@ struktur Arena
     name_ptr int        ; Optional name (string ptr)
 tutup_struktur
 
-### 361
 ; Arena Registry (Global)
 var ARENA_REGISTRY_PTR = 0
 var ARENA_COUNT = 0
@@ -43,7 +41,6 @@ fungsi arena_init_registry()
     kembalikan 1
 tutup_fungsi
 
-### 362
 fungsi arena_create(size_bytes, name_ptr)
     ; Create new arena
     ; size_bytes: Size of arena in bytes
@@ -78,7 +75,6 @@ fungsi arena_create(size_bytes, name_ptr)
     tutup_asm
 tutup_fungsi
 
-### 363
 fungsi arena_alloc(arena, size)
     ; Allocate from arena (bump pointer)
     ; arena: Arena pointer
@@ -103,7 +99,6 @@ fungsi arena_alloc(arena, size)
     tutup_asm
 tutup_fungsi
 
-### 364
 fungsi arena_reset(arena)
     ; Reset arena (bump pointer kembali ke start)
     ; Semua allocations di-invalidate
@@ -114,7 +109,6 @@ fungsi arena_reset(arena)
     arena.current_ptr = start
 tutup_fungsi
 
-### 365
 fungsi arena_get_usage(arena)
     ; Get current usage in bytes
     ; arena: Arena pointer
@@ -130,7 +124,6 @@ fungsi arena_get_usage(arena)
     tutup_asm
 tutup_fungsi
 
-### 366
 fungsi arena_get_capacity(arena)
     ; Get total capacity
     ; arena: Arena pointer
@@ -146,7 +139,6 @@ fungsi arena_get_capacity(arena)
     tutup_asm
 tutup_fungsi
 
-### 367
 fungsi arena_destroy_all()
     ; Reset all arenas (cleanup)
     ; Returns: Number of arenas reset
@@ -171,7 +163,6 @@ fungsi arena_destroy_all()
     tutup_asm
 tutup_fungsi
 
-### 368
 fungsi arena_print_stats(arena)
     ; Print arena statistics
     ; arena: Arena pointer
@@ -199,7 +190,6 @@ fungsi arena_print_stats(arena)
     cetak(" bytes")
 tutup_fungsi
 
-### 369
 fungsi arena_report_all()
     ; Print stats untuk semua arenas
 

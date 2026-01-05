@@ -3,7 +3,6 @@
 # NOTE: No Ambil here - inherits from main.fox parent
 # ID Range: 1050-1056
 
-### 1050
 # Global ID Registry
 var id_map = 0
 var processed_blocks = 0
@@ -18,7 +17,6 @@ fungsi init_supplier_system()
    block_lines = bl
 tutup_fungsi
 
-### 1051
 fungsi register_id_to_file(id, filepath)
    var im = id_map
    panggil map_put(im, id, filepath)
@@ -33,7 +31,6 @@ fungsi get_file_for_id(id)
    tutup_asm
 tutup_fungsi
 
-### 1052
 fungsi is_block_processed(filepath, id)
    var id_str = format_int(id)
    var key = str_concat(filepath, ":")
@@ -60,7 +57,6 @@ fungsi mark_block_processed(filepath, id)
    panggil map_put(pb, key, 1)
 tutup_fungsi
 
-### 1053
 fungsi parse_daftar_line(line)
    var quote1_idx = str_index_of(line, 34)
    jika (quote1_idx < 0)
@@ -109,7 +105,6 @@ fungsi parse_daftar_line(line)
    tutup_jika
 tutup_fungsi
 
-### 1054
 fungsi parse_daftar_list(ids_trimmed, filepath)
    var id_list = vec_create(20)
    var current_num = ""
@@ -149,7 +144,6 @@ fungsi parse_daftar_list(ids_trimmed, filepath)
    tutup_selama
 tutup_fungsi
 
-### 1055
 fungsi extract_block_by_id(filepath, id, output_vec)
    var buf = buffer_dari_file(filepath)
    jika (buf == 0)
@@ -211,7 +205,6 @@ fungsi extract_block_by_id(filepath, id, output_vec)
    tutup_asm
 tutup_fungsi
 
-### 1056
 fungsi handle_indeks_line(line)
    var quote1_idx = str_index_of(line, 34)
    jika (quote1_idx < 0)

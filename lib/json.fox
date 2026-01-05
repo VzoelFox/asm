@@ -1,4 +1,3 @@
-### 350
 struktur JsonValue
   type int
   string_val int
@@ -56,7 +55,6 @@ fungsi json_parse(input)
   tutup_asm
 tutup_fungsi
 
-### 351
 fungsi json_stringify(val)
   tipe val JsonValue
   var type = val.type
@@ -104,7 +102,6 @@ fungsi json_stringify(val)
   tutup_asm
 tutup_fungsi
 
-### 352
 fungsi json_get(val, key)
   tipe val JsonValue
   var type = val.type
@@ -120,7 +117,6 @@ fungsi json_get(val, key)
   tutup_asm
 tutup_fungsi
 
-### 353
 fungsi json_arr_get(val, idx)
   tipe val JsonValue
   var type = val.type
@@ -139,7 +135,6 @@ tutup_fungsi
 
 ; --- INTERNAL PARSERS (KERNEL OPTIMIZED) ---
 
-### 360
 fungsi json_skip_whitespace(parser)
   tipe parser JsonParser
   var input = parser.input
@@ -196,7 +191,6 @@ fungsi json_advance(parser)
    tutup_jika
 tutup_fungsi
 
-### 361
 fungsi json_parse_value(parser)
   panggil json_skip_whitespace(parser)
 
@@ -244,7 +238,6 @@ fungsi json_parse_value(parser)
   tutup_asm
 tutup_fungsi
 
-### 362
 fungsi json_parse_object(parser)
   tipe parser JsonParser
   panggil json_advance(parser)
@@ -292,7 +285,6 @@ fungsi json_parse_object(parser)
   tutup_asm
 tutup_fungsi
 
-### 363
 fungsi json_parse_array(parser)
   tipe parser JsonParser
   panggil json_advance(parser)
@@ -330,7 +322,6 @@ fungsi json_parse_array(parser)
   tutup_asm
 tutup_fungsi
 
-### 364
 fungsi json_parse_string(parser)
   tipe parser JsonParser
   var input = parser.input
@@ -374,7 +365,6 @@ fungsi json_parse_string(parser)
   tutup_asm
 tutup_fungsi
 
-### 365
 fungsi json_parse_number(parser)
   tipe parser JsonParser
   var input = parser.input
@@ -417,7 +407,6 @@ fungsi json_parse_number(parser)
   tutup_asm
 tutup_fungsi
 
-### 366
 fungsi json_parse_keyword(parser)
   tipe parser JsonParser
   var ch = parser.current_char
