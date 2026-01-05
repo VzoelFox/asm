@@ -1,6 +1,21 @@
-; Main Parser for Self-Hosted Compiler
-; Handles parsing Fox source code and generating assembly
+; ============================================================================
+; Morph Self-Hosted Compiler - Parser Module
+; ============================================================================
+;
+; Version: 0.3.0 (Modular ID-Based)
+; Updated: 2026-01-05
+;
+; This is the main parser entry point. It imports all helper and dispatcher
+; modules via ID-based system, then provides parse_source_lines() function.
+;
+; Engineering: Kiro (AWS Q CLI Agent)
+; Reference: docs/MODULAR_ARCHITECTURE.md
+; Original architecture by: Claude Code (Anthropic)
+;
+; For archived versions, see: apps/compiler/src/archive/
+; ============================================================================
 
+; Standard Library
 Ambil 310, 311, 312, 313, 314, 315, 316 ; Buffer
 Ambil 318, 319 ; File IO
 Ambil 320, 321, 322, 323, 324 ; Format
@@ -9,22 +24,22 @@ Ambil 340, 341, 342, 343, 344 ; Vector
 Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
 Ambil 390, 391 ; str_to_int, str_index_of
 
-; Import helper modules
-ambil "apps/compiler/src/parser_helpers_import.fox"
-ambil "apps/compiler/src/parser_helpers_struct.fox"
-ambil "apps/compiler/src/parser_helpers_fungsi.fox"
-ambil "apps/compiler/src/parser_helpers_jika.fox"
-ambil "apps/compiler/src/parser_helpers_loop.fox"
-ambil "apps/compiler/src/parser_helpers_stmt.fox"
+; Parser Helpers (ID-based import)
+Ambil 1100, 1101, 1102, 1103 ; parser_helpers_import
+Ambil 1110, 1111, 1112 ; parser_helpers_struct
+Ambil 1120, 1121 ; parser_helpers_fungsi
+Ambil 1122, 1123, 1124, 1125 ; parser_helpers_jika
+Ambil 1126, 1127 ; parser_helpers_loop
+Ambil 1130, 1131, 1132, 1133, 1134, 1135, 1136, 1137, 1138, 1139 ; parser_helpers_stmt
 
-; Import dispatcher modules
-ambil "apps/compiler/src/parser_dispatch_import.fox"
-ambil "apps/compiler/src/parser_dispatch_struct.fox"
-ambil "apps/compiler/src/parser_dispatch_control.fox"
-ambil "apps/compiler/src/parser_dispatch_var_struct.fox"
-ambil "apps/compiler/src/parser_dispatch_var_simple.fox"
-ambil "apps/compiler/src/parser_dispatch_cetak.fox"
-ambil "apps/compiler/src/parser_dispatch_panggil.fox"
+; Parser Dispatchers (ID-based import)
+Ambil 1140 ; parser_dispatch_import
+Ambil 1141 ; parser_dispatch_struct
+Ambil 1142 ; parser_dispatch_control
+Ambil 1143 ; parser_dispatch_var_struct
+Ambil 1144 ; parser_dispatch_var_simple
+Ambil 1145 ; parser_dispatch_cetak
+Ambil 1146 ; parser_dispatch_panggil
 
 fungsi parse_source_lines(lines)
   var line_count = vec_len(lines)

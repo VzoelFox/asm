@@ -1,6 +1,25 @@
+# ============================================================================
 # Morph Standard Library ID Registry
+# ============================================================================
+#
 # Central index mapping IDs to library modules
 # Usage: indeks "indeks.fox" then Ambil <ids>
+#
+# Last Updated: 2026-01-05
+# Engineers: Claude Code (Anthropic), Kiro (AWS Q CLI Agent)
+#
+# ID Range Allocation:
+#   100-199  : Math utilities
+#   200-299  : Boolean, Circuit Breaker
+#   300-399  : Core data structures (Buffer, File IO, Format, Hashmap, Vector)
+#   380-399  : String utilities
+#   400-499  : Morphroutine, AST, JSON
+#   1000-1099: Compiler core (main, globals, constants, codegen, types, supplier)
+#   1100-1199: Parser helpers
+#   1140-1149: Parser dispatchers
+#   1150-1199: Expression parser
+#
+# ============================================================================
 
 # Buffer Library (310-316)
 Daftar "lib/buffer.fox" = 310-316
@@ -52,3 +71,14 @@ Daftar "apps/compiler/src/parser_dispatch_panggil.fox" = 1146
 
 # Compiler Expression Parser (1150-1152)
 Daftar "apps/compiler/src/exprs.fox" = 1150-1152  ; AST-based expression compiler
+
+# Compiler Core Modules (1010-1030)
+Daftar "apps/compiler/src/globals.fox" = 1010-1011    ; Global variables
+Daftar "apps/compiler/src/constants.fox" = 1020-1021 ; String constants
+Daftar "apps/compiler/src/codegen.fox" = 1030        ; Code emission
+
+# Compiler Type System (1040-1047)
+Daftar "apps/compiler/src/types.fox" = 1040-1047     ; Type checking
+
+# Compiler Supplier System (1050-1056)
+Daftar "apps/compiler/src/supplier.fox" = 1050-1056  ; ID-based imports

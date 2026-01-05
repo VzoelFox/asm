@@ -1,9 +1,9 @@
 ; Global Variables for Self-Hosted Compiler
 ; Shared state across parser, codegen, and type system
+; NOTE: No Ambil here - inherits from main.fox parent
+; ID Range: 1010-1011
 
-Ambil 330, 331, 332, 333 ; Hashmap
-Ambil 340, 341, 342, 343, 344 ; Vector
-
+### 1010
 ; Global Output Buffer
 var output_lines = 0
 var global_vars = 0
@@ -28,6 +28,7 @@ var struct_names = 0
 var current_struct_name = ""
 var in_struct_block = 0
 
+### 1011
 fungsi init_globals()
   var temp_out = vec_create(1000)
   output_lines = temp_out

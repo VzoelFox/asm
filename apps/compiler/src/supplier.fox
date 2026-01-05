@@ -1,70 +1,51 @@
 # Supplier System - ID-based Import Management
 # Handles Daftar, Ambil (ID-based), and indeks for granular module loading
+# NOTE: No Ambil here - inherits from main.fox parent
+# ID Range: 1050-1056
 
+### 1050
 # Global ID Registry
-# Maps ID (integer) -> filepath (string)
 var id_map = 0
-
-# Processed blocks tracker
-# Maps "filepath:id" -> 1 (to prevent duplicate imports)
 var processed_blocks = 0
-
-# Block extraction buffer
 var block_lines = 0
 
 fungsi init_supplier_system()
-   ; Initialize ID registry and tracking
    var im = map_create(512)
    id_map = im
-
    var pb = map_create(256)
    processed_blocks = pb
-
    var bl = vec_create(100)
    block_lines = bl
 tutup_fungsi
 
+### 1051
 fungsi register_id_to_file(id, filepath)
-   ; Register single ID to filepath mapping
-   ; id: integer ID (e.g., 310)
-   ; filepath: string path (e.g., "lib/buffer.fox")
-
    var im = id_map
    panggil map_put(im, id, filepath)
 tutup_fungsi
 
 fungsi get_file_for_id(id)
-   ; Lookup filepath for given ID
-   ; Returns filepath or 0 if not found
-
    var im = id_map
    var filepath = map_get(im, id)
-
    asm_mulai
    mov rax, [var_filepath]
    ret
    tutup_asm
 tutup_fungsi
 
+### 1052
 fungsi is_block_processed(filepath, id)
-   ; Check if block already imported
-   ; Returns 1 if processed, 0 otherwise
-
-   ; Build key: "filepath:id"
    var id_str = format_int(id)
    var key = str_concat(filepath, ":")
    key = str_concat(key, id_str)
-
    var pb = processed_blocks
    var status = map_get(pb, key)
-
    jika (status == 1)
       asm_mulai
       mov rax, 1
       ret
       tutup_asm
    tutup_jika
-
    asm_mulai
    mov rax, 0
    ret
@@ -72,24 +53,17 @@ fungsi is_block_processed(filepath, id)
 tutup_fungsi
 
 fungsi mark_block_processed(filepath, id)
-   ; Mark block as processed to prevent re-import
-
    var id_str = format_int(id)
    var key = str_concat(filepath, ":")
    key = str_concat(key, id_str)
-
    var pb = processed_blocks
    panggil map_put(pb, key, 1)
 tutup_fungsi
 
+### 1053
 fungsi parse_daftar_line(line)
-   ; Parse: Daftar "lib/buffer.fox" = 310-316
-   ; or:    Daftar "lib/vector.fox" = 340, 341, 342
-
-   ; Extract filepath (between quotes)
    var quote1_idx = str_index_of(line, 34)
    jika (quote1_idx < 0)
-      cetak("[SUPPLIER] Error: Daftar syntax - no opening quote")
       asm_mulai
       ret
       tutup_asm
@@ -99,110 +73,86 @@ fungsi parse_daftar_line(line)
    var rest1 = str_substring_after(line, after_quote1)
    var quote2_idx = str_index_of(rest1, 34)
    jika (quote2_idx < 0)
-      cetak("[SUPPLIER] Error: Daftar syntax - no closing quote")
       asm_mulai
       ret
       tutup_asm
    tutup_jika
 
    var filepath = str_slice(rest1, 0, quote2_idx)
-
-   ; Find '=' sign
    var eq_idx = str_index_of(line, 61)
    jika (eq_idx < 0)
-      cetak("[SUPPLIER] Error: Daftar syntax - no '=' sign")
       asm_mulai
       ret
       tutup_asm
    tutup_jika
 
-   ; Extract ID range/list after '='
    var after_eq = eq_idx + 1
    var ids_part = str_substring_after(line, after_eq)
    var ids_trimmed = str_trim(ids_part)
-
-   ; Check for range (contains '-')
    var dash_idx = str_index_of(ids_trimmed, 45)
+
    jika (dash_idx >= 0)
-      ; Range format: 310-316
       var start_str = str_slice(ids_trimmed, 0, dash_idx)
       var start_trim = str_trim(start_str)
       var start_id = str_to_int(start_trim)
-
       var after_dash = dash_idx + 1
       var end_str = str_substring_after(ids_trimmed, after_dash)
       var end_trim = str_trim(end_str)
       var end_id = str_to_int(end_trim)
-
-      ; Register range
       var current_id = start_id
       selama (current_id <= end_id)
          panggil register_id_to_file(current_id, filepath)
          current_id = current_id + 1
       tutup_selama
-
-      cetak("[SUPPLIER] Registered range:")
-      cetak(start_id)
-      cetak(end_id)
-      cetak_str(filepath)
    lain
-      ; Comma-separated list: 340, 341, 342
-      ; Simple parser: split by comma
-      var id_list = vec_create(20)
-      var current_num = ""
-      var idx = 0
-      var len = str_len(ids_trimmed)
-
-      selama (idx < len)
-         var ch = str_get(ids_trimmed, idx)
-         jika (ch == 44)
-            ; Comma found, parse number
-            var num_trim = str_trim(current_num)
-            var num_len = str_len(num_trim)
-            jika (num_len > 0)
-               var id_val = str_to_int(num_trim)
-               panggil vec_push(id_list, id_val)
-            tutup_jika
-            current_num = ""
-         lain
-            var ch_str = str_slice(ids_trimmed, idx, idx + 1)
-            current_num = str_concat(current_num, ch_str)
-         tutup_jika
-         idx = idx + 1
-      tutup_selama
-
-      ; Parse last number
-      var last_trim = str_trim(current_num)
-      var last_len = str_len(last_trim)
-      jika (last_len > 0)
-         var last_id = str_to_int(last_trim)
-         panggil vec_push(id_list, last_id)
-      tutup_jika
-
-      ; Register all IDs
-      var count = vec_len(id_list)
-      var i = 0
-      selama (i < count)
-         var id = vec_get(id_list, i)
-         panggil register_id_to_file(id, filepath)
-         i = i + 1
-      tutup_selama
-
-      cetak("[SUPPLIER] Registered IDs:")
-      cetak(count)
-      cetak_str(filepath)
+      panggil parse_daftar_list(ids_trimmed, filepath)
    tutup_jika
 tutup_fungsi
 
-fungsi extract_block_by_id(filepath, id, output_vec)
-   ; Extract code block marked with ### <id> from file
-   ; Stores extracted lines in output_vec
-   ; Returns 1 if found, 0 otherwise
+### 1054
+fungsi parse_daftar_list(ids_trimmed, filepath)
+   var id_list = vec_create(20)
+   var current_num = ""
+   var idx = 0
+   var len = str_len(ids_trimmed)
 
+   selama (idx < len)
+      var ch = str_get(ids_trimmed, idx)
+      jika (ch == 44)
+         var num_trim = str_trim(current_num)
+         var num_len = str_len(num_trim)
+         jika (num_len > 0)
+            var id_val = str_to_int(num_trim)
+            panggil vec_push(id_list, id_val)
+         tutup_jika
+         current_num = ""
+      lain
+         var ch_str = str_slice(ids_trimmed, idx, idx + 1)
+         current_num = str_concat(current_num, ch_str)
+      tutup_jika
+      idx = idx + 1
+   tutup_selama
+
+   var last_trim = str_trim(current_num)
+   var last_len = str_len(last_trim)
+   jika (last_len > 0)
+      var last_id = str_to_int(last_trim)
+      panggil vec_push(id_list, last_id)
+   tutup_jika
+
+   var count = vec_len(id_list)
+   var i = 0
+   selama (i < count)
+      var id = vec_get(id_list, i)
+      panggil register_id_to_file(id, filepath)
+      i = i + 1
+   tutup_selama
+tutup_fungsi
+
+### 1055
+fungsi extract_block_by_id(filepath, id, output_vec)
    var buf = buffer_dari_file(filepath)
    jika (buf == 0)
-      cetak("[SUPPLIER] Error: Cannot read file:")
-      cetak_str(filepath)
       asm_mulai
       mov rax, 0
       ret
@@ -222,22 +172,18 @@ fungsi extract_block_by_id(filepath, id, output_vec)
    selama (idx < line_count)
       var line = vec_get(lines, idx)
       var trimmed = str_trim(line)
-
-      ; Check for marker: "### <id>"
       var is_marker = str_starts_with(trimmed, "###")
+
       jika (is_marker == 1)
-         ; Extract ID from marker
          var after_hash = str_substring_after(trimmed, 3)
          var id_str = str_trim(after_hash)
          var marker_id = str_to_int(id_str)
 
          jika (marker_id == id)
-            ; Found target block
             in_target_block = 1
             found = 1
          lain
             jika (in_target_block == 1)
-               ; Hit next block marker, stop extraction
                asm_mulai
                mov rax, 1
                ret
@@ -245,13 +191,10 @@ fungsi extract_block_by_id(filepath, id, output_vec)
             tutup_jika
          tutup_jika
       lain
-         ; Regular line
          jika (in_target_block == 1)
-            ; Add line to output
             panggil vec_push(output_vec, line)
          tutup_jika
       tutup_jika
-
       idx = idx + 1
    tutup_selama
 
@@ -262,24 +205,16 @@ fungsi extract_block_by_id(filepath, id, output_vec)
       tutup_asm
    tutup_jika
 
-   cetak("[SUPPLIER] Warning: Block not found:")
-   cetak(id)
-   cetak_str(filepath)
-
    asm_mulai
    mov rax, 0
    ret
    tutup_asm
 tutup_fungsi
 
+### 1056
 fungsi handle_indeks_line(line)
-   ; Parse: indeks "registry.fox"
-   ; Load and execute Daftar statements from registry file
-
-   ; Extract filepath
    var quote1_idx = str_index_of(line, 34)
    jika (quote1_idx < 0)
-      cetak("[SUPPLIER] Error: indeks syntax - no opening quote")
       asm_mulai
       ret
       tutup_asm
@@ -289,22 +224,14 @@ fungsi handle_indeks_line(line)
    var rest = str_substring_after(line, after_quote1)
    var quote2_idx = str_index_of(rest, 34)
    jika (quote2_idx < 0)
-      cetak("[SUPPLIER] Error: indeks syntax - no closing quote")
       asm_mulai
       ret
       tutup_asm
    tutup_jika
 
    var filepath = str_slice(rest, 0, quote2_idx)
-
-   cetak("[SUPPLIER] Loading index:")
-   cetak_str(filepath)
-
-   ; Read index file
    var buf = buffer_dari_file(filepath)
    jika (buf == 0)
-      cetak("[SUPPLIER] Error: Cannot read index file:")
-      cetak_str(filepath)
       asm_mulai
       ret
       tutup_asm
@@ -315,20 +242,16 @@ fungsi handle_indeks_line(line)
    var lines = vec_create(100)
    panggil str_split_lines(content, lines)
 
-   ; Process each Daftar line
    var line_count = vec_len(lines)
    var idx = 0
 
    selama (idx < line_count)
       var registry_line = vec_get(lines, idx)
       var trimmed = str_trim(registry_line)
-
-      ; Check if Daftar line
       var is_daftar = str_starts_with(trimmed, "Daftar")
       jika (is_daftar == 1)
          panggil parse_daftar_line(trimmed)
       tutup_jika
-
       idx = idx + 1
    tutup_selama
 tutup_fungsi

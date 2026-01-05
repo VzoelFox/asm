@@ -1,5 +1,9 @@
 ; String Constants for Assembly Code Generation
 ; These are initialized at runtime to avoid bootstrap parser issues
+; NOTE: No Ambil here - inherits from main.fox parent
+; ID Range: 1020-1021
+
+### 1020
 
 ; --- GLOBAL CONSTANTS (Declarations) ---
 var s_msg_skip = 0
@@ -61,6 +65,7 @@ var s_nl = 0
 var s_print_int = 0
 var s_print_ptr = 0
 
+### 1021
 fungsi init_constants()
   s_msg_skip = "Skipped already imported: "
   s_colon = ":"

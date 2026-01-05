@@ -1,10 +1,6 @@
 ; Parser Helpers - Conditional Logic (jika/lain/tutup_jika)
 ; Handles: jika, lain, lain_jika, tutup_jika
-
-Ambil 320, 321, 322, 323, 324 ; Format
-Ambil 330, 331, 332, 333 ; Hashmap
-Ambil 340, 341, 342, 343, 344 ; Vector
-Ambil 380, 381, 382, 383, 384, 385, 386, 387, 388 ; String Utils
+; NOTE: No Ambil here - inherits from parser.fox parent
 
 ### 1122
 fungsi handle_jika(line)
