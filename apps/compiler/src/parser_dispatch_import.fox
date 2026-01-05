@@ -1,7 +1,6 @@
 ; Parser Dispatcher - Import Handling
 ; Handles: ambil, Ambil, Daftar, indeks
 
-### 1140
 fungsi dispatch_import(line)
    ; Dispatch import-related statements to helpers
 

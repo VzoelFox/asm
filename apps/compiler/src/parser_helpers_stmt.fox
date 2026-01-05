@@ -6,7 +6,6 @@
 ; For Phase 1 refactoring, we keep main logic inline and extract to helpers progressively.
 ; NOTE: No Ambil here - inherits from parser.fox parent
 
-### 1130
 fungsi is_var_line(line)
    ; Check if line is var declaration
    var result = str_starts_with(line, "var ")
@@ -15,7 +14,6 @@ fungsi is_var_line(line)
    tutup_asm
 tutup_fungsi
 
-### 1131
 fungsi is_const_line(line)
    ; Check if line is const declaration
    var result = str_starts_with(line, "const ")
@@ -24,7 +22,6 @@ fungsi is_const_line(line)
    tutup_asm
 tutup_fungsi
 
-### 1132
 fungsi is_cetak_str_line(line)
    ; Check if line is cetak_str call
    var result = str_starts_with(line, "cetak_str(")
@@ -33,7 +30,6 @@ fungsi is_cetak_str_line(line)
    tutup_asm
 tutup_fungsi
 
-### 1133
 fungsi is_cetak_line(line)
    ; Check if line is cetak call
    var result = str_starts_with(line, "cetak(")
@@ -42,7 +38,6 @@ fungsi is_cetak_line(line)
    tutup_asm
 tutup_fungsi
 
-### 1134
 fungsi is_panggil_line(line)
    ; Check if line is panggil (function call)
    var result = str_starts_with(line, "panggil ")
@@ -51,7 +46,6 @@ fungsi is_panggil_line(line)
    tutup_asm
 tutup_fungsi
 
-### 1135
 fungsi is_asm_mulai(line)
    ; Check if line is asm block start
    var result = str_starts_with(line, "asm_mulai")
@@ -60,7 +54,6 @@ fungsi is_asm_mulai(line)
    tutup_asm
 tutup_fungsi
 
-### 1136
 fungsi is_tutup_asm(line)
    ; Check if line is asm block end
    var result = str_starts_with(line, "tutup_asm")
@@ -69,7 +62,6 @@ fungsi is_tutup_asm(line)
    tutup_asm
 tutup_fungsi
 
-### 1137
 fungsi is_kembalikan(line)
    ; Check if line is return statement
    var result = str_starts_with(line, "kembalikan")
@@ -78,7 +70,6 @@ fungsi is_kembalikan(line)
    tutup_asm
 tutup_fungsi
 
-### 1138
 fungsi is_tipe_assertion(line)
    ; Check if line is type assertion
    var result = str_starts_with(line, "tipe ")
@@ -87,7 +78,6 @@ fungsi is_tipe_assertion(line)
    tutup_asm
 tutup_fungsi
 
-### 1139
 fungsi is_assignment(line)
    ; Check if line is assignment (contains "=")
    var eq_idx = str_index_of(line, "=")

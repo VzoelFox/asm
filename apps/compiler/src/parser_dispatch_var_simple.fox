@@ -1,7 +1,6 @@
 ; Parser Dispatcher - Var Simple + Entry Point
 ; Handles: var x = value, var y = a + b, var z = StructName(...)
 
-### 1144
 fungsi dispatch_var(line)
    ; Main dispatcher for var declarations
 

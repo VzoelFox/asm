@@ -1,7 +1,6 @@
 ; Parser Dispatcher - Cetak Handling
 ; Handles: cetak("string"), cetak(var), cetak_str(var)
 
-### 1145
 fungsi dispatch_cetak(line)
    ; Dispatch cetak and cetak_str statements
 

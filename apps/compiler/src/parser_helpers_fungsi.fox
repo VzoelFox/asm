@@ -2,7 +2,6 @@
 ; Handles: fungsi, tutup_fungsi, jika, lain, lain_jika, tutup_jika, selama, tutup_selama
 ; NOTE: No Ambil here - inherits from parser.fox parent
 
-### 1120
 fungsi handle_fungsi_begin(line)
    ; Handle: fungsi func_name(param1, param2, ...)
    ; Emit function prologue and parameter handling
@@ -97,7 +96,6 @@ fungsi handle_fungsi_begin(line)
    tutup_jika
 tutup_fungsi
 
-### 1121
 fungsi handle_fungsi_end()
    ; Handle: tutup_fungsi
    ; Emit function epilogue

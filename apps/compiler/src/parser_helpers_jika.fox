@@ -2,7 +2,6 @@
 ; Handles: jika, lain, lain_jika, tutup_jika
 ; NOTE: No Ambil here - inherits from parser.fox parent
 
-### 1122
 fungsi handle_jika(line)
    ; Handle: jika (condition)
    ; Parse condition, emit conditional jump
@@ -53,7 +52,6 @@ fungsi handle_jika(line)
    panggil emit(jump_asm)
 tutup_fungsi
 
-### 1123
 fungsi handle_lain_jika(line)
    ; Handle: lain_jika (condition)
    ; Currently not implemented
@@ -61,7 +59,6 @@ fungsi handle_lain_jika(line)
    panggil emit("    ; lain_jika not implemented")
 tutup_fungsi
 
-### 1124
 fungsi handle_lain()
    ; Handle: lain
    ; Emit else branch jump logic
@@ -87,7 +84,6 @@ fungsi handle_lain()
    panggil vec_push(stack_e, new_id)
 tutup_fungsi
 
-### 1125
 fungsi handle_tutup_jika()
    ; Handle: tutup_jika
    ; Emit end label for if/else block

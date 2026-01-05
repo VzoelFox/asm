@@ -1,64 +1,62 @@
-# Laporan Sesi Pengembangan - Refactoring & Stabilisasi Compiler Self-Hosted
-
-**Tanggal:** 3 Januari 2025
-**Kontributor:** Jules (AI Assistant)
+# Laporan Sesi Refactoring & Stabilisasi Compiler Morph
+**Engineer:** Jules
+**Tanggal:** 2026-01-05 (Session Log)
 
 ## Ringkasan Eksekutif
-Sesi ini difokuskan pada upaya stabilisasi compiler self-hosted (`apps/compiler/src/main.fox`) agar dapat dikompilasi oleh bootstrap compiler dan dijalankan dengan sukses. Upaya utama meliputi perbaikan bug kritis pada bootstrap parser, implementasi fungsi standar yang hilang, dan refactoring besar-besaran struktur kode compiler self-hosted untuk mengatasi batasan memori/stack pada bootstrap compiler.
+Sesi ini berfokus pada pembersihan "hutang teknis" (technical debt) yang ditinggalkan oleh iterasi sebelumnya, stabilisasi *bootstrap compiler*, dan modernisasi arsitektur *self-hosted compiler* agar lebih standar dan mudah dipelihara.
 
-## Perubahan Dilakukan
+**Status Akhir:**
+*   **Compiler:** Berhasil dikompilasi (bootstrap), berjalan di VPS, membaca input, dan menghasilkan output assembly.
+*   **Runtime:** Stabil (Crash saat inisialisasi telah diperbaiki).
+*   **Struktur:** Bersih (File-based imports, tanpa ID markers).
+*   **Memori:** Dinamis (Alokasi 20% RAM Host).
 
-### 1. Refactoring Struktur Compiler Self-Hosted
-Untuk mengatasi masalah stabilitas (crash) saat kompilasi file besar, `apps/compiler/src/main.fox` dipecah menjadi beberapa modul terpisah:
+---
 
-*   **`apps/compiler/src/main.fox`**: Entry point utama yang ringkas. Mengatur urutan inisialisasi dan memanggil parser utama.
-*   **`apps/compiler/src/globals.fox`**: Deklarasi variabel global, buffer output, dan alokasi memori awal (`vec_create`, `map_create`). Mengimpor library standar via `Ambil`.
-*   **`apps/compiler/src/constants.fox`**: Inisialisasi konstanta string assembler (`s_mov_rax`, dll). **Penting:** Dipisahkan dari `globals.fox` karena inisialisasi string dalam jumlah besar pada satu fungsi menyebabkan crash runtime (kemungkinan batasan ukuran fungsi atau stack pada bootstrap).
-*   **`apps/compiler/src/codegen.fox`**: Utilitas code generation dasar (`emit`).
-*   **`apps/compiler/src/parser.fox`**: Logika parsing utama (`parse_source_lines`) yang dipindahkan dari `main.fox`.
-*   **`apps/compiler/src/types.fox`**: Definisi sistem tipe, struct (`Token`, `ExprNode`), dan konstanta tipe.
+## Detail Perubahan
 
-### 2. Bug Fixes
+### 1. Refactoring Sistem Import (Modular ID -> File-Based)
+Sistem impor berbasis ID (warisan Kiro AI) yang rumit dan rentan kesalahan telah dihapus total.
 
-#### A. Bootstrap Parser (`bootstrap/lib/parser.sh`)
-*   **Masalah:** Argumen fungsi yang mengandung spasi atau tanda kutip rusak karena penggunaan `xargs`.
-*   **Fix:** Mengganti pipe `xargs` dengan `sed` untuk trimming whitespace agar integritas string literal terjaga.
+*   **Tindakan:**
+    *   Mengganti sintaks `Ambil <ID>` menjadi `ambil "filepath"` di seluruh source code (`apps/compiler/src/main.fox`, `parser.fox`, `exprs.fox`).
+    *   Menghapus file `indeks.fox` (Global Registry) yang menjadi titik kegagalan sentral.
+    *   Membersihkan penanda `### <ID>` dari seluruh file source code `.fox`.
+*   **Dampak:** Kode kini lebih mudah dibaca ("Readable for AI") dan dependensi antar-file menjadi eksplisit.
 
-#### B. Standard Library (`lib/string_utils.fox`)
-*   **Masalah:** Fungsi `str_to_int` dan `str_index_of` hilang namun dibutuhkan oleh compiler.
-*   **Fix:** Mengimplementasikan kedua fungsi tersebut (ID 390, 391) dan mendaftarkannya di `utils.fox` dan `tagger.fox`.
+### 2. Perbaikan Critical Bugs (Bootstrap Kernel)
+Ditemukan dan diperbaiki sejumlah bug kritis pada infrastruktur dasar (*bootstrap compiler* dalam Bash):
 
-#### C. Type System (`apps/compiler/src/types.fox`)
-*   **Masalah:** Penggunaan konstanta `const` (seperti `TYPE_INT`) di dalam blok `asm_mulai` menyebabkan error "symbol not defined". Bootstrap compiler memperlakukan `const` sebagai variabel global, bukan literal assembler.
-*   **Fix:** Mengganti penggunaan konstanta di dalam blok ASM dengan literal integer langsung.
+*   **Parser (`bootstrap/lib/parser.sh`):**
+    *   **Label Collision:** Menambahkan `GLOBAL_STR_CTR` untuk mencegah duplikasi label string (`str_arg_...`) saat mengimpor banyak file. Sebelumnya label bertabrakan karena reset baris per file.
+    *   **Range Import:** Memperbaiki regex `Ambil` agar mendukung rentang (misal `380-391`) - *Legacy fix sebelum migrasi total*.
+*   **Codegen (`bootstrap/lib/codegen.sh`):**
+    *   **Data Emission:** Mengaktifkan kembali fungsi `emit_raw_data_fixed` yang sebelumnya dikomentari (disabled), yang menyebabkan string literal tidak terdefinisi (`undefined symbol`).
 
-#### D. Import Ordering (`apps/compiler/src/main.fox`)
-*   **Masalah:** `globals.fox` menggunakan `Ambil` (butuh `ID_MAP`), tetapi `ID_MAP` baru diisi oleh `utils.fox` (via `Daftar`). Jika `globals.fox` di-load sebelum `utils.fox`, library tidak ter-load.
-*   **Fix:** Memastikan `apps/compiler/pkg/utils.fox` di-load paling awal di `main.fox`.
+### 3. Stabilisasi Runtime & Memory System
+Mengatasi masalah *Segmentation Fault* dan skalabilitas memori.
 
-### 3. Fitur Baru
-*   Menambahkan definisi struct `Token` dan `ExprNode` (untuk persiapan Trickster/Expression Parser) serta `Unit` dan `Shard` (untuk arsitektur Absolute AST) di `types.fox`.
+*   **Dynamic Heap Allocation:**
+    *   Memodifikasi `codegen.sh` untuk mendeteksi total RAM host secara dinamis via syscall `sysinfo`.
+    *   Ukuran Heap kini di-set ke **20% Total RAM** (dengan fallback 64MB). Ini memungkinkan testing di Sandbox (RAM kecil) dan produksi di VPS (RAM besar) tanpa ubah kode.
+*   **Fix `init_constants` Crash:**
+    *   Memecah fungsi raksasa `init_constants` menjadi 3 bagian (`init_constants_1`, `2`, `3`). Ukuran fungsi yang berlebihan sebelumnya menyebabkan korupsi stack pada output bootstrap.
+*   **Cleaner Daemon (`morph_cleaner.sh`):**
+    *   Menulis ulang script menjadi sederhana dan jujur: hanya memantau penggunaan RAM dan membersihkan *page cache* jika >80%. Menghapus fitur-fitur fiktif/rusak.
 
-## Gap & Hutang Teknis (Technical Debt)
+### 4. Perbaikan Pustaka Standar (`lib/`)
+*   **Symbol Conflicts:** Mengubah nama fungsi sistem di `lib/builtins.fox` (misal `sys_read` -> `_override_sys_read`) untuk mencegah konflik linking dengan helper bawaan bootstrap.
+*   **Logic Fixes:**
+    *   Memperbaiki sintaks loop `selama (1)` menjadi `selama (1 == 1)` agar kompatibel dengan parser bootstrap.
+    *   Memperbaiki passing pointer newline pada `sys_write`.
 
-### 1. Crash Runtime "Silent"
-Compiler self-hosted berhasil dikompilasi dan dijalankan (mencetak log debug inisialisasi dan parsing awal), namun berhenti mendadak tanpa pesan "Success!".
-*   **Dugaan:** Masih ada sisa masalah memori atau stack overflow di tahap akhir code generation atau penulisan file output.
-*   **Status:** Inisialisasi global sudah stabil setelah pemisahan `constants.fox`, namun eksekusi penuh masih belum 100% tuntas.
+### 5. Cleanup (Kebersihan Repositori)
+*   Menghapus direktori `tools/` berisi skrip rusak (`morph_robot`).
+*   Menghapus dokumentasi usang dan menyesatkan di `docs/` dan root.
+*   Menghapus file sampah sementara hasil debugging.
 
-### 2. Output Assembly Korup
-Pada percobaan sebelumnya, file `output.asm` yang dihasilkan mengandung string sampah ("Hello from Library!") yang tidak seharusnya ada. Ini mengindikasikan buffer output mungkin tidak bersih atau ada pointer yang salah sasaran.
+---
 
-### 3. Batasan Bootstrap Compiler
-Bootstrap compiler (Bash) memiliki batasan yang tidak terdokumentasi dengan baik terkait ukuran fungsi dan jumlah literal string, yang memaksa pemecahan `init_globals`.
-
-### 4. Implementasi `const`
-Keyword `const` pada bootstrap compiler sebenarnya membuat variabel global (`var`), bukan konstanta compile-time atau assembler macros (`equ`). Ini membingungkan saat digunakan di blok inline assembly.
-
-### 5. Expression Parsing (Trickster)
-Meskipun struktur data (`ExprNode`) sudah ada, logika parsing ekspresi kompleks belum diimplementasikan di sisi self-hosted.
-
-## Rekomendasi Langkah Selanjutnya
-1.  **Debugging Code Generation:** Investigasi mengapa compiler berhenti setelah parsing (periksa `emit` dan `sys_write`).
-2.  **Implementasi Trickster:** Mulai porting logika parsing ekspresi ke `parser.fox` menggunakan struct baru.
-3.  **Unit Testing:** Buat test case lebih kecil untuk setiap modul compiler self-hosted.
+## Langkah Selanjutnya (Rekomendasi)
+1.  **Debugging Output Assembly:** Meskipun compiler berjalan, output `output.asm` yang dihasilkan masih mengandung label sampah (`len_msg_\x88...`) dan string aneh. Logika *string concatenation* atau *label generation* di level `morph` (self-hosted) perlu diperiksa.
+2.  **Self-Hosting:** Mencoba mengompilasi `apps/compiler/src/main.fox` menggunakan *compiler yang baru dihasilkan* (bukan bootstrap).

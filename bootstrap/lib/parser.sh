@@ -2,6 +2,9 @@
 
 # Note: codegen.sh should be sourced by the main script before this.
 
+# Global String Counter
+GLOBAL_STR_CTR=0
+
 # Symbol Table Arrays (Global)
 declare -A STRUCT_SIZES
 declare -A STRUCT_OFFSETS
@@ -381,33 +384,49 @@ parse_file() {
                         echo "; Error: Import file not found: $import_path"
                     fi
 
-                # Check for Global ID List (only numbers and commas)
-                elif [[ "$line" =~ ^Ambil[[:space:]]+([0-9,[:space:]]+)$ ]]; then
+                # Check for Global ID List (numbers, commas, and dashes)
+                elif [[ "$line" =~ ^Ambil[[:space:]]+([0-9,[:space:]-]+)$ ]]; then
                     local ids="${BASH_REMATCH[1]}"
                     IFS=',' read -ra ID_LIST <<< "$ids"
-                    for id in "${ID_LIST[@]}"; do
-                        id=$(echo "$id" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
+                    for item in "${ID_LIST[@]}"; do
+                        item=$(echo "$item" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")
 
-                        # Lookup in ID_MAP
-                        local mapped_file="${ID_MAP[$id]}"
-                        if [ -n "$mapped_file" ]; then
-                            # Found mapping!
-                            local block_key="${mapped_file}:${id}"
-                            if [ "${PROCESSED_BLOCKS[$block_key]}" == "1" ]; then continue; fi
-                            PROCESSED_BLOCKS[$block_key]=1
+                        # Handle Range (e.g., 100-105)
+                        local start_id=""
+                        local end_id=""
 
-                            local tmp_file="_import_${id}_$$.fox"
-                            extract_block_by_id "$mapped_file" "$id" > "$tmp_file"
-                            
-                            # DEPTH CHECK before recursive parse
-                            if [ $PARSE_DEPTH -lt $MAX_PARSE_DEPTH ]; then
-                                parse_file "$tmp_file"
-                            else
-                                echo "; Warning: Skipping deep import: $mapped_file:$id (depth=$PARSE_DEPTH)"
-                            fi
-                            rm "$tmp_file"
-                        else
-                            echo "; Error: ID $id not found in registry. Did you load 'indeks'?"
+                        if [[ "$item" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+                             start_id="${BASH_REMATCH[1]}"
+                             end_id="${BASH_REMATCH[2]}"
+                        elif [[ "$item" =~ ^([0-9]+)$ ]]; then
+                             start_id="$item"
+                             end_id="$item"
+                        fi
+
+                        if [[ -n "$start_id" ]]; then
+                             for (( id=start_id; id<=end_id; id++ )); do
+                                  # Lookup in ID_MAP
+                                  local mapped_file="${ID_MAP[$id]}"
+                                  if [ -n "$mapped_file" ]; then
+                                      # Found mapping!
+                                      local block_key="${mapped_file}:${id}"
+                                      if [ "${PROCESSED_BLOCKS[$block_key]}" == "1" ]; then continue; fi
+                                      PROCESSED_BLOCKS[$block_key]=1
+
+                                      local tmp_file="_import_${id}_$$.fox"
+                                      extract_block_by_id "$mapped_file" "$id" > "$tmp_file"
+
+                                      # DEPTH CHECK before recursive parse
+                                      if [ $PARSE_DEPTH -lt $MAX_PARSE_DEPTH ]; then
+                                          parse_file "$tmp_file"
+                                      else
+                                          echo "; Warning: Skipping deep import: $mapped_file:$id (depth=$PARSE_DEPTH)"
+                                      fi
+                                      rm "$tmp_file"
+                                  else
+                                      echo "; Warning: ID $id not found in registry."
+                                  fi
+                             done
                         fi
                     done
                 fi
@@ -605,7 +624,8 @@ parse_file() {
                                 if [[ "$val" =~ ^\"(.*)\"$ ]]; then
                                     # String Literal support for panggil
                                     local content="${BASH_REMATCH[1]}"
-                                    local label="str_arg_p_${LINE_NO}_${arg_count}"
+                                        ((GLOBAL_STR_CTR++))
+                                        local label="str_arg_p_${GLOBAL_STR_CTR}"
                                     emit_raw_data_fixed "$label db \`$content\`, 0"
                                     echo "    mov $target_reg, $label"
                                 elif [[ "$val" =~ ^-?[0-9]+$ ]]; then
@@ -790,7 +810,8 @@ parse_file() {
                                          if [[ "$val" =~ ^\"(.*)\"$ ]]; then
                                              # String Literal
                                              local content="${BASH_REMATCH[1]}"
-                                             local label="str_arg_${LINE_NO}_${arg_count}"
+                                             ((GLOBAL_STR_CTR++))
+                                             local label="str_arg_${GLOBAL_STR_CTR}"
                                              emit_raw_data_fixed "$label db \`$content\`, 0"
                                              echo "    mov $target_reg, $label"
                                          elif [[ "$val" =~ ^-?[0-9]+$ ]]; then
@@ -1195,7 +1216,8 @@ parse_file() {
                                     if [[ "$val" =~ ^\"(.*)\"$ ]]; then
                                         # String Literal
                                         local content="${BASH_REMATCH[1]}"
-                                        local label="str_arg_imp_${LINE_NO}_${arg_count}"
+                                        ((GLOBAL_STR_CTR++))
+                                        local label="str_arg_imp_${GLOBAL_STR_CTR}"
                                         emit_raw_data_fixed "$label db \`$content\`, 0"
                                         echo "    mov $target_reg, $label"
                                     elif [[ "$val" =~ ^-?[0-9]+$ ]]; then

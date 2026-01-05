@@ -26,35 +26,28 @@
 ; For archived versions, see: apps/compiler/src/archive/
 ; ============================================================================
 
-### 1000
-; Morph Self-Hosted Compiler Entry Point (Refactored)
-; NOTE: Uses ID-based imports to avoid recursive file parsing
+; Morph Self-Hosted Compiler Entry Point (Refactored to File Imports)
 
-; === SECURITY: AUTO-LOAD BUILTINS ===
-indeks "indeks.fox"
-Ambil 500-515  ; Builtins - security hardened core functions
-
-; === MEMORY SYSTEM (CRITICAL FOR ROBUSTNESS) ===
-Ambil 350-359  ; Memory pool - prevent Vector/HashMap leaks
-Ambil 360-369  ; Memory arena - scoped allocation
-
-; === STANDARD LIBRARY (File-based imports) ===
+; === SECURITY & CORE LIBS ===
+ambil "lib/builtins.fox"
+ambil "lib/memory_pool.fox"
+ambil "lib/memory_arena.fox"
+ambil "lib/format.fox"
+ambil "lib/hashmap.fox"
 ambil "lib/buffer.fox"
 ambil "lib/file_io.fox"
 ambil "lib/vector.fox"
 ambil "lib/string_utils.fox"
 
-; === COMPILER MODULES (ID-based imports) ===
-indeks "indeks.fox"
-Ambil 1010, 1011 ; globals
-Ambil 1020, 1021 ; constants
-Ambil 1030 ; codegen
-Ambil 1040, 1041, 1042, 1043, 1044, 1045, 1046, 1047 ; types
-Ambil 1050, 1051, 1052, 1053, 1054, 1055, 1056 ; supplier
+; === COMPILER MODULES ===
+ambil "apps/compiler/src/globals.fox"
+ambil "apps/compiler/src/constants.fox"
+ambil "apps/compiler/src/codegen.fox"
+ambil "apps/compiler/src/types.fox"
+ambil "apps/compiler/src/supplier.fox"
 
-; === PARSER HELPERS & DISPATCHERS ===
-; NOTE: Moved to parser.fox to reduce main.fox size below 150 lines
-; main.fox calls parse_source_lines() which has access to all parser functions
+; === PARSER MODULE ===
+ambil "apps/compiler/src/parser.fox"
 
 fungsi mulai(arg_unused1, arg_unused2)
   ; === SECURITY INITIALIZATION ===

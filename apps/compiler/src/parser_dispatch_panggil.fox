@@ -1,7 +1,6 @@
 ; Parser Dispatcher - Panggil (Function Call) Handling
 ; Handles: panggil func_name(arg1, arg2, ...)
 
-### 1146
 fungsi dispatch_panggil(line)
    ; Dispatch function call statements
 

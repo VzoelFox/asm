@@ -6,7 +6,6 @@
 ; SCOPE: Only critical syscalls and validation - keep minimal for security
 ; ============================================================================
 
-### 500
 ; === SECURE SYSCALL WRAPPER ===
 ; FIX: Added missing syscalls (read, open, close, mmap, munmap)
 fungsi secure_syscall(num, p1, p2, p3)
@@ -92,7 +91,6 @@ fungsi secure_syscall(num, p1, p2, p3)
     kembalikan result
 tutup_fungsi
 
-### 501
 ; === SECURE PRINT ===
 fungsi secure_print(msg)
     var len = 0
@@ -115,7 +113,6 @@ fungsi secure_print(msg)
     panggil secure_syscall(1, 1, msg, len)  ; write(stdout, msg, len)
 tutup_fungsi
 
-### 502
 ; === SECURITY INIT ===
 fungsi init_security()
     panggil secure_print("Morph Security: Builtins loaded")
