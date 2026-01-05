@@ -1,3 +1,4 @@
+### 221
 fungsi hash_djb2(key)
   ; DJB2 Hash Algorithm
   var hash = 5381
@@ -26,17 +27,20 @@ fungsi hash_djb2(key)
   tutup_asm
 tutup_fungsi
 
+### 222
 struktur HashNode
   key int
   value int
   next int
 tutup_struktur
 
+### 223
 struktur HashMap
   buckets int
   capacity int
 tutup_struktur
 
+### 224
 fungsi map_create(capacity)
   var map = HashMap(0, capacity)
 
@@ -63,6 +67,7 @@ fungsi map_create(capacity)
   tutup_asm
 tutup_fungsi
 
+### 225
 fungsi map_put(map, key, value)
   tipe map HashMap
 
@@ -135,6 +140,7 @@ fungsi map_put(map, key, value)
   tutup_jika
 tutup_fungsi
 
+### 226
 fungsi map_get(map, key)
   tipe map HashMap
 

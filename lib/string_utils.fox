@@ -1,3 +1,4 @@
+### 300
 fungsi str_len(s)
   var len = 0
   asm_mulai
@@ -10,6 +11,7 @@ fungsi str_len(s)
   tutup_asm
 tutup_fungsi
 
+### 301
 fungsi str_slice(s, start, len)
   var new_ptr = 0
   asm_mulai
@@ -37,6 +39,7 @@ fungsi str_slice(s, start, len)
   tutup_asm
 tutup_fungsi
 
+### 302
 fungsi str_get(str_ptr, idx_val)
   ; Get byte at index from string s
   ; Renamed args to avoid collision with callers using 's' or 'i'/'index'
@@ -55,6 +58,7 @@ fungsi str_get(str_ptr, idx_val)
   tutup_asm
 tutup_fungsi
 
+### 303
 fungsi str_trim(s)
   var len = str_len(s)
   var start = 0
@@ -115,6 +119,7 @@ fungsi str_trim(s)
   tutup_jika
 tutup_fungsi
 
+### 304
 fungsi str_split_lines(content, vec)
   ; Renamed vars to avoid collision with global vars in other functions
   var content_len = str_len(content)
@@ -141,6 +146,7 @@ fungsi str_split_lines(content, vec)
   tutup_jika
 tutup_fungsi
 
+### 305
 fungsi str_starts_with(target_str, prefix_str)
   ; Renamed args to prevent 'var_s' collision with str_len/str_get
   var len_p = str_len(prefix_str)
@@ -169,6 +175,7 @@ fungsi str_starts_with(target_str, prefix_str)
   tutup_asm
 tutup_fungsi
 
+### 306
 fungsi str_split_once(s, delim_char)
    ; Returns Vector of size 2. [0]=left, [1]=right.
    ; If delim not found, [0]=s, [1]=""
@@ -205,6 +212,7 @@ fungsi str_split_once(s, delim_char)
    tutup_asm
 tutup_fungsi
 
+### 307
 fungsi str_substring_after(s, start_index)
   var len_sub = str_len(s)
   var res_str = ""
@@ -218,6 +226,7 @@ fungsi str_substring_after(s, start_index)
   tutup_asm
 tutup_fungsi
 
+### 308
 fungsi str_newline()
   var nl_ptr = 0
   asm_mulai
@@ -233,6 +242,7 @@ fungsi str_newline()
   tutup_asm
 tutup_fungsi
 
+### 309
 fungsi str_index_of(s, char_to_find)
    var len = str_len(s)
    var i = 0
@@ -252,6 +262,7 @@ fungsi str_index_of(s, char_to_find)
    tutup_asm
 tutup_fungsi
 
+### 310
 fungsi str_to_int(s)
    var len = str_len(s)
    var res = 0
