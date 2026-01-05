@@ -1,0 +1,86 @@
+; Morph Daemon Library
+; Handles automatic memory management and snapshot cleaning
+; Granular ID Range: 400-410 (Assigned)
+
+### 400
+struktur DaemonConfig
+    check_interval int
+    max_snapshot_age int
+    last_check_time int
+tutup_struktur
+
+### 401
+fungsi daemon_init(config)
+    tipe config DaemonConfig
+    config.check_interval = 30    ; Check every 30 seconds
+    config.max_snapshot_age = 30  ; Remove if older than 30s
+    config.last_check_time = 0
+
+    var now = sys_get_timestamp()
+    config.last_check_time = now
+
+    cetak("Daemon initialized.")
+tutup_fungsi
+
+### 402
+fungsi daemon_check_snapshots(config)
+    tipe config DaemonConfig
+
+    var now = sys_get_timestamp()
+    var diff = now - config.last_check_time
+
+    ; Only run if interval passed
+    jika (diff < config.check_interval)
+        return 0
+    tutup_jika
+
+    config.last_check_time = now
+    cetak("Daemon: Running snapshot cleanup cycle...")
+
+    ; Loop through snapshots (0-3)
+    var i = 0
+    selama (i < 4)
+        ; Check if snapshot active and get its timestamp
+        ; We need direct access to timestamp array, but it's in BSS?
+        ; The assembly has `snapshot_timestamps` array.
+        ; We can access it via helper function in assembly or direct memory?
+        ; Direct memory access to label is hard without exposing it as var.
+        ; BUT, we can add a helper `sys_get_snapshot_info(id)` returning timestamp?
+        ; Or `sys_get_snapshot_timestamp(id)`?
+
+        ; Since we can't easily modify codegen on the fly to add new helpers without risk,
+        ; let's check if we can read the BSS label directly.
+        ; `var ts = snapshot_timestamps[i]` won't work easily in high-level.
+
+        ; WORKAROUND: We need `sys_get_snapshot_timestamp` exposed.
+        ; Since it's not in codegen, we can add it via inline ASM here!
+
+        var ts = 0
+        asm_mulai
+        mov rbx, [var_i]
+        mov rax, [snapshot_timestamps + rbx * 8]
+        mov [var_ts], rax
+        tutup_asm
+
+        jika (ts > 0)
+            var age = now - ts
+            jika (age > config.max_snapshot_age)
+                cetak("Daemon: Removing expired snapshot ID:")
+                cetak(i)
+                sys_snapshot_free(i)
+            tutup_jika
+        tutup_jika
+
+        i = i + 1
+    tutup_selama
+
+    cetak("Daemon: Cleanup complete.")
+tutup_fungsi
+
+### 403
+fungsi daemon_run_cycle(config)
+    panggil daemon_check_snapshots(config)
+
+    ; Future: Check Sandbox zombies
+    ; Future: Swap management
+tutup_fungsi

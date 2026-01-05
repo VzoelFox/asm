@@ -1,0 +1,7 @@
+; Global Access Test - Library
+var GLOBAL_VAL = 12345
+
+fungsi update_global(val)
+    GLOBAL_VAL = val
+    cetak("Global updated inside lib.")
+tutup_fungsi
